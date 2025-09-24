@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light dark; }
+body { @apply bg-neutral-950 text-neutral-100; }
+.card { @apply rounded-2xl p-5 shadow-lg bg-neutral-900 border border-neutral-800; }
+.h1 { @apply text-2xl font-semibold; }
+.mono { font-variant-ligatures: none; font-feature-settings: "ss01"; }

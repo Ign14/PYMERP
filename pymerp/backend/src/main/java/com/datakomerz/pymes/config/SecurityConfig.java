@@ -1,0 +1,125 @@
+package com.datakomerz.pymes.config;
+
+import com.datakomerz.pymes.security.AppUserDetailsService;
+import com.datakomerz.pymes.security.jwt.JwtAuthenticationFilter;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+@Configuration
+@EnableMethodSecurity(prePostEnabled = true)
+public class SecurityConfig {
+
+  private final AppProperties appProperties;
+  private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final AppUserDetailsService userDetailsService;
+
+  public SecurityConfig(AppProperties appProperties,
+                        JwtAuthenticationFilter jwtAuthenticationFilter,
+                        AppUserDetailsService userDetailsService) {
+    this.appProperties = appProperties;
+    this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    this.userDetailsService = userDetailsService;
+  }
+
+  @Bean
+  SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    http.csrf(csrf -> csrf.disable())
+      .cors(Customizer.withDefaults())
+      .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+    boolean oidcEnabled = appProperties.getSecurity().getJwt().isOidcEnabled();
+
+    if (oidcEnabled) {
+      // resource server mode (Keycloak/Auth0) - use standard JWT converter for roles claim 'roles'
+      http.authorizeHttpRequests(auth -> auth
+          .requestMatchers("/actuator/**", "/api/v1/auth/**").permitAll()
+          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+          .anyRequest().authenticated()
+        )
+        .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+    } else {
+      // default: internal JWT filter + DAO auth provider
+      http.authorizeHttpRequests(auth -> auth
+          .requestMatchers("/actuator/**", "/api/v1/auth/**").permitAll()
+          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+          .anyRequest().authenticated()
+        )
+        .authenticationProvider(authenticationProvider())
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+    }
+    return http.build();
+  }
+
+  @Bean
+  public DaoAuthenticationProvider authenticationProvider() {
+    DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+    provider.setUserDetailsService(userDetailsService);
+    provider.setPasswordEncoder(passwordEncoder());
+    return provider;
+  }
+
+  @Bean
+  public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+    return configuration.getAuthenticationManager();
+  }
+
+  @Bean
+  public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+  }
+
+  @Bean
+  CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration cfg = new CorsConfiguration();
+    var origins = appProperties.getCors().getAllowedOrigins();
+    if (origins == null || origins.isEmpty()) {
+      cfg.setAllowedOriginPatterns(List.of("*"));
+    } else {
+      cfg.setAllowedOrigins(origins);
+    }
+    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "X-Company-Id"));
+    cfg.setAllowCredentials(true);
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", cfg);
+    return source;
+  }
+
+  /**
+   * JwtAuthenticationConverter that extracts roles from the claim `realm_access.roles` and
+   * converts them to authorities with prefix `ROLE_`.
+   */
+  private JwtAuthenticationConverter jwtAuthenticationConverter() {
+    JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+    converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+      // delegate to our utility which works with a claims map
+      Map<String, Object> claims = jwt.getClaims();
+      return com.datakomerz.pymes.security.OidcRoleMapper.mapRolesFromClaims(claims);
+    });
+    return converter;
+  }
+}

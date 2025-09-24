@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Adjuntar a Spring Boot (5005)",
+      "type": "java",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    },
+    {
+      "name": "Ejecutar PymesApplication (dev)",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "com.datakomerz.pymes.PymesApplication",
+      "vmArgs": "-Dspring.profiles.active=dev -Dserver.port=8081",
+      "env": {
+        "POSTGRES_HOST": "localhost",
+        "POSTGRES_PORT": "55432",
+        "POSTGRES_DB": "pymes",
+        "POSTGRES_USER": "pymes",
+        "POSTGRES_PASSWORD": "pymes",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "MAIL_HOST": "localhost",
+        "MAIL_PORT": "1025",
+        "AWS_REGION": "us-east-1",
+        "MINIO_ROOT_USER": "minioadmin",
+        "MINIO_ROOT_PASSWORD": "minioadmin",
+        "S3_ENDPOINT": "http://localhost:9000",
+        "S3_BUCKET": "pymes-dev"
+      }
+    }
+  ]
+}

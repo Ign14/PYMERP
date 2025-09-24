@@ -1,0 +1,12 @@
+{
+  "name": "pymerp-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/run-ui.js run dev",
+    "build": "node scripts/run-ui.js run build",
+    "preview": "node scripts/run-ui.js run preview"
+  },
+  "workspaces": [
+    "ui"
+  ]
+}

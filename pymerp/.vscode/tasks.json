@@ -1,0 +1,120 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test Protected Endpoint",
+			"type": "shell",
+			"command": "powershell",
+			"args": ["-ExecutionPolicy","Bypass","-File","scripts/test-protected.ps1"],
+			"problemMatcher": []
+		},
+		{
+			"label": "bootRun:dev (debug 5005)",
+			"type": "shell",
+			"command": "./gradlew",
+			"windows": {
+				"command": "gradlew.bat"
+			},
+			"args": [
+				"bootRun",
+				"--args=--spring.profiles.active=dev --server.port=8081",
+				"-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+			],
+			"options": {
+				"env": {
+					"POSTGRES_HOST": "localhost",
+					"POSTGRES_PORT": "55432",
+					"POSTGRES_DB": "pymes",
+					"POSTGRES_USER": "pymes",
+					"POSTGRES_PASSWORD": "pymes",
+					"REDIS_HOST": "localhost",
+					"REDIS_PORT": "6379",
+					"MAIL_HOST": "localhost",
+					"MAIL_PORT": "1025",
+					"AWS_REGION": "us-east-1",
+					"MINIO_ROOT_USER": "minioadmin",
+					"MINIO_ROOT_PASSWORD": "minioadmin",
+					"S3_ENDPOINT": "http://localhost:9000",
+					"S3_BUCKET": "pymes-dev"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": [
+				{
+					"pattern": [
+						{
+							"regexp": ".+",
+							"file": 1,
+							"location": 2,
+							"message": 0
+						}
+					],
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": ".*Starting PymesApplication.*",
+						"endsPattern": ".*Started PymesApplication.*"
+					}
+				}
+			],
+			"group": "build"
+		},
+		{
+			"label": "bootRun:dev (sin debug)",
+			"type": "shell",
+			"command": "./gradlew",
+			"windows": {
+				"command": "gradlew.bat"
+			},
+			"args": [
+				"bootRun",
+				"--args=--spring.profiles.active=dev --server.port=8081"
+			],
+			"options": {
+				"env": {
+					"POSTGRES_HOST": "localhost",
+					"POSTGRES_PORT": "55432",
+					"POSTGRES_DB": "pymes",
+					"POSTGRES_USER": "pymes",
+					"POSTGRES_PASSWORD": "pymes",
+					"REDIS_HOST": "localhost",
+					"REDIS_PORT": "6379",
+					"MAIL_HOST": "localhost",
+					"MAIL_PORT": "1025",
+					"AWS_REGION": "us-east-1",
+					"MINIO_ROOT_USER": "minioadmin",
+					"MINIO_ROOT_PASSWORD": "minioadmin",
+					"S3_ENDPOINT": "http://localhost:9000",
+					"S3_BUCKET": "pymes-dev"
+				}
+			},
+			"group": "build"
+		},
+		{
+			"label": "Iniciar backend",
+			"type": "shell",
+			"command": "./gradlew bootRun",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Iniciar backend (windows)",
+			"type": "shell",
+			"command": "cmd /c gradlew.bat bootRun",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Iniciar backend (ruta backend)",
+			"type": "shell",
+			"command": "cmd /c backend\\gradlew.bat bootRun",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

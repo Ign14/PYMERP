@@ -1,0 +1,10 @@
+[package]
+name = "pymes-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "1.6", features = ["shell-open", "updater"] }
+
+[build-dependencies]
+tauri-build = { version = "1.6", features = [] }

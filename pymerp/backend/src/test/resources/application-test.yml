@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:pymes_test;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+app:
+  tenancy:
+    default-company-id: 00000000-0000-0000-0000-000000000001
+  security:
+    jwt:
+      oidc-enabled: true
+      secret: test-secret-change-me-should-be-32-chars
+      expiration-seconds: 3600
+      refresh-expiration-seconds: 86400

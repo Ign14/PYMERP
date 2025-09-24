@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/1",
+  "build": {
+    "beforeBuildCommand": "cd ../ui && npm install && npm run build",
+    "beforeDevCommand": "cd ../ui && npm install && npm run dev",
+    "devPath": "../ui",
+    "distDir": "../ui/dist"
+  },
+  "package": {
+    "productName": "PyMEs Suite",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "windows": [
+      {
+        "title": "PyMEs Suite",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640
+      }
+    ],
+    "bundle": {
+      "active": true,
+      "targets": ["msi"],
+      "identifier": "com.datakomerz.pymes.desktop"
+    },
+    "updater": {
+      "active": false
+    }
+  }
+}

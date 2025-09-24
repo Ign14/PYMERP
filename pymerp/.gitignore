@@ -1,0 +1,24 @@
+﻿# Backend / Java
+/build/
+/out/
+/.gradle/
+*.iml
+/.idea/
+/target/
+*.log
+
+# Flutter
+app_flutter/build/
+app_flutter/.dart_tool/
+app_flutter/.packages
+app_flutter/ios/
+app_flutter/android/
+app_flutter/windows/
+app_flutter/web/.dart_tool/
+
+# OS / misc
+.DS_Store
+Thumbs.db
+
+# Docker
+.env

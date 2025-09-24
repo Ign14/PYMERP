@@ -1,0 +1,35 @@
+﻿{
+  "realm": "pymerp",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "pymerp-backend",
+      "publicClient": true,
+      "redirectUris": ["*"]
+    },
+    {
+      "clientId": "pymerp-frontend",
+      "publicClient": true,
+      "redirectUris": ["http://localhost:5173/*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin1234"
+        }
+      ],
+      "realmRoles": ["admin"]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "admin" },
+      { "name": "user" }
+    ]
+  }
+}
