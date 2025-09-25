@@ -95,11 +95,20 @@ public class SecurityConfig {
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
-    var origins = appProperties.getCors().getAllowedOrigins();
-    if (origins == null || origins.isEmpty()) {
+    var cors = appProperties.getCors();
+    var origins = cors.getAllowedOrigins();
+    var originPatterns = cors.getAllowedOriginPatterns();
+    boolean hasOrigins = origins != null && !origins.isEmpty();
+    boolean hasPatterns = originPatterns != null && !originPatterns.isEmpty();
+    if (!hasOrigins && !hasPatterns) {
       cfg.setAllowedOriginPatterns(List.of("*"));
     } else {
-      cfg.setAllowedOrigins(origins);
+      if (hasOrigins) {
+        cfg.setAllowedOrigins(origins);
+      }
+      if (hasPatterns) {
+        cfg.setAllowedOriginPatterns(originPatterns);
+      }
     }
     cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "X-Company-Id"));

@@ -4,7 +4,7 @@
 - Flutter 3.22+
 - Android SDK, Chrome, Windows Desktop
 
-## Setup rápido
+* BASE_URL (ej: http://localhost:8081)
 `ash
 cd app_flutter
 make bootstrap
@@ -27,9 +27,9 @@ make run-web
 
 ### Funcionalidades clave
 
-* Clientes con paginación/infinite scroll y refresco manual.
-* Formularios con lat/lng opcionales (double?), validaciones de rango y botón **“Usar ubicación actual”**.
-* Serialización JSON omitiendo lat/lng cuando son 
+* Clientes con paginaciÃ³n/infinite scroll y refresco manual.
+* Formularios con lat/lng opcionales (double?), validaciones de rango y botÃ³n **â€œUsar ubicaciÃ³n actualâ€**.
+* SerializaciÃ³n JSON omitiendo lat/lng cuando son 
 ull.
 * Cabeceras Authorization y X-Company-Id en todas las peticiones (multitenencia).
 
@@ -38,9 +38,9 @@ ull.
 `ash
 make test
 `
-Incluye pruebas de serialización y controladores de paginación; se añadió un widget test para validar la forma de clientes.
+Incluye pruebas de serializaciÃ³n y controladores de paginaciÃ³n; se aÃ±adiÃ³ un widget test para validar la forma de clientes.
 
 ### Notas
 
-* Para geolocalización en Web/Android/Windows se solicita permiso en tiempo de ejecución; si se deniega, se informa mediante SnackBar.
-* Falta implementar edición de clientes, sincronización offline y manejo avanzado de errores.
+* Para geolocalizaciÃ³n en Web/Android/Windows se solicita permiso en tiempo de ejecuciÃ³n; si se deniega, se informa mediante SnackBar.
+* Falta implementar ediciÃ³n de clientes, sincronizaciÃ³n offline y manejo avanzado de errores.

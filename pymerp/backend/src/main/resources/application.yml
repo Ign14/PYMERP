@@ -38,6 +38,10 @@ app:
     allowed-origins:
       - http://localhost:5173
       - http://localhost:5174
+    allowed-origin-patterns:
+      - http://localhost:*
+      - http://127.0.0.1:*
+      - http://0.0.0.0:*
   security:
     jwt:
       secret: change-this-dev-secret-at-least-32-chars-long

@@ -14,10 +14,10 @@ test:
 	flutter test
 
 run-web:
-	flutter run -d chrome --dart-define=BASE_URL=http://localhost:8080 --dart-define=COMPANY_ID=dev-company
+	flutter run -d chrome --dart-define=BASE_URL=http://localhost:8081 --dart-define=COMPANY_ID=dev-company
 
 run-win:
-	flutter run -d windows --dart-define=BASE_URL=http://localhost:8080 --dart-define=COMPANY_ID=dev-company
+	flutter run -d windows --dart-define=BASE_URL=http://localhost:8081 --dart-define=COMPANY_ID=dev-company
 
 run-android:
-	flutter run -d android --dart-define=BASE_URL=http://10.0.2.2:8080 --dart-define=COMPANY_ID=dev-company
+	flutter run -d android --dart-define=BASE_URL=http://10.0.2.2:8081 --dart-define=COMPANY_ID=dev-company
