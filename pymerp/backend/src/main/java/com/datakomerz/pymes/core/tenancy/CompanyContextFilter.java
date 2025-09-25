@@ -1,8 +1,6 @@
 package com.datakomerz.pymes.core.tenancy;
 import org.springframework.lang.NonNull;
 
-import com.datakomerz.pymes.config.AppProperties;
-import com.datakomerz.pymes.security.AppUserDetails;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,8 +10,6 @@ import java.util.UUID;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -25,11 +21,9 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   public static final String COMPANY_HEADER = "X-Company-Id";
 
   private final CompanyContext companyContext;
-  private final AppProperties appProperties;
 
-  public CompanyContextFilter(CompanyContext companyContext, AppProperties appProperties) {
+  public CompanyContextFilter(CompanyContext companyContext) {
     this.companyContext = companyContext;
-    this.appProperties = appProperties;
   }
 
   @Override
@@ -41,15 +35,14 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     try {
       String uri = request.getRequestURI();
       String headerValue = request.getHeader(COMPANY_HEADER);
-      UUID resolved = resolveCompanyId(headerValue);
-      // If request targets protected API endpoints and header is missing -> reject
-      if (uri != null && uri.startsWith("/api/") && (headerValue == null || headerValue.isBlank())) {
+      if (requiresCompanyHeader(uri) && !StringUtils.hasText(headerValue)) {
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write("{\"error\":\"missing_company_id\"}");
         return;
       }
-      if (resolved != null) {
+      if (StringUtils.hasText(headerValue)) {
+        UUID resolved = resolveCompanyId(headerValue);
         companyContext.set(resolved);
       }
       filterChain.doFilter(request, response);
@@ -63,13 +56,13 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   }
 
   private UUID resolveCompanyId(String headerValue) {
-    if (StringUtils.hasText(headerValue)) {
-      return UUID.fromString(headerValue.trim());
+    if (!StringUtils.hasText(headerValue)) {
+      throw new IllegalArgumentException("Company header missing");
     }
-    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    if (authentication != null && authentication.getPrincipal() instanceof AppUserDetails userDetails) {
-      return userDetails.getCompanyId();
-    }
-    return appProperties.getTenancy().getDefaultCompanyId();
+    return UUID.fromString(headerValue.trim());
+  }
+
+  private boolean requiresCompanyHeader(String uri) {
+    return uri != null && uri.startsWith("/api/");
   }
 }
