@@ -81,6 +81,9 @@ public final class OidcRoleMapper {
   private static String normalizeRole(String raw) {
     if (raw == null) return "";
     String cleaned = raw.replace('-', '_').replace(' ', '_').toUpperCase();
+    if (cleaned.startsWith("ROLE_")) {
+      return cleaned;
+    }
     return "ROLE_" + cleaned;
   }
 }
