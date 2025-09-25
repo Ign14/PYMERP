@@ -1,6 +1,34 @@
 ﻿version: "3.9"
 
 services:
+  backend:
+    image: gradle:8.10.2-jdk21
+    container_name: pymes_backend
+    working_dir: /workspace
+    command: ["./gradlew", "--no-daemon", "bootRun", "--args=--spring.profiles.active=dev"]
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: pymes
+      POSTGRES_USER: pymes
+      POSTGRES_PASSWORD: pymes
+      POSTGRES_MIGRATION_USER: pymes
+      POSTGRES_MIGRATION_PASSWORD: pymes
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      APP_TENANCY_DEFAULT_COMPANY_ID: 00000000-0000-0000-0000-000000000001
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./backend:/workspace
+      - gradle-cache:/home/gradle/.gradle
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:16
     container_name: pymes_postgres
@@ -24,7 +52,30 @@ services:
     container_name: pymes_redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
+
+  frontend:
+    image: node:20-bullseye
+    container_name: pymes_frontend
+    working_dir: /workspace
+    command: >-
+      sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      VITE_API_BASE: http://backend:8081/api
+      VITE_COMPANY_ID: 00000000-0000-0000-0000-000000000001
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./ui:/workspace
+      - ui-node-modules:/workspace/node_modules
+    depends_on:
+      backend:
+        condition: service_started
 
   minio:
     image: minio/minio:latest
@@ -51,3 +102,5 @@ services:
 volumes:
   pgdata:
   miniodata:
+  gradle-cache:
+  ui-node-modules:

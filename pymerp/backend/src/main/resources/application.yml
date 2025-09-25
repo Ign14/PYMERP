@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:${POSTGRES_PORT:55432}/${POSTGRES_DB:pymes}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:55432}/${POSTGRES_DB:pymes}
     username: ${POSTGRES_USER:pymes}
     password: ${POSTGRES_PASSWORD:pymes}
   jpa:
@@ -19,7 +19,7 @@ spring:
     enabled: true
     baseline-on-migrate: true
   redis:
-    host: localhost
+    host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
 
 management:
