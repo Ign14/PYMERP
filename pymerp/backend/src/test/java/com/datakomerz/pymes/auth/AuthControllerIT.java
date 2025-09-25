@@ -21,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.annotation.Import;
+import com.datakomerz.pymes.config.TestJwtDecoderConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -32,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestJwtDecoderConfig.class)
 class AuthControllerIT {
 
   private static final String ADMIN_EMAIL = "admin@test.com";
@@ -77,7 +80,7 @@ class AuthControllerIT {
     admin.setName("Test Admin");
     admin.setRole("admin");
     admin.setStatus("active");
-    admin.setRoles("ROLE_ADMIN");
+    admin.setRoles("ROLE_ADMIN,ROLE_ERP_USER");
     admin.setPasswordHash(passwordEncoder.encode("Secret123!"));
     userAccountRepository.save(admin);
 
@@ -142,7 +145,8 @@ class AuthControllerIT {
   void refreshFailsWithInvalidTokenFormat() throws Exception {
     mockMvc.perform(post("/api/v1/auth/refresh")
         .contentType(MediaType.APPLICATION_JSON)
-        .header("X-Refresh-Token", "invalid-token"))
+        .header("X-Refresh-Token", "invalid-token")
+        .header("X-Company-Id", companyId.toString()))
       .andExpect(status().isUnauthorized())
       .andExpect(content().contentType(MediaType.APPLICATION_JSON))
       .andExpect(jsonPath("$.error").value("TOKEN_INVALID"));

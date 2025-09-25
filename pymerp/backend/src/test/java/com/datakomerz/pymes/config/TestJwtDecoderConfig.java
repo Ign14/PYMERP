@@ -18,7 +18,7 @@ public class TestJwtDecoderConfig {
   @Bean
   public JwtDecoder jwtDecoder() {
     byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-    SecretKeySpec key = new SecretKeySpec(keyBytes, MacAlgorithm.HS256.getJcaName());
+    SecretKeySpec key = new SecretKeySpec(keyBytes, "HmacSHA256");
     return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
   }
 }
