@@ -1,22 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pymerp_app/core/pagination.dart';
 import 'package:pymerp_app/domain/customer.dart';
-import 'package:pymerp_app/features/customers/customers_controller.dart';
-import 'package:pymerp_app/services/customer_service.dart';
-import 'package:riverpod/riverpod.dart';
-import 'package:pymerp_app/core/config.dart';
-import 'package:pymerp_app/core/api_client.dart';
+import 'package:pymerp_app/modules/customers/application/customers_notifier.dart';
+import 'package:pymerp_app/modules/customers/data/customers_repository.dart';
 
-class _FakeCustomerService extends CustomerService {
-  _FakeCustomerService() : super(ApiClient(const AppConfig(baseUrl: 'http://localhost', companyId: 'dev', useHttps: false)));
-
+class _FakeCustomersRepository implements CustomersDataSource {
   final List<List<Customer>> _pages = [
-    List.generate(3, (i) => Customer(id: 'id_', name: 'Customer ')),
-    List.generate(2, (i) => Customer(id: 'id_', name: 'Customer ')),
+    List.generate(3, (index) => Customer(id: 'id_$index', name: 'Customer $index')),
+    List.generate(2, (index) => Customer(id: 'id_${index + 3}', name: 'Customer ${index + 3}')),
   ];
 
   @override
-  Future<Page<Customer>> list({required int page, int pageSize = 20}) async {
+  Future<Page<Customer>> list({int page = 0, int pageSize = 20}) async {
     if (page >= _pages.length) {
       return Page(items: const [], pageNumber: page, pageSize: pageSize, hasNext: false);
     }
@@ -27,22 +23,24 @@ class _FakeCustomerService extends CustomerService {
 }
 
 void main() {
-  test('CustomersState paginates correctly', () async {
-    final container = ProviderContainer(overrides: [
-      customerServiceProvider.overrideWithValue(_FakeCustomerService()),
-    ]);
+  test('CustomersNotifier paginates correctly', () async {
+    final container = ProviderContainer(
+      overrides: [
+        customersRepositoryProvider.overrideWithValue(_FakeCustomersRepository()),
+      ],
+    );
     addTearDown(container.dispose);
 
-    final notifier = container.read(customersStateProvider.notifier);
+    final notifier = container.read(customersNotifierProvider.notifier);
 
     await notifier.loadFirst();
-    final state1 = container.read(customersStateProvider);
-    expect(state1.value?.items.length, 3);
-    expect(state1.value?.hasNext, isTrue);
+    final state1 = container.read(customersNotifierProvider);
+    expect(state1.items.length, 3);
+    expect(state1.hasNext, isTrue);
 
     await notifier.loadMore();
-    final state2 = container.read(customersStateProvider);
-    expect(state2.value?.items.length, 5);
-    expect(state2.value?.hasNext, isFalse);
+    final state2 = container.read(customersNotifierProvider);
+    expect(state2.items.length, 5);
+    expect(state2.hasNext, isFalse);
   });
 }

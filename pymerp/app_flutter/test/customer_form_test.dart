@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pymerp_app/features/customers/customer_form.dart';
+import 'package:pymerp_app/modules/customers/presentation/customer_form.dart';
 
 void main() {
   testWidgets('CustomerForm renders optional geo fields and validates range', (tester) async {
@@ -15,11 +15,11 @@ void main() {
       ),
     ));
 
-    expect(find.byType(TextFormField), findsNWidgets(5)); // name, email, phone, lat, lng
+    expect(find.byType(TextFormField), findsNWidgets(5));
     await tester.enterText(find.widgetWithText(TextFormField, 'Latitud (opcional)'), '100');
     await tester.tap(find.text('Guardar'));
     await tester.pump();
-    expect(find.text('Latitud inv·lida'), findsOneWidget);
+    expect(find.text('Latitud inv√°lida'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextFormField, 'Latitud (opcional)'), '-33,456789');
     await tester.enterText(find.widgetWithText(TextFormField, 'Longitud (opcional)'), '-70.123456');

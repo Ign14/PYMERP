@@ -1,28 +1,50 @@
 import 'package:dio/dio.dart';
-import 'config.dart';
-import 'storage.dart';
+
+import '../modules/auth/application/auth_notifier.dart';
+import '../modules/auth/data/auth_repository.dart';
 
 class ApiClient {
-  final Dio dio;
-  ApiClient._internal(this.dio);
-
-  factory ApiClient(AppConfig cfg) {
-    final dio = Dio(BaseOptions(baseUrl: cfg.baseUrl));
-
-    dio.interceptors.add(InterceptorsWrapper(
+  ApiClient({
+    required String baseUrl,
+    required AuthHeadersProvider headersProvider,
+    required AuthRepository authRepository,
+    Dio? dio,
+  })  : _headersProvider = headersProvider,
+        _authRepository = authRepository,
+        dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
+    dio.interceptors.add(QueuedInterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await TokenStorage.read();
-        if (token != null && token.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer ' + token;
-        }
-        options.headers['X-Company-Id'] = cfg.companyId;
+        final headers = await _headersProvider();
+        options.headers.addAll(headers);
         handler.next(options);
       },
-      onError: (e, handler) {
-        handler.next(e);
+      onError: (error, handler) async {
+        if (await _shouldRefresh(error)) {
+          try {
+            await _authRepository.refreshToken();
+            final requestOptions = error.requestOptions;
+            requestOptions.extra['__retried'] = true;
+            requestOptions.headers.remove('Authorization');
+            final response = await dio.fetch(requestOptions);
+            handler.resolve(response);
+            return;
+          } catch (_) {
+            await _authRepository.clear();
+          }
+        }
+        handler.next(error);
       },
     ));
+  }
 
-    return ApiClient._internal(dio);
+  final Dio dio;
+  final AuthHeadersProvider _headersProvider;
+  final AuthRepository _authRepository;
+
+  Future<bool> _shouldRefresh(DioException error) async {
+    if (error.response?.statusCode != 401) return false;
+    final retried = error.requestOptions.extra['__retried'] == true;
+    if (retried) return false;
+    return await _authRepository.hasValidRefreshToken();
   }
 }
