@@ -60,6 +60,27 @@ body {
   gap: 8px;
 }
 
+.brand-logo {
+  display: block;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.brand-logo--sidebar {
+  max-height: 56px;
+  margin-bottom: 8px;
+}
+
+.brand-logo--topbar {
+  max-height: 44px;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .sidebar .brand {
   font-weight: 700;
   font-size: 1.1rem;

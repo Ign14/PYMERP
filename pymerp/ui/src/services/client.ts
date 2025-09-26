@@ -20,6 +20,945 @@ const DEV_FALLBACK_MODULES = [
   "settings",
 ] as const;
 
+type StructuredCloneFn = <T>(value: T) => T;
+const globalStructuredClone: StructuredCloneFn | undefined = (globalThis as typeof globalThis & {
+  structuredClone?: StructuredCloneFn;
+}).structuredClone;
+
+function deepClone<T>(value: T): T {
+  if (typeof globalStructuredClone === "function") {
+    return globalStructuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+let offlineModeEnabled = false;
+
+function markOffline(context: string) {
+  if (!offlineModeEnabled) {
+    offlineModeEnabled = true;
+    console.warn(
+      `[API] Network unreachable during ${context}. Switching to in-memory demo data so the workspace keeps working.`,
+    );
+  } else {
+    console.info(`[API] Using offline demo data for ${context}.`);
+  }
+}
+
+function maybeClone<T>(value: T): T {
+  return deepClone(value);
+}
+
+function ensureArray<T>(value: T[] | undefined | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+const now = new Date();
+const iso = (date: Date) => date.toISOString();
+
+function daysAgo(days: number) {
+  const date = new Date(now);
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+type DemoSaleDetail = SaleDetail & { thermalTicket: string };
+
+type DemoState = {
+  companies: Company[];
+  products: Product[];
+  productPrices: Record<string, PriceHistoryEntry[]>;
+  suppliers: Supplier[];
+  customers: Customer[];
+  sales: SaleSummary[];
+  saleDetails: Record<string, DemoSaleDetail>;
+  purchases: PurchaseSummary[];
+  inventorySummary: InventorySummary;
+  inventoryAlerts: InventoryAlert[];
+  inventorySettings: InventorySettings;
+  salesDaily: SalesDailyPoint[];
+  purchaseDaily: PurchaseDailyPoint[];
+};
+
+const demoState: DemoState = {
+  companies: [
+    { id: "cmp-demo-001", name: "Demo Comercial SpA", rut: "76.123.456-7", industry: "Retail", createdAt: iso(daysAgo(180)) },
+    { id: "cmp-demo-002", name: "Servicios Norte Ltda.", rut: "77.987.654-3", industry: "Servicios", createdAt: iso(daysAgo(95)) },
+    { id: "cmp-demo-003", name: "Distribuidora Andina", rut: "78.321.654-9", industry: "Logística", createdAt: iso(daysAgo(45)) },
+  ],
+  products: [
+    {
+      id: "prd-demo-001",
+      sku: "SKU-1001",
+      name: "Caf en grano premium 1Kg",
+      description: "Tueste medio alto, origen Colombia",
+      category: "Alimentos",
+      barcode: "7800001001002",
+      currentPrice: 11990,
+      imageUrl: undefined,
+      active: true,
+    },
+    {
+      id: "prd-demo-002",
+      sku: "SKU-1002",
+      name: "Azcar orgánica 1Kg",
+      description: "Certificada comercio justo",
+      category: "Alimentos",
+      barcode: "7800001002001",
+      currentPrice: 3290,
+      imageUrl: undefined,
+      active: true,
+    },
+    {
+      id: "prd-demo-003",
+      sku: "SKU-2040",
+      name: "Vasos biodegradables 12oz (pack 50)",
+      description: "Pulpa de caña, compostable",
+      category: "Insumos",
+      barcode: "7801234567005",
+      currentPrice: 8990,
+      imageUrl: undefined,
+      active: true,
+    },
+    {
+      id: "prd-demo-004",
+      sku: "SKU-3055",
+      name: "Botella vidrio reusable 600ml",
+      description: "Incluye funda térmica",
+      category: "Retail",
+      barcode: "7801231234568",
+      currentPrice: 7490,
+      imageUrl: undefined,
+      active: false,
+    },
+  ],
+  productPrices: {
+    "prd-demo-001": [
+      { id: "pp-001", productId: "prd-demo-001", price: 10990, validFrom: iso(daysAgo(90)) },
+      { id: "pp-002", productId: "prd-demo-001", price: 11990, validFrom: iso(daysAgo(28)) },
+    ],
+    "prd-demo-002": [
+      { id: "pp-003", productId: "prd-demo-002", price: 2990, validFrom: iso(daysAgo(120)) },
+      { id: "pp-004", productId: "prd-demo-002", price: 3290, validFrom: iso(daysAgo(32)) },
+    ],
+    "prd-demo-003": [
+      { id: "pp-005", productId: "prd-demo-003", price: 8990, validFrom: iso(daysAgo(62)) },
+    ],
+    "prd-demo-004": [
+      { id: "pp-006", productId: "prd-demo-004", price: 7490, validFrom: iso(daysAgo(200)) },
+    ],
+  },
+  suppliers: [
+    { id: "sup-demo-001", name: "Proveedor Andes", rut: "76.555.111-1" },
+    { id: "sup-demo-002", name: "Granos Latino", rut: "77.444.333-2" },
+    { id: "sup-demo-003", name: "Eco Packaging", rut: "79.222.888-5" },
+  ],
+  customers: [
+    {
+      id: "cus-demo-001",
+      name: "Cafetería Plaza",
+      address: "Av. Providencia 1234, Santiago",
+      lat: -33.4263,
+      lng: -70.6209,
+      phone: "+56 2 2345 6677",
+      email: "contacto@cafeteriaplaza.cl",
+      segment: "HORECA",
+    },
+    {
+      id: "cus-demo-002",
+      name: "MiniMarket Central",
+      address: "Av. Alemania 890, Temuco",
+      phone: "+56 45 212 3344",
+      email: "compras@mmcentral.cl",
+      segment: "Retail",
+    },
+    {
+      id: "cus-demo-003",
+      name: "Corporación Sur",
+      address: "Los Carrera 450, Concepción",
+      phone: "+56 41 276 0011",
+      email: "abastecimiento@corsur.cl",
+      segment: "Empresas",
+    },
+    {
+      id: "cus-demo-004",
+      name: "Coffeelab Boutique",
+      address: "Av. Peru 345, Antofagasta",
+      phone: "+56 55 284 9988",
+      email: "ventas@coffeelab.cl",
+      segment: "HORECA",
+    },
+    {
+      id: "cus-demo-005",
+      name: "Vecinos Gourmet",
+      address: "Av. Italia 987, Santiago",
+      phone: "+56 2 2567 7789",
+      email: "hola@vecinosgourmet.cl",
+    },
+  ],
+  sales: [
+    {
+      id: "sal-demo-001",
+      customerId: "cus-demo-001",
+      customerName: "Cafetería Plaza",
+      docType: "Factura",
+      paymentMethod: "transferencia",
+      status: "emitida",
+      net: 950000,
+      vat: 180500,
+      total: 1130500,
+      issuedAt: iso(daysAgo(2)),
+    },
+    {
+      id: "sal-demo-002",
+      customerId: "cus-demo-004",
+      customerName: "Coffeelab Boutique",
+      docType: "Boleta",
+      paymentMethod: "tarjeta",
+      status: "emitida",
+      net: 280000,
+      vat: 53200,
+      total: 333200,
+      issuedAt: iso(daysAgo(4)),
+    },
+    {
+      id: "sal-demo-003",
+      customerId: "cus-demo-002",
+      customerName: "MiniMarket Central",
+      docType: "Factura",
+      paymentMethod: "credito",
+      status: "cancelled",
+      net: 410000,
+      vat: 77900,
+      total: 487900,
+      issuedAt: iso(daysAgo(9)),
+    },
+  ],
+  saleDetails: {
+    "sal-demo-001": {
+      id: "sal-demo-001",
+      issuedAt: iso(daysAgo(2)),
+      docType: "Factura",
+      paymentMethod: "transferencia",
+      status: "emitida",
+      customer: { id: "cus-demo-001", name: "Cafetería Plaza" },
+      items: [
+        {
+          productId: "prd-demo-001",
+          productName: "Caf en grano premium 1Kg",
+          qty: 80,
+          unitPrice: 11990,
+          discount: 0,
+          lineTotal: 959200,
+        },
+        {
+          productId: "prd-demo-003",
+          productName: "Vasos biodegradables 12oz (pack 50)",
+          qty: 50,
+          unitPrice: 8990,
+          discount: 0,
+          lineTotal: 449500,
+        },
+      ],
+      net: 950000,
+      vat: 180500,
+      total: 1130500,
+      thermalTicket:
+        "PYMERP\nVenta sal-demo-001\nCliente: Cafetería Plaza\nTotal: $1.130.500\nGracias por su compra",
+    },
+    "sal-demo-002": {
+      id: "sal-demo-002",
+      issuedAt: iso(daysAgo(4)),
+      docType: "Boleta",
+      paymentMethod: "tarjeta",
+      status: "emitida",
+      customer: { id: "cus-demo-004", name: "Coffeelab Boutique" },
+      items: [
+        {
+          productId: "prd-demo-001",
+          productName: "Caf en grano premium 1Kg",
+          qty: 20,
+          unitPrice: 11990,
+          discount: 0,
+          lineTotal: 239800,
+        },
+        {
+          productId: "prd-demo-002",
+          productName: "Azcar orgánica 1Kg",
+          qty: 40,
+          unitPrice: 3290,
+          discount: 0,
+          lineTotal: 131600,
+        },
+      ],
+      net: 280000,
+      vat: 53200,
+      total: 333200,
+      thermalTicket: "PYMERP\nVenta sal-demo-002\nTotal: $333.200\nEmitida con POS",
+    },
+    "sal-demo-003": {
+      id: "sal-demo-003",
+      issuedAt: iso(daysAgo(9)),
+      docType: "Factura",
+      paymentMethod: "credito",
+      status: "cancelled",
+      customer: { id: "cus-demo-002", name: "MiniMarket Central" },
+      items: [
+        {
+          productId: "prd-demo-003",
+          productName: "Vasos biodegradables 12oz (pack 50)",
+          qty: 25,
+          unitPrice: 8990,
+          discount: 0,
+          lineTotal: 224750,
+        },
+        {
+          productId: "prd-demo-002",
+          productName: "Azcar orgánica 1Kg",
+          qty: 60,
+          unitPrice: 3290,
+          discount: 0,
+          lineTotal: 197400,
+        },
+      ],
+      net: 410000,
+      vat: 77900,
+      total: 487900,
+      thermalTicket: "PYMERP\nVenta sal-demo-003\nESTADO: Cancelada",
+    },
+  },
+  purchases: [
+    {
+      id: "pur-demo-001",
+      supplierId: "sup-demo-001",
+      supplierName: "Proveedor Andes",
+      docType: "Factura",
+      docNumber: "F-4432",
+      status: "received",
+      net: 540000,
+      vat: 102600,
+      total: 642600,
+      issuedAt: iso(daysAgo(6)),
+    },
+    {
+      id: "pur-demo-002",
+      supplierId: "sup-demo-003",
+      supplierName: "Eco Packaging",
+      docType: "Factura",
+      docNumber: "F-8891",
+      status: "received",
+      net: 215000,
+      vat: 40850,
+      total: 255850,
+      issuedAt: iso(daysAgo(11)),
+    },
+    {
+      id: "pur-demo-003",
+      supplierId: "sup-demo-002",
+      supplierName: "Granos Latino",
+      docType: "Factura",
+      docNumber: "F-5501",
+      status: "cancelled",
+      net: 180000,
+      vat: 34200,
+      total: 214200,
+      issuedAt: iso(daysAgo(18)),
+    },
+  ],
+  inventorySummary: {
+    totalValue: 1585000,
+    activeProducts: 3,
+    inactiveProducts: 1,
+    totalProducts: 4,
+    lowStockAlerts: 2,
+    lowStockThreshold: 12,
+  },
+  inventoryAlerts: [
+    {
+      lotId: "lot-demo-001",
+      productId: "prd-demo-002",
+      qtyAvailable: 8,
+      createdAt: iso(daysAgo(1)),
+      expDate: iso(daysAgo(-60)),
+    },
+    {
+      lotId: "lot-demo-002",
+      productId: "prd-demo-003",
+      qtyAvailable: 5,
+      createdAt: iso(daysAgo(3)),
+      expDate: iso(daysAgo(-120)),
+    },
+  ],
+  inventorySettings: {
+    lowStockThreshold: 12,
+    updatedAt: iso(daysAgo(5)),
+  },
+  salesDaily: Array.from({ length: 14 }).map((_, index) => {
+    const daysBack = 13 - index;
+    const total = 350000 + (index % 5) * 42000;
+    return {
+      date: iso(daysAgo(daysBack)).slice(0, 10),
+      total,
+      count: 4 + (index % 3),
+    };
+  }),
+  purchaseDaily: Array.from({ length: 14 }).map((_, index) => {
+    const daysBack = 13 - index;
+    const total = 220000 + (index % 4) * 38000;
+    return {
+      date: iso(daysAgo(daysBack)).slice(0, 10),
+      total,
+      count: 2 + (index % 2),
+    };
+  }),
+};
+
+function nextId(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeString(value?: string | null) {
+  return value?.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "") ?? "";
+}
+
+function matchesQuery(target: string | undefined | null, query: string) {
+  if (!query) {
+    return true;
+  }
+  if (!target) {
+    return false;
+  }
+  return normalizeString(target).includes(query);
+}
+
+function paginate<T>(items: T[], page = 0, size = 20): Page<T> {
+  const safeSize = size > 0 ? size : 20;
+  const start = page * safeSize;
+  const content = items.slice(start, start + safeSize);
+  const totalElements = items.length;
+  const totalPages = safeSize > 0 ? Math.ceil(totalElements / safeSize) : 0;
+  return {
+    content,
+    totalElements,
+    totalPages,
+    size: safeSize,
+    number: page,
+    hasNext: totalPages > 0 ? page + 1 < totalPages : false,
+  } as Page<T> & { hasNext: boolean };
+}
+
+function withOfflineFallback<T>(context: string, operation: () => Promise<T>, fallback: () => T): Promise<T> {
+  if (offlineModeEnabled) {
+    return Promise.resolve(maybeClone(fallback()));
+  }
+  return operation().catch((error) => {
+    if (isNetworkError(error)) {
+      markOffline(context);
+      return maybeClone(fallback());
+    }
+    throw error;
+  });
+}
+
+function withOfflineVoid(context: string, operation: () => Promise<void>, fallback: () => void): Promise<void> {
+  if (offlineModeEnabled) {
+    fallback();
+    return Promise.resolve();
+  }
+  return operation().catch((error) => {
+    if (isNetworkError(error)) {
+      markOffline(context);
+      fallback();
+      return;
+    }
+    throw error;
+  });
+}
+
+function recalcInventorySummary() {
+  const activeProducts = demoState.products.filter((product) => product.active).length;
+  demoState.inventorySummary = {
+    totalValue: Number(demoState.inventorySummary.totalValue) || 0,
+    activeProducts,
+    inactiveProducts: demoState.products.length - activeProducts,
+    totalProducts: demoState.products.length,
+    lowStockAlerts: demoState.inventoryAlerts.length,
+    lowStockThreshold: demoState.inventorySettings.lowStockThreshold,
+  };
+}
+
+const fallbackHealth: HealthResponse = {
+  status: "UP",
+  components: { database: { status: "UP" }, disk: { status: "UP", free: "32GB" } },
+  details: {
+    environment: "demo",
+    lastSync: iso(daysAgo(0)),
+  },
+};
+
+function fallbackListCompanies() {
+  return demoState.companies;
+}
+
+function fallbackCreateCompany(payload: CreateCompanyPayload): Company {
+  const company: Company = {
+    id: nextId("cmp-demo"),
+    name: payload.name,
+    rut: payload.rut,
+    createdAt: new Date().toISOString(),
+  };
+  demoState.companies = [...demoState.companies, company];
+  return company;
+}
+
+function fallbackListProducts(params?: { q?: string; page?: number; size?: number; status?: "active" | "inactive" | "all" }) {
+  const query = normalizeString(params?.q ?? "");
+  const status = params?.status ?? "active";
+  const filtered = demoState.products.filter((product) => {
+    if (status !== "all" && product.active !== (status === "active")) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
+    return [product.name, product.sku, product.barcode, product.description].some((value) => matchesQuery(value, query));
+  });
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  return paginate(filtered, page, size);
+}
+
+function fallbackCreateProduct(payload: ProductPayload): Product {
+  const product: Product = {
+    id: nextId("prd-demo"),
+    sku: payload.sku || `SKU-${Math.floor(Math.random() * 9999)}`,
+    name: payload.name,
+    description: payload.description,
+    category: payload.category,
+    barcode: payload.barcode,
+    imageUrl: payload.imageUrl,
+    currentPrice: 0,
+    active: true,
+  };
+  demoState.products = [product, ...demoState.products];
+  demoState.productPrices[product.id] = [];
+  recalcInventorySummary();
+  return product;
+}
+
+function fallbackUpdateProduct(id: string, payload: ProductPayload): Product {
+  const index = demoState.products.findIndex((product) => product.id === id);
+  if (index === -1) {
+    throw new Error("Producto no encontrado");
+  }
+  const updated: Product = {
+    ...demoState.products[index],
+    ...payload,
+  };
+  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
+  recalcInventorySummary();
+  return updated;
+}
+
+function fallbackUpdateProductStatus(id: string, active: boolean): Product {
+  const index = demoState.products.findIndex((product) => product.id === id);
+  if (index === -1) {
+    throw new Error("Producto no encontrado");
+  }
+  const updated: Product = { ...demoState.products[index], active };
+  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
+  recalcInventorySummary();
+  return updated;
+}
+
+function fallbackDeleteProduct(id: string) {
+  demoState.products = demoState.products.filter((product) => product.id !== id);
+  delete demoState.productPrices[id];
+  recalcInventorySummary();
+}
+
+function fallbackListProductPrices(productId: string, params?: { page?: number; size?: number }) {
+  const entries = ensureArray(demoState.productPrices[productId]).sort((a, b) =>
+    b.validFrom.localeCompare(a.validFrom),
+  );
+  return paginate(entries, params?.page ?? 0, params?.size ?? entries.length);
+}
+
+function fallbackCreateProductPrice(productId: string, payload: PriceChangePayload): PriceHistoryEntry {
+  const entry: PriceHistoryEntry = {
+    id: nextId("pp-demo"),
+    productId,
+    price: payload.price,
+    validFrom: payload.validFrom ?? new Date().toISOString(),
+  };
+  const prices = ensureArray(demoState.productPrices[productId]);
+  demoState.productPrices[productId] = [entry, ...prices];
+  const index = demoState.products.findIndex((product) => product.id === productId);
+  if (index !== -1) {
+    const updated = { ...demoState.products[index], currentPrice: payload.price };
+    demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
+  }
+  return entry;
+}
+
+function fallbackListSuppliers() {
+  return demoState.suppliers;
+}
+
+function fallbackCreateSupplier(payload: SupplierPayload): Supplier {
+  const supplier: Supplier = { id: nextId("sup-demo"), name: payload.name, rut: payload.rut };
+  demoState.suppliers = [...demoState.suppliers, supplier];
+  return supplier;
+}
+
+function fallbackUpdateSupplier(id: string, payload: SupplierPayload): Supplier {
+  const index = demoState.suppliers.findIndex((supplier) => supplier.id === id);
+  if (index === -1) {
+    throw new Error("Proveedor no encontrado");
+  }
+  const updated: Supplier = { ...demoState.suppliers[index], ...payload };
+  demoState.suppliers = demoState.suppliers.map((supplier, i) => (i === index ? updated : supplier));
+  return updated;
+}
+
+function fallbackDeleteSupplier(id: string) {
+  demoState.suppliers = demoState.suppliers.filter((supplier) => supplier.id !== id);
+}
+
+function fallbackListCustomers(params: ListCustomersParams = {}): Page<Customer> {
+  const query = normalizeString(params.q ?? "");
+  const segment = params.segment?.trim();
+  const filtered = demoState.customers.filter((customer) => {
+    if (segment && segment.length > 0) {
+      if (segment === UNASSIGNED_SEGMENT_CODE) {
+        if (customer.segment && customer.segment.trim()) {
+          return false;
+        }
+      } else if (normalizeString(customer.segment) !== normalizeString(segment)) {
+        return false;
+      }
+    }
+    if (!query) {
+      return true;
+    }
+    return [customer.name, customer.email, customer.phone, customer.address].some((value) => matchesQuery(value, query));
+  });
+  return paginate(filtered, params.page ?? 0, params.size ?? 20);
+}
+
+function fallbackCreateCustomer(payload: CustomerPayload): Customer {
+  const customer: Customer = {
+    id: nextId("cus-demo"),
+    name: payload.name,
+    address: payload.address,
+    lat: payload.lat ?? null,
+    lng: payload.lng ?? null,
+    phone: payload.phone,
+    email: payload.email,
+    segment: payload.segment,
+  };
+  demoState.customers = [customer, ...demoState.customers];
+  return customer;
+}
+
+function fallbackUpdateCustomer(id: string, payload: CustomerPayload): Customer {
+  const index = demoState.customers.findIndex((customer) => customer.id === id);
+  if (index === -1) {
+    throw new Error("Cliente no encontrado");
+  }
+  const updated: Customer = {
+    ...demoState.customers[index],
+    ...payload,
+    lat: payload.lat ?? null,
+    lng: payload.lng ?? null,
+  };
+  demoState.customers = demoState.customers.map((customer, i) => (i === index ? updated : customer));
+  return updated;
+}
+
+function fallbackDeleteCustomer(id: string) {
+  demoState.customers = demoState.customers.filter((customer) => customer.id !== id);
+}
+
+function fallbackListCustomerSegments(): CustomerSegmentSummary[] {
+  const summary = new Map<string, CustomerSegmentSummary>();
+  for (const customer of demoState.customers) {
+    const code = customer.segment && customer.segment.trim() ? customer.segment : UNASSIGNED_SEGMENT_CODE;
+    const normalizedCode = code;
+    if (!summary.has(normalizedCode)) {
+      summary.set(normalizedCode, {
+        code: normalizedCode,
+        segment: code === UNASSIGNED_SEGMENT_CODE ? "Sin segmentar" : customer.segment ?? "Sin segmentar",
+        total: 0,
+      });
+    }
+    summary.get(normalizedCode)!.total += 1;
+  }
+  return Array.from(summary.values());
+}
+
+function generateSaleThermalTicket(sale: SaleDetail): string {
+  return [
+    "PYMERP DEMO",
+    `Documento: ${sale.docType}`,
+    `Venta: ${sale.id}`,
+    `Cliente: ${sale.customer?.name ?? "Mostrador"}`,
+    `Total: $${Number(sale.total).toLocaleString("es-CL")}`,
+    "Gracias por utilizar el modo demo",
+  ].join("\n");
+}
+
+function fallbackListSales(params: ListSalesParams = {}): Page<SaleSummary> {
+  const query = normalizeString(params.search ?? "");
+  const filtered = demoState.sales.filter((sale) => {
+    if (params.status && params.status.trim()) {
+      if (normalizeString(sale.status) !== normalizeString(params.status)) {
+        return false;
+      }
+    }
+    if (params.docType && params.docType.trim()) {
+      if (normalizeString(sale.docType) !== normalizeString(params.docType)) {
+        return false;
+      }
+    }
+    if (params.paymentMethod && params.paymentMethod.trim()) {
+      if (normalizeString(sale.paymentMethod) !== normalizeString(params.paymentMethod)) {
+        return false;
+      }
+    }
+    if (params.from && sale.issuedAt < params.from) {
+      return false;
+    }
+    if (params.to && sale.issuedAt > params.to) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
+    return [sale.docType, sale.paymentMethod, sale.customerName, sale.customerId, sale.id]
+      .filter(Boolean)
+      .some((value) => matchesQuery(String(value), query));
+  });
+  return paginate(filtered, params.page ?? 0, params.size ?? 20);
+}
+
+function fallbackGetSaleDetail(id: string): SaleDetail {
+  const detail = demoState.saleDetails[id];
+  if (!detail) {
+    throw new Error("Venta no encontrada");
+  }
+  return detail;
+}
+
+function fallbackCreateSale(payload: SalePayload): SaleRes {
+  const id = nextId("sal-demo");
+  const total = payload.items.reduce((acc, item) => acc + item.qty * item.unitPrice - (item.discount ?? 0), 0);
+  const vat = Math.round(total * 0.19);
+  const net = total - vat;
+  const summary: SaleSummary = {
+    id,
+    customerId: payload.customerId,
+    customerName: demoState.customers.find((customer) => customer.id === payload.customerId)?.name,
+    docType: payload.docType,
+    paymentMethod: payload.paymentMethod ?? "transferencia",
+    status: "emitida",
+    net,
+    vat,
+    total,
+    issuedAt: new Date().toISOString(),
+  };
+  demoState.sales = [summary, ...demoState.sales];
+  const detail: SaleDetail = {
+    ...summary,
+    customer: summary.customerId
+      ? { id: summary.customerId, name: summary.customerName ?? "Cliente" }
+      : null,
+    items: payload.items.map((item) => ({
+      productId: item.productId,
+      productName: demoState.products.find((product) => product.id === item.productId)?.name ?? item.productId,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      discount: item.discount ?? 0,
+      lineTotal: item.qty * item.unitPrice - (item.discount ?? 0),
+    })),
+    thermalTicket: "",
+  };
+  detail.thermalTicket = generateSaleThermalTicket(detail);
+  demoState.saleDetails[id] = detail as DemoSaleDetail;
+  return {
+    id,
+    customerId: summary.customerId,
+    customerName: summary.customerName,
+    status: summary.status,
+    net: summary.net,
+    vat: summary.vat,
+    total: summary.total,
+    issuedAt: summary.issuedAt,
+    docType: summary.docType ?? "Factura",
+    paymentMethod: summary.paymentMethod ?? "transferencia",
+  };
+}
+
+function fallbackUpdateSale(id: string, payload: SaleUpdatePayload): SaleRes {
+  const index = demoState.sales.findIndex((sale) => sale.id === id);
+  if (index === -1) {
+    throw new Error("Venta no encontrada");
+  }
+  const updated: SaleSummary = { ...demoState.sales[index], ...payload };
+  demoState.sales = demoState.sales.map((sale, i) => (i === index ? updated : sale));
+  const detail = demoState.saleDetails[id];
+  if (detail) {
+    demoState.saleDetails[id] = {
+      ...detail,
+      docType: updated.docType ?? detail.docType,
+      paymentMethod: updated.paymentMethod ?? detail.paymentMethod,
+      status: updated.status ?? detail.status,
+      thermalTicket: generateSaleThermalTicket({ ...detail, ...updated }),
+    };
+  }
+  return {
+    id: updated.id,
+    customerId: updated.customerId,
+    customerName: updated.customerName,
+    status: updated.status,
+    net: updated.net,
+    vat: updated.vat,
+    total: updated.total,
+    issuedAt: updated.issuedAt,
+    docType: updated.docType ?? "Factura",
+    paymentMethod: updated.paymentMethod ?? "transferencia",
+  };
+}
+
+function fallbackCancelSale(id: string): SaleRes {
+  return fallbackUpdateSale(id, { status: "cancelled" });
+}
+
+function fallbackListSalesDaily(days = 14): SalesDailyPoint[] {
+  return demoState.salesDaily.slice(-days);
+}
+
+function fallbackListPurchases(params: ListPurchasesParams = {}): Page<PurchaseSummary> {
+  const query = normalizeString(params.search ?? "");
+  const filtered = demoState.purchases.filter((purchase) => {
+    if (params.status && params.status.trim()) {
+      if (normalizeString(purchase.status) !== normalizeString(params.status)) {
+        return false;
+      }
+    }
+    if (params.docType && params.docType.trim()) {
+      if (normalizeString(purchase.docType) !== normalizeString(params.docType)) {
+        return false;
+      }
+    }
+    if (params.from && purchase.issuedAt < params.from) {
+      return false;
+    }
+    if (params.to && purchase.issuedAt > params.to) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
+    return [purchase.docNumber, purchase.supplierName, purchase.supplierId].some((value) => matchesQuery(value, query));
+  });
+  return paginate(filtered, params.page ?? 0, params.size ?? 20);
+}
+
+function fallbackUpdatePurchase(id: string, payload: PurchaseUpdatePayload): PurchaseSummary {
+  const index = demoState.purchases.findIndex((purchase) => purchase.id === id);
+  if (index === -1) {
+    throw new Error("Compra no encontrada");
+  }
+  const updated: PurchaseSummary = { ...demoState.purchases[index], ...payload };
+  demoState.purchases = demoState.purchases.map((purchase, i) => (i === index ? updated : purchase));
+  return updated;
+}
+
+function fallbackCancelPurchase(id: string): PurchaseSummary {
+  return fallbackUpdatePurchase(id, { status: "cancelled" });
+}
+
+function fallbackCreatePurchase(payload: PurchasePayload): { id: string } {
+  const id = nextId("pur-demo");
+  const summary: PurchaseSummary = {
+    id,
+    supplierId: payload.supplierId,
+    supplierName: demoState.suppliers.find((supplier) => supplier.id === payload.supplierId)?.name,
+    docType: payload.docType,
+    docNumber: payload.docNumber,
+    status: "received",
+    net: payload.net,
+    vat: payload.vat,
+    total: payload.total,
+    issuedAt: payload.issuedAt,
+  };
+  demoState.purchases = [summary, ...demoState.purchases];
+  return { id };
+}
+
+function fallbackListPurchaseDaily(days = 14): PurchaseDailyPoint[] {
+  return demoState.purchaseDaily.slice(-days);
+}
+
+function fallbackListInventoryAlerts(threshold?: number): InventoryAlert[] {
+  if (typeof threshold === "number") {
+    return demoState.inventoryAlerts.filter((alert) => Number(alert.qtyAvailable) <= threshold);
+  }
+  return demoState.inventoryAlerts;
+}
+
+function fallbackGetInventorySummary(): InventorySummary {
+  recalcInventorySummary();
+  return demoState.inventorySummary;
+}
+
+function fallbackGetInventorySettings(): InventorySettings {
+  return demoState.inventorySettings;
+}
+
+function fallbackUpdateInventorySettings(payload: { lowStockThreshold: number }): InventorySettings {
+  demoState.inventorySettings = {
+    lowStockThreshold: payload.lowStockThreshold,
+    updatedAt: new Date().toISOString(),
+  };
+  recalcInventorySummary();
+  return demoState.inventorySettings;
+}
+
+function fallbackCreateInventoryAdjustment(payload: InventoryAdjustmentPayload): InventoryAdjustmentResponse {
+  const direction = payload.direction ?? "increase";
+  const quantity = direction === "decrease" ? -Math.abs(payload.quantity) : Math.abs(payload.quantity);
+  const alertIndex = demoState.inventoryAlerts.findIndex((alert) => alert.productId === payload.productId);
+  if (alertIndex !== -1) {
+    const alert = demoState.inventoryAlerts[alertIndex];
+    const updatedQty = Number(alert.qtyAvailable) + quantity;
+    demoState.inventoryAlerts[alertIndex] = {
+      ...alert,
+      qtyAvailable: updatedQty,
+      createdAt: new Date().toISOString(),
+      expDate: payload.expDate ?? alert.expDate ?? null,
+    };
+  } else if (direction === "decrease") {
+    demoState.inventoryAlerts = [
+      ...demoState.inventoryAlerts,
+      {
+        lotId: nextId("lot-demo"),
+        productId: payload.productId,
+        qtyAvailable: Math.max(0, payload.quantity),
+        createdAt: new Date().toISOString(),
+        expDate: payload.expDate ?? null,
+      },
+    ];
+  }
+  recalcInventorySummary();
+  return {
+    productId: payload.productId,
+    appliedQuantity: payload.quantity,
+    direction,
+  };
+}
+
 function isNetworkError(error: unknown): boolean {
   return axios.isAxiosError(error) && !error.response;
 }
@@ -434,230 +1373,435 @@ export function getCurrentRefreshToken() {
   return currentRefreshToken;
 }
 
-export async function fetchHealth(): Promise<HealthResponse> {
-  const { data } = await api.get<HealthResponse>("/actuator/health");
-  return data;
+export function fetchHealth(): Promise<HealthResponse> {
+  return withOfflineFallback(
+    "fetchHealth",
+    async () => {
+      const { data } = await api.get<HealthResponse>("/actuator/health");
+      return data;
+    },
+    () => fallbackHealth,
+  );
 }
 
-export async function listCompanies(): Promise<Company[]> {
-  const { data } = await api.get<Company[]>("/v1/companies");
-  return data;
+export function listCompanies(): Promise<Company[]> {
+  return withOfflineFallback(
+    "listCompanies",
+    async () => {
+      const { data } = await api.get<Company[]>("/v1/companies");
+      return data;
+    },
+    () => fallbackListCompanies(),
+  );
 }
 
-export async function createCompany(payload: CreateCompanyPayload): Promise<Company> {
-  const { data } = await api.post<Company>("/v1/companies", payload);
-  return data;
+export function createCompany(payload: CreateCompanyPayload): Promise<Company> {
+  return withOfflineFallback(
+    "createCompany",
+    async () => {
+      const { data } = await api.post<Company>("/v1/companies", payload);
+      return data;
+    },
+    () => fallbackCreateCompany(payload),
+  );
 }
 
-export async function listProducts(params?: { q?: string; page?: number; size?: number; status?: "active" | "inactive" | "all" }): Promise<Page<Product>> {
-  const { data } = await api.get<Page<Product>>(`/v1/products`, { params });
-  return data;
+export function listProducts(
+  params?: { q?: string; page?: number; size?: number; status?: "active" | "inactive" | "all" },
+): Promise<Page<Product>> {
+  return withOfflineFallback(
+    "listProducts",
+    async () => {
+      const { data } = await api.get<Page<Product>>(`/v1/products`, { params });
+      return data;
+    },
+    () => fallbackListProducts(params),
+  );
 }
 
-export async function createProduct(payload: ProductPayload): Promise<Product> {
-  const { data } = await api.post<Product>("/v1/products", payload);
-  return data;
+export function createProduct(payload: ProductPayload): Promise<Product> {
+  return withOfflineFallback(
+    "createProduct",
+    async () => {
+      const { data } = await api.post<Product>("/v1/products", payload);
+      return data;
+    },
+    () => fallbackCreateProduct(payload),
+  );
 }
 
-export async function updateProduct(id: string, payload: ProductPayload): Promise<Product> {
-  const { data } = await api.put<Product>(`/v1/products/${id}`, payload);
-  return data;
+export function updateProduct(id: string, payload: ProductPayload): Promise<Product> {
+  return withOfflineFallback(
+    "updateProduct",
+    async () => {
+      const { data } = await api.put<Product>(`/v1/products/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdateProduct(id, payload),
+  );
 }
 
-export async function updateProductStatus(id: string, active: boolean): Promise<Product> {
-  const { data } = await api.patch<Product>(`/v1/products/${id}/status`, { active });
-  return data;
+export function updateProductStatus(id: string, active: boolean): Promise<Product> {
+  return withOfflineFallback(
+    "updateProductStatus",
+    async () => {
+      const { data } = await api.patch<Product>(`/v1/products/${id}/status`, { active });
+      return data;
+    },
+    () => fallbackUpdateProductStatus(id, active),
+  );
 }
 
-export async function deleteProduct(id: string): Promise<void> {
-  await api.delete(`/v1/products/${id}`);
+export function deleteProduct(id: string): Promise<void> {
+  return withOfflineVoid(
+    "deleteProduct",
+    () => api.delete(`/v1/products/${id}`),
+    () => fallbackDeleteProduct(id),
+  );
 }
 
-export async function listSuppliers(): Promise<Supplier[]> {
-  const { data } = await api.get<Supplier[]>("/v1/suppliers");
-  return data;
+export function listSuppliers(): Promise<Supplier[]> {
+  return withOfflineFallback(
+    "listSuppliers",
+    async () => {
+      const { data } = await api.get<Supplier[]>("/v1/suppliers");
+      return data;
+    },
+    () => fallbackListSuppliers(),
+  );
 }
 
-export async function createSupplier(payload: SupplierPayload): Promise<Supplier> {
-  const { data } = await api.post<Supplier>("/v1/suppliers", payload);
-  return data;
+export function createSupplier(payload: SupplierPayload): Promise<Supplier> {
+  return withOfflineFallback(
+    "createSupplier",
+    async () => {
+      const { data } = await api.post<Supplier>("/v1/suppliers", payload);
+      return data;
+    },
+    () => fallbackCreateSupplier(payload),
+  );
 }
 
-export async function updateSupplier(id: string, payload: SupplierPayload): Promise<Supplier> {
-  const { data } = await api.put<Supplier>(`/v1/suppliers/${id}`, payload);
-  return data;
+export function updateSupplier(id: string, payload: SupplierPayload): Promise<Supplier> {
+  return withOfflineFallback(
+    "updateSupplier",
+    async () => {
+      const { data } = await api.put<Supplier>(`/v1/suppliers/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdateSupplier(id, payload),
+  );
 }
 
-export async function deleteSupplier(id: string): Promise<void> {
-  await api.delete(`/v1/suppliers/${id}`);
+export function deleteSupplier(id: string): Promise<void> {
+  return withOfflineVoid(
+    "deleteSupplier",
+    () => api.delete(`/v1/suppliers/${id}`),
+    () => fallbackDeleteSupplier(id),
+  );
 }
 
-export async function listCustomers(params: ListCustomersParams = {}): Promise<Page<Customer>> {
-  const requestedPage = params.page ?? 0;
-  const requestedSize = params.size ?? 20;
-  const queryParams: Record<string, unknown> = {
-    page: requestedPage,
-    size: requestedSize,
-    sort: params.sort ?? 'createdAt,desc',
-  };
-  if (params.q && params.q.trim()) {
-    queryParams.q = params.q.trim();
-  }
-  if (params.segment && params.segment.trim()) {
-    queryParams.segment = params.segment.trim();
-  }
-  const { data } = await api.get<Page<Customer>>('/v1/customers', { params: queryParams });
-  const raw = data as Page<Customer> & { page?: number; items?: Customer[]; total?: number; hasNext?: boolean };
-  const content = raw.content ?? raw.items ?? [];
-  const size = raw.size ?? requestedSize;
-  const totalElements =
-    typeof raw.totalElements === 'number'
-      ? raw.totalElements
-      : typeof raw.total === 'number'
-      ? raw.total
-      : content.length;
-  const number =
-    typeof raw.number === 'number'
-      ? raw.number
-      : typeof raw.page === 'number'
-      ? raw.page
-      : requestedPage;
-  const totalPages =
-    typeof raw.totalPages === 'number'
-      ? raw.totalPages
-      : size > 0
-      ? Math.ceil(totalElements / size)
-      : 0;
-  const hasNext =
-    typeof raw.hasNext === 'boolean'
-      ? raw.hasNext
-      : totalPages > 0
-      ? number + 1 < totalPages
-      : content.length === size;
+export function listCustomers(params: ListCustomersParams = {}): Promise<Page<Customer>> {
+  return withOfflineFallback(
+    "listCustomers",
+    async () => {
+      const requestedPage = params.page ?? 0;
+      const requestedSize = params.size ?? 20;
+      const queryParams: Record<string, unknown> = {
+        page: requestedPage,
+        size: requestedSize,
+        sort: params.sort ?? "createdAt,desc",
+      };
+      if (params.q && params.q.trim()) {
+        queryParams.q = params.q.trim();
+      }
+      if (params.segment && params.segment.trim()) {
+        queryParams.segment = params.segment.trim();
+      }
+      const { data } = await api.get<Page<Customer>>("/v1/customers", { params: queryParams });
+      const raw = data as Page<Customer> & { page?: number; items?: Customer[]; total?: number; hasNext?: boolean };
+      const content = raw.content ?? raw.items ?? [];
+      const size = raw.size ?? requestedSize;
+      const totalElements =
+        typeof raw.totalElements === "number"
+          ? raw.totalElements
+          : typeof raw.total === "number"
+          ? raw.total
+          : content.length;
+      const number =
+        typeof raw.number === "number"
+          ? raw.number
+          : typeof raw.page === "number"
+          ? raw.page
+          : requestedPage;
+      const totalPages =
+        typeof raw.totalPages === "number"
+          ? raw.totalPages
+          : size > 0
+          ? Math.ceil(totalElements / size)
+          : 0;
+      const hasNext =
+        typeof raw.hasNext === "boolean"
+          ? raw.hasNext
+          : totalPages > 0
+          ? number + 1 < totalPages
+          : content.length === size;
 
-  return {
-    ...raw,
-    content,
-    size,
-    totalElements,
-    totalPages,
-    number,
-    hasNext,
-  };
+      return {
+        ...raw,
+        content,
+        size,
+        totalElements,
+        totalPages,
+        number,
+        hasNext,
+      };
+    },
+    () => fallbackListCustomers(params),
+  );
 }
 
-export async function listCustomerSegments(): Promise<CustomerSegmentSummary[]> {
-  const { data } = await api.get<CustomerSegmentSummary[]>("/v1/customers/segments");
-  return data;
+export function listCustomerSegments(): Promise<CustomerSegmentSummary[]> {
+  return withOfflineFallback(
+    "listCustomerSegments",
+    async () => {
+      const { data } = await api.get<CustomerSegmentSummary[]>("/v1/customers/segments");
+      return data;
+    },
+    () => fallbackListCustomerSegments(),
+  );
 }
 
-export async function createCustomer(payload: CustomerPayload): Promise<Customer> {
-  const { data } = await api.post<Customer>("/v1/customers", payload);
-  return data;
+export function createCustomer(payload: CustomerPayload): Promise<Customer> {
+  return withOfflineFallback(
+    "createCustomer",
+    async () => {
+      const { data } = await api.post<Customer>("/v1/customers", payload);
+      return data;
+    },
+    () => fallbackCreateCustomer(payload),
+  );
 }
 
-export async function updateCustomer(id: string, payload: CustomerPayload): Promise<Customer> {
-  const { data } = await api.put<Customer>(`/v1/customers/${id}`, payload);
-  return data;
+export function updateCustomer(id: string, payload: CustomerPayload): Promise<Customer> {
+  return withOfflineFallback(
+    "updateCustomer",
+    async () => {
+      const { data } = await api.put<Customer>(`/v1/customers/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdateCustomer(id, payload),
+  );
 }
 
-export async function deleteCustomer(id: string): Promise<void> {
-  await api.delete(`/v1/customers/${id}`);
+export function deleteCustomer(id: string): Promise<void> {
+  return withOfflineVoid(
+    "deleteCustomer",
+    () => api.delete(`/v1/customers/${id}`),
+    () => fallbackDeleteCustomer(id),
+  );
 }
 
-export async function listProductPrices(productId: string, params?: { page?: number; size?: number }): Promise<Page<PriceHistoryEntry>> {
-  const { data } = await api.get<Page<PriceHistoryEntry>>(`/v1/products/${productId}/prices`, { params });
-  return data;
+export function listProductPrices(
+  productId: string,
+  params?: { page?: number; size?: number },
+): Promise<Page<PriceHistoryEntry>> {
+  return withOfflineFallback(
+    "listProductPrices",
+    async () => {
+      const { data } = await api.get<Page<PriceHistoryEntry>>(`/v1/products/${productId}/prices`, { params });
+      return data;
+    },
+    () => fallbackListProductPrices(productId, params),
+  );
 }
 
-export async function createProductPrice(productId: string, payload: PriceChangePayload): Promise<PriceHistoryEntry> {
-  const { data } = await api.post<PriceHistoryEntry>(`/v1/products/${productId}/prices`, payload);
-  return data;
+export function createProductPrice(productId: string, payload: PriceChangePayload): Promise<PriceHistoryEntry> {
+  return withOfflineFallback(
+    "createProductPrice",
+    async () => {
+      const { data } = await api.post<PriceHistoryEntry>(`/v1/products/${productId}/prices`, payload);
+      return data;
+    },
+    () => fallbackCreateProductPrice(productId, payload),
+  );
 }
 
-export async function listSales(params: ListSalesParams = {}): Promise<Page<SaleSummary>> {
-  const { data } = await api.get<Page<SaleSummary>>("/v1/sales", {
-    params,
-  });
-  return data;
+export function listSales(params: ListSalesParams = {}): Promise<Page<SaleSummary>> {
+  return withOfflineFallback(
+    "listSales",
+    async () => {
+      const { data } = await api.get<Page<SaleSummary>>("/v1/sales", { params });
+      return data;
+    },
+    () => fallbackListSales(params),
+  );
 }
 
-export async function updateSale(id: string, payload: SaleUpdatePayload): Promise<SaleRes> {
-  const { data } = await api.put<SaleRes>(`/v1/sales/${id}`, payload);
-  return data;
+export function updateSale(id: string, payload: SaleUpdatePayload): Promise<SaleRes> {
+  return withOfflineFallback(
+    "updateSale",
+    async () => {
+      const { data } = await api.put<SaleRes>(`/v1/sales/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdateSale(id, payload),
+  );
 }
 
-export async function cancelSale(id: string): Promise<SaleRes> {
-  const { data } = await api.post<SaleRes>(`/v1/sales/${id}/cancel`, {});
-  return data;
+export function cancelSale(id: string): Promise<SaleRes> {
+  return withOfflineFallback(
+    "cancelSale",
+    async () => {
+      const { data } = await api.post<SaleRes>(`/v1/sales/${id}/cancel`, {});
+      return data;
+    },
+    () => fallbackCancelSale(id),
+  );
 }
 
-export async function getSaleDetail(id: string): Promise<SaleDetail> {
-  const { data } = await api.get<SaleDetail>(`/v1/sales/${id}`);
-  return data;
+export function getSaleDetail(id: string): Promise<SaleDetail> {
+  return withOfflineFallback(
+    "getSaleDetail",
+    async () => {
+      const { data } = await api.get<SaleDetail>(`/v1/sales/${id}`);
+      return data;
+    },
+    () => fallbackGetSaleDetail(id),
+  );
 }
 
-export async function listSalesDaily(days = 14): Promise<SalesDailyPoint[]> {
-  const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/metrics/daily", { params: { days } });
-  return data;
+export function listSalesDaily(days = 14): Promise<SalesDailyPoint[]> {
+  return withOfflineFallback(
+    "listSalesDaily",
+    async () => {
+      const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/metrics/daily", { params: { days } });
+      return data;
+    },
+    () => fallbackListSalesDaily(days),
+  );
 }
 
-export async function createSale(payload: SalePayload): Promise<SaleRes> {
-  const { data } = await api.post<SaleRes>("/v1/sales", payload);
-  return data;
+export function createSale(payload: SalePayload): Promise<SaleRes> {
+  return withOfflineFallback(
+    "createSale",
+    async () => {
+      const { data } = await api.post<SaleRes>("/v1/sales", payload);
+      return data;
+    },
+    () => fallbackCreateSale(payload),
+  );
 }
 
-export async function listPurchases(params: ListPurchasesParams = {}): Promise<Page<PurchaseSummary>> {
-  const { data } = await api.get<Page<PurchaseSummary>>("/v1/purchases", {
-    params,
-  });
-  return data;
+export function listPurchases(params: ListPurchasesParams = {}): Promise<Page<PurchaseSummary>> {
+  return withOfflineFallback(
+    "listPurchases",
+    async () => {
+      const { data } = await api.get<Page<PurchaseSummary>>("/v1/purchases", { params });
+      return data;
+    },
+    () => fallbackListPurchases(params),
+  );
 }
 
-export async function updatePurchase(id: string, payload: PurchaseUpdatePayload): Promise<PurchaseSummary> {
-  const { data } = await api.put<PurchaseSummary>(`/v1/purchases/${id}`, payload);
-  return data;
+export function updatePurchase(id: string, payload: PurchaseUpdatePayload): Promise<PurchaseSummary> {
+  return withOfflineFallback(
+    "updatePurchase",
+    async () => {
+      const { data } = await api.put<PurchaseSummary>(`/v1/purchases/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdatePurchase(id, payload),
+  );
 }
 
-export async function cancelPurchase(id: string): Promise<PurchaseSummary> {
-  const { data } = await api.post<PurchaseSummary>(`/v1/purchases/${id}/cancel`, {});
-  return data;
+export function cancelPurchase(id: string): Promise<PurchaseSummary> {
+  return withOfflineFallback(
+    "cancelPurchase",
+    async () => {
+      const { data } = await api.post<PurchaseSummary>(`/v1/purchases/${id}/cancel`, {});
+      return data;
+    },
+    () => fallbackCancelPurchase(id),
+  );
 }
 
-export async function listPurchaseDaily(days = 14): Promise<PurchaseDailyPoint[]> {
-  const { data } = await api.get<PurchaseDailyPoint[]>("/v1/purchases/metrics/daily", { params: { days } });
-  return data;
+export function listPurchaseDaily(days = 14): Promise<PurchaseDailyPoint[]> {
+  return withOfflineFallback(
+    "listPurchaseDaily",
+    async () => {
+      const { data } = await api.get<PurchaseDailyPoint[]>("/v1/purchases/metrics/daily", { params: { days } });
+      return data;
+    },
+    () => fallbackListPurchaseDaily(days),
+  );
 }
 
-export async function createPurchase(payload: PurchasePayload): Promise<{ id: string }> {
-  const { data } = await api.post<{ id: string }>("/v1/purchases", payload);
-  return data;
+export function createPurchase(payload: PurchasePayload): Promise<{ id: string }> {
+  return withOfflineFallback(
+    "createPurchase",
+    async () => {
+      const { data } = await api.post<{ id: string }>("/v1/purchases", payload);
+      return data;
+    },
+    () => fallbackCreatePurchase(payload),
+  );
 }
 
-export async function listInventoryAlerts(threshold?: number): Promise<InventoryAlert[]> {
-  const params = typeof threshold === "number" ? { threshold } : {};
-  const { data } = await api.get<InventoryAlert[]>("/v1/inventory/alerts", { params });
-  return data;
+export function listInventoryAlerts(threshold?: number): Promise<InventoryAlert[]> {
+  return withOfflineFallback(
+    "listInventoryAlerts",
+    async () => {
+      const params = typeof threshold === "number" ? { threshold } : {};
+      const { data } = await api.get<InventoryAlert[]>("/v1/inventory/alerts", { params });
+      return data;
+    },
+    () => fallbackListInventoryAlerts(threshold),
+  );
 }
 
-export async function getInventorySummary(): Promise<InventorySummary> {
-  const { data } = await api.get<InventorySummary>("/v1/inventory/summary");
-  return data;
+export function getInventorySummary(): Promise<InventorySummary> {
+  return withOfflineFallback(
+    "getInventorySummary",
+    async () => {
+      const { data } = await api.get<InventorySummary>("/v1/inventory/summary");
+      return data;
+    },
+    () => fallbackGetInventorySummary(),
+  );
 }
 
-export async function getInventorySettings(): Promise<InventorySettings> {
-  const { data } = await api.get<InventorySettings>("/v1/inventory/settings");
-  return data;
+export function getInventorySettings(): Promise<InventorySettings> {
+  return withOfflineFallback(
+    "getInventorySettings",
+    async () => {
+      const { data } = await api.get<InventorySettings>("/v1/inventory/settings");
+      return data;
+    },
+    () => fallbackGetInventorySettings(),
+  );
 }
 
-export async function updateInventorySettings(payload: { lowStockThreshold: number }): Promise<InventorySettings> {
-  const { data } = await api.put<InventorySettings>("/v1/inventory/settings", payload);
-  return data;
+export function updateInventorySettings(payload: { lowStockThreshold: number }): Promise<InventorySettings> {
+  return withOfflineFallback(
+    "updateInventorySettings",
+    async () => {
+      const { data } = await api.put<InventorySettings>("/v1/inventory/settings", payload);
+      return data;
+    },
+    () => fallbackUpdateInventorySettings(payload),
+  );
 }
 
-export async function createInventoryAdjustment(payload: InventoryAdjustmentPayload): Promise<InventoryAdjustmentResponse> {
-  const { data } = await api.post<InventoryAdjustmentResponse>("/v1/inventory/adjustments", payload);
-  return data;
+export function createInventoryAdjustment(payload: InventoryAdjustmentPayload): Promise<InventoryAdjustmentResponse> {
+  return withOfflineFallback(
+    "createInventoryAdjustment",
+    async () => {
+      const { data } = await api.post<InventoryAdjustmentResponse>("/v1/inventory/adjustments", payload);
+      return data;
+    },
+    () => fallbackCreateInventoryAdjustment(payload),
+  );
 }
 
 
