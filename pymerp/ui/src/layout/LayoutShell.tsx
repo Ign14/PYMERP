@@ -37,7 +37,7 @@ export default function LayoutShell() {
     <div className="layout">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <img src={logo} alt="Logo empresa" style={{ height: 40, marginBottom: 8 }} />
+          <img src={logo} alt="Logo empresa" className="brand-logo brand-logo--sidebar" />
           <button className="icon-btn mobile-only" onClick={() => setSidebarOpen(false)} aria-label="Cerrar menu">
             Close
           </button>
@@ -68,8 +68,8 @@ export default function LayoutShell() {
             <button className="icon-btn desktop-hidden" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu">
               Menu
             </button>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <img src={logo} alt="Logo empresa" style={{ height: 32, marginRight: 12 }} />
+            <div className="topbar-brand">
+              <img src={logo} alt="Logo empresa" className="brand-logo brand-logo--topbar" />
               <p className="muted small">Control integral de operaciones y finanzas</p>
             </div>
           </div>
