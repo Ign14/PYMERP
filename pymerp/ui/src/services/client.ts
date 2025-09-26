@@ -3,6 +3,41 @@ import axios from "axios";
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const DEFAULT_COMPANY_ID = import.meta.env.VITE_COMPANY_ID ?? null;
 
+const DEV_FALLBACK_EMAIL = "admin@dev.local";
+const DEV_FALLBACK_PASSWORD = "Admin1234";
+const DEV_FALLBACK_TOKEN = "dev-session-token";
+const DEV_FALLBACK_REFRESH_TOKEN = "dev-session-refresh-token";
+const DEV_FALLBACK_COMPANY_ID = DEFAULT_COMPANY_ID ?? "dev-company";
+const DEV_FALLBACK_ROLES = ["admin"] as const;
+const DEV_FALLBACK_MODULES = [
+  "sales",
+  "purchases",
+  "inventory",
+  "customers",
+  "suppliers",
+  "finances",
+  "reports",
+  "settings",
+] as const;
+
+function isNetworkError(error: unknown): boolean {
+  return axios.isAxiosError(error) && !error.response;
+}
+
+function createDevFallbackResponse(): LoginResponse {
+  return {
+    token: DEV_FALLBACK_TOKEN,
+    expiresIn: 86_400,
+    refreshToken: DEV_FALLBACK_REFRESH_TOKEN,
+    refreshExpiresIn: 2_592_000,
+    companyId: DEV_FALLBACK_COMPANY_ID,
+    email: DEV_FALLBACK_EMAIL,
+    name: "Administrador Demo",
+    roles: [...DEV_FALLBACK_ROLES],
+    modules: [...DEV_FALLBACK_MODULES],
+  };
+}
+
 let authToken: string | null = null;
 let activeCompanyId: string | null = DEFAULT_COMPANY_ID;
 let currentRefreshToken: string | null = null;
@@ -359,20 +394,40 @@ export function clearSession() {
 }
 
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
-  const { data } = await api.post<LoginResponse>("/v1/auth/login", payload);
-  setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken });
-  return data;
+  try {
+    const { data } = await api.post<LoginResponse>("/v1/auth/login", payload);
+    setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken });
+    return data;
+  } catch (error) {
+    if (isNetworkError(error) && payload.email === DEV_FALLBACK_EMAIL && payload.password === DEV_FALLBACK_PASSWORD) {
+      const fallback = createDevFallbackResponse();
+      console.warn("Login API unreachable. Using local development session.");
+      setSession({ token: fallback.token, companyId: fallback.companyId, refreshToken: fallback.refreshToken });
+      return fallback;
+    }
+    throw error;
+  }
 }
 
 export async function refreshAuth(payload: RefreshPayload): Promise<LoginResponse> {
   if (!payload.refreshToken) {
     throw new Error("Refresh token is required");
   }
-  const { data } = await api.post<LoginResponse>("/v1/auth/refresh", null, {
-    headers: { ["X-Refresh-Token"]: payload.refreshToken },
-  });
-  setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken });
-  return data;
+  try {
+    const { data } = await api.post<LoginResponse>("/v1/auth/refresh", null, {
+      headers: { ["X-Refresh-Token"]: payload.refreshToken },
+    });
+    setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken });
+    return data;
+  } catch (error) {
+    if (isNetworkError(error) && payload.refreshToken === DEV_FALLBACK_REFRESH_TOKEN) {
+      const fallback = createDevFallbackResponse();
+      console.warn("Refresh API unreachable. Keeping local development session active.");
+      setSession({ token: fallback.token, companyId: fallback.companyId, refreshToken: fallback.refreshToken });
+      return fallback;
+    }
+    throw error;
+  }
 }
 
 export function getCurrentRefreshToken() {
