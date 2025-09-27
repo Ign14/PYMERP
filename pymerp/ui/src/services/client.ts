@@ -1132,6 +1132,23 @@ export type AuthSession = LoginResponse & {
   refreshExpiresAt: number;
 };
 
+export type AccountRequestPayload = {
+  rut: string;
+  fullName: string;
+  address: string;
+  email: string;
+  companyName: string;
+  password: string;
+  confirmPassword: string;
+};
+
+export type AccountRequestResponse = {
+  id: string;
+  status: string;
+  createdAt: string;
+  message: string;
+};
+
 export type SaleItemPayload = {
   productId: string;
   qty: number;
@@ -1367,6 +1384,20 @@ export async function refreshAuth(payload: RefreshPayload): Promise<LoginRespons
     }
     throw error;
   }
+}
+
+export async function submitAccountRequest(payload: AccountRequestPayload): Promise<AccountRequestResponse> {
+  const body = {
+    rut: payload.rut,
+    fullName: payload.fullName,
+    address: payload.address,
+    email: payload.email,
+    companyName: payload.companyName,
+    password: payload.password,
+    confirmPassword: payload.confirmPassword,
+  };
+  const { data } = await api.post<AccountRequestResponse>("/v1/requests", body);
+  return data;
 }
 
 export function getCurrentRefreshToken() {
