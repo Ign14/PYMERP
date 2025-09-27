@@ -35,6 +35,7 @@ type CaptchaChallenge = {
 };
 
 const SUCCESS_MESSAGE = "¡Muchas gracias! Te contactaremos lo antes posible. PYMERP.cl";
+const CAPTCHA_ENABLED = String(import.meta.env.VITE_CAPTCHA_ENABLED ?? "true").toLowerCase() !== "false";
 
 const initialRequestState: RequestFormState = {
   rut: "",
@@ -60,12 +61,16 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
   const [panel, setPanel] = useState<PanelState>("none");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginCaptcha, setLoginCaptcha] = useState<CaptchaChallenge>(() => createChallenge());
+  const [loginCaptchaAnswer, setLoginCaptchaAnswer] = useState<string>("");
+  const [loginFailures, setLoginFailures] = useState(0);
+  const [loginCooldownSeconds, setLoginCooldownSeconds] = useState(0);
 
   const [requestForm, setRequestForm] = useState<RequestFormState>(initialRequestState);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [confirmationMessage, setConfirmationMessage] = useState<string>(SUCCESS_MESSAGE);
-  const [captcha, setCaptcha] = useState<CaptchaChallenge>(() => createChallenge());
-  const [captchaAnswer, setCaptchaAnswer] = useState<string>("");
+  const [requestCaptcha, setRequestCaptcha] = useState<CaptchaChallenge>(() => createChallenge());
+  const [requestCaptchaAnswer, setRequestCaptchaAnswer] = useState<string>("");
 
   const loginEmailRef = useRef<HTMLInputElement | null>(null);
   const loginPasswordRef = useRef<HTMLInputElement | null>(null);
@@ -75,6 +80,10 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
     mutationFn: (payload) => login(payload),
     onSuccess: () => {
       setLoginError(null);
+      setLoginFailures(0);
+      setLoginCooldownSeconds(0);
+      setLoginCaptcha(createChallenge());
+      setLoginCaptchaAnswer("");
       setPanel("none");
       navigate("/app");
     },
@@ -92,6 +101,16 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       } else {
         setLoginError((error as Error).message);
       }
+      setLoginCaptcha(createChallenge());
+      setLoginCaptchaAnswer("");
+      setLoginFailures((prev) => {
+        const next = prev + 1;
+        if (next >= 3) {
+          const cooldown = Math.min(30, (next - 2) * 5);
+          setLoginCooldownSeconds((current) => Math.max(current, cooldown));
+        }
+        return next;
+      });
     },
   });
 
@@ -102,12 +121,12 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       setConfirmationMessage(response?.message ?? SUCCESS_MESSAGE);
       setPanel("success");
       setRequestForm(initialRequestState);
-      setCaptcha(createChallenge());
-      setCaptchaAnswer("");
+      setRequestCaptcha(createChallenge());
+      setRequestCaptchaAnswer("");
     },
     onError: (error) => {
-      setCaptcha(createChallenge());
-      setCaptchaAnswer("");
+      setRequestCaptcha(createChallenge());
+      setRequestCaptchaAnswer("");
       if (axios.isAxiosError(error)) {
         const data = error.response?.data as { detail?: string; message?: string; error?: string } | undefined;
         const detail = data?.detail ?? data?.message ?? data?.error;
@@ -161,6 +180,28 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [panel, isAuthenticated]);
 
+  useEffect(() => {
+    if (!CAPTCHA_ENABLED) {
+      setLoginCaptchaAnswer(String(loginCaptcha.a + loginCaptcha.b));
+    }
+  }, [loginCaptcha]);
+
+  useEffect(() => {
+    if (!CAPTCHA_ENABLED) {
+      setRequestCaptchaAnswer(String(requestCaptcha.a + requestCaptcha.b));
+    }
+  }, [requestCaptcha]);
+
+  useEffect(() => {
+    if (loginCooldownSeconds <= 0) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setLoginCooldownSeconds((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [loginCooldownSeconds]);
+
   const overlayInstructions = useMemo(() => {
     if (!isAuthenticated) {
       return "Haz clic para iniciar sesión";
@@ -190,10 +231,29 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
 
   const handleLoginSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (loginMutation.isPending || loginCooldownSeconds > 0) {
+      return;
+    }
     setLoginError(null);
+    const expected = loginCaptcha.a + loginCaptcha.b;
+    const normalizedAnswer = loginCaptchaAnswer.trim();
+    if (CAPTCHA_ENABLED) {
+      const provided = Number.parseInt(normalizedAnswer, 10);
+      if (!normalizedAnswer || Number.isNaN(provided) || provided !== expected) {
+        setLoginError("Debes resolver el captcha correctamente");
+        setLoginCaptcha(createChallenge());
+        setLoginCaptchaAnswer("");
+        return;
+      }
+    }
     await loginMutation.mutateAsync({
       email: loginForm.email.trim(),
       password: loginForm.password,
+      captcha: {
+        a: loginCaptcha.a,
+        b: loginCaptcha.b,
+        answer: CAPTCHA_ENABLED ? normalizedAnswer : String(expected),
+      },
     });
   };
 
@@ -204,20 +264,24 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
     const trimmedRut = normalizeRut(requestForm.rut);
     if (!isValidRut(trimmedRut)) {
       setRequestError("El RUT ingresado no es válido");
-      setCaptcha(createChallenge());
-      setCaptchaAnswer("");
+      setRequestCaptcha(createChallenge());
+      setRequestCaptchaAnswer("");
       return;
     }
     if (requestForm.password !== requestForm.confirmPassword) {
       setRequestError("Las contraseñas no coinciden");
       return;
     }
-    const expected = captcha.a + captcha.b;
-    if (Number.parseInt(captchaAnswer, 10) !== expected) {
-      setRequestError("Debes resolver el captcha correctamente");
-      setCaptcha(createChallenge());
-      setCaptchaAnswer("");
-      return;
+    const expected = requestCaptcha.a + requestCaptcha.b;
+    const normalizedAnswer = requestCaptchaAnswer.trim();
+    if (CAPTCHA_ENABLED) {
+      const provided = Number.parseInt(normalizedAnswer, 10);
+      if (!normalizedAnswer || Number.isNaN(provided) || provided !== expected) {
+        setRequestError("Debes resolver el captcha correctamente");
+        setRequestCaptcha(createChallenge());
+        setRequestCaptchaAnswer("");
+        return;
+      }
     }
 
     requestMutation.mutate({
@@ -228,14 +292,19 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       companyName: requestForm.companyName.trim(),
       password: requestForm.password,
       confirmPassword: requestForm.confirmPassword,
+      captcha: {
+        a: requestCaptcha.a,
+        b: requestCaptcha.b,
+        answer: CAPTCHA_ENABLED ? normalizedAnswer : String(expected),
+      },
     });
   };
 
   const openRequestPanel = () => {
     setRequestError(null);
     setRequestForm(initialRequestState);
-    setCaptcha(createChallenge());
-    setCaptchaAnswer("");
+    setRequestCaptcha(createChallenge());
+    setRequestCaptchaAnswer("");
     setPanel("request");
   };
 
@@ -295,14 +364,43 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
                       onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
                     />
                   </label>
+                  {CAPTCHA_ENABLED ? (
+                    <label className="landing-label landing-captcha">
+                      <span className="landing-captcha__label">Captcha: ¿Cuánto es {loginCaptcha.a} + {loginCaptcha.b}?</span>
+                      <input
+                        inputMode="numeric"
+                        value={loginCaptchaAnswer}
+                        onChange={(event) => setLoginCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
+                        required
+                        aria-label={`Captcha: ¿Cuánto es ${loginCaptcha.a} + ${loginCaptcha.b}?`}
+                      />
+                    </label>
+                  ) : (
+                    <p className="landing-captcha__label" role="status">
+                      Captcha deshabilitado en este entorno (respuesta enviada automáticamente).
+                    </p>
+                  )}
                   {loginError && (
-                    <p className="landing-error" role="alert">
+                    <p className="landing-error" role="alert" aria-live="assertive">
                       {loginError}
                     </p>
                   )}
-                  <button className="landing-button" type="submit" disabled={loginMutation.isPending}>
-                    {loginMutation.isPending ? "Ingresando..." : "Entrar"}
+                  <button
+                    className="landing-button"
+                    type="submit"
+                    disabled={loginMutation.isPending || loginCooldownSeconds > 0}
+                  >
+                    {loginMutation.isPending
+                      ? "Ingresando..."
+                      : loginCooldownSeconds > 0
+                        ? `Reintentar en ${loginCooldownSeconds}s`
+                        : "Entrar"}
                   </button>
+                  {loginCooldownSeconds > 0 && (
+                    <p className="landing-hint" role="status" aria-live="polite">
+                      Demasiados intentos fallidos. Espera {loginCooldownSeconds}s antes de reintentar.
+                    </p>
+                  )}
                 </form>
                 <button type="button" className="landing-link" onClick={openRequestPanel}>
                   ¿No tienes cuenta o tienes problemas para acceder? Haz clic aquí
@@ -384,18 +482,24 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
                       minLength={8}
                     />
                   </label>
-                  <div className="landing-captcha">
-                    <span className="landing-captcha__label">Captcha: ¿Cuánto es {captcha.a} + {captcha.b}?</span>
+                  <label className="landing-label landing-captcha">
+                    <span className="landing-captcha__label">Captcha: ¿Cuánto es {requestCaptcha.a} + {requestCaptcha.b}?</span>
                     <input
                       inputMode="numeric"
-                      pattern="\\d*"
-                      value={captchaAnswer}
-                      onChange={(event) => setCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
-                      required
+                      value={requestCaptchaAnswer}
+                      onChange={(event) => setRequestCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
+                      required={CAPTCHA_ENABLED}
+                      aria-required={CAPTCHA_ENABLED}
+                      aria-label={`Captcha: ¿Cuánto es ${requestCaptcha.a} + ${requestCaptcha.b}?`}
                     />
-                  </div>
+                  </label>
+                  {!CAPTCHA_ENABLED && (
+                    <p className="landing-captcha__label" role="status">
+                      Captcha deshabilitado en este entorno (respuesta enviada automáticamente).
+                    </p>
+                  )}
                   {requestError && (
-                    <p className="landing-error" role="alert">
+                    <p className="landing-error" role="alert" aria-live="assertive">
                       {requestError}
                     </p>
                   )}

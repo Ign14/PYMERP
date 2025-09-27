@@ -1,5 +1,6 @@
 package com.datakomerz.pymes.requests.application;
 
+import com.datakomerz.pymes.common.captcha.SimpleCaptchaValidationService;
 import com.datakomerz.pymes.common.validation.RutUtils;
 import com.datakomerz.pymes.requests.AccountRequest;
 import com.datakomerz.pymes.requests.AccountRequestRepository;
@@ -21,17 +22,21 @@ public class AccountRequestService {
   private final AccountRequestRepository repository;
   private final PasswordEncoder passwordEncoder;
   private final AccountRequestNotifier notifier;
+  private final SimpleCaptchaValidationService captchaValidationService;
 
   public AccountRequestService(AccountRequestRepository repository,
                                PasswordEncoder passwordEncoder,
-                               AccountRequestNotifier notifier) {
+                               AccountRequestNotifier notifier,
+                               SimpleCaptchaValidationService captchaValidationService) {
     this.repository = repository;
     this.passwordEncoder = passwordEncoder;
     this.notifier = notifier;
+    this.captchaValidationService = captchaValidationService;
   }
 
   @Transactional
   public AccountRequestResponse create(AccountRequestPayload payload) {
+    captchaValidationService.validate(payload.captcha());
     if (!payload.passwordsMatch()) {
       throw new IllegalArgumentException("Las contraseñas no coinciden");
     }

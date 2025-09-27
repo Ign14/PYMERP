@@ -60,9 +60,14 @@ public class AppProperties {
 
   public static class Security {
     private final Jwt jwt = new Jwt();
+    private final Captcha captcha = new Captcha();
 
     public Jwt getJwt() {
       return jwt;
+    }
+
+    public Captcha getCaptcha() {
+      return captcha;
     }
 
     public static class Jwt {
@@ -101,6 +106,36 @@ public class AppProperties {
 
       public void setRefreshExpirationSeconds(long refreshExpirationSeconds) {
         this.refreshExpirationSeconds = refreshExpirationSeconds;
+      }
+    }
+
+    public static class Captcha {
+      private boolean enabled = true;
+      private int minOperand = 0;
+      private int maxOperand = 50;
+
+      public boolean isEnabled() {
+        return enabled;
+      }
+
+      public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+      }
+
+      public int getMinOperand() {
+        return minOperand;
+      }
+
+      public void setMinOperand(int minOperand) {
+        this.minOperand = minOperand;
+      }
+
+      public int getMaxOperand() {
+        return maxOperand;
+      }
+
+      public void setMaxOperand(int maxOperand) {
+        this.maxOperand = maxOperand;
       }
     }
   }

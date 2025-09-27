@@ -3,7 +3,9 @@ package com.datakomerz.pymes.common;
 import com.datakomerz.pymes.auth.InvalidRefreshTokenException;
 import com.datakomerz.pymes.auth.TenantMismatchException;
 import com.datakomerz.pymes.auth.UserDisabledException;
+import com.datakomerz.pymes.common.captcha.CaptchaValidationException;
 import jakarta.persistence.EntityNotFoundException;
+import java.net.URI;
 import java.util.Map;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -41,6 +43,16 @@ public class GlobalExceptionHandler {
   public ProblemDetail handleBadCredentials(BadCredentialsException ex) {
     var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid credentials");
     pd.setTitle("Unauthorized");
+    return pd;
+  }
+
+  @ExceptionHandler(CaptchaValidationException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ProblemDetail handleCaptcha(CaptchaValidationException ex) {
+    var pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    pd.setTitle("Bad Request");
+    pd.setType(URI.create(ex.getType()));
+    pd.setProperty("field", ex.getField());
     return pd;
   }
 
