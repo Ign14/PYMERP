@@ -369,6 +369,8 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
                       <span className="landing-captcha__label">Captcha: ¿Cuánto es {loginCaptcha.a} + {loginCaptcha.b}?</span>
                       <input
                         inputMode="numeric"
+
+                        pattern="\\d*"
                         value={loginCaptchaAnswer}
                         onChange={(event) => setLoginCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
                         required
@@ -486,6 +488,8 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
                     <span className="landing-captcha__label">Captcha: ¿Cuánto es {requestCaptcha.a} + {requestCaptcha.b}?</span>
                     <input
                       inputMode="numeric"
+
+                      pattern="\\d*"
                       value={requestCaptchaAnswer}
                       onChange={(event) => setRequestCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
                       required={CAPTCHA_ENABLED}
