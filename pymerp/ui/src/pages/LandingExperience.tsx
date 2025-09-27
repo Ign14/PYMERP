@@ -61,8 +61,6 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
   const [panel, setPanel] = useState<PanelState>("none");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginCaptcha, setLoginCaptcha] = useState<CaptchaChallenge>(() => createChallenge());
-  const [loginCaptchaAnswer, setLoginCaptchaAnswer] = useState<string>("");
   const [loginFailures, setLoginFailures] = useState(0);
   const [loginCooldownSeconds, setLoginCooldownSeconds] = useState(0);
 
@@ -82,8 +80,6 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       setLoginError(null);
       setLoginFailures(0);
       setLoginCooldownSeconds(0);
-      setLoginCaptcha(createChallenge());
-      setLoginCaptchaAnswer("");
       setPanel("none");
       navigate("/app");
     },
@@ -101,8 +97,6 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       } else {
         setLoginError((error as Error).message);
       }
-      setLoginCaptcha(createChallenge());
-      setLoginCaptchaAnswer("");
       setLoginFailures((prev) => {
         const next = prev + 1;
         if (next >= 3) {
@@ -182,12 +176,6 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
 
   useEffect(() => {
     if (!CAPTCHA_ENABLED) {
-      setLoginCaptchaAnswer(String(loginCaptcha.a + loginCaptcha.b));
-    }
-  }, [loginCaptcha]);
-
-  useEffect(() => {
-    if (!CAPTCHA_ENABLED) {
       setRequestCaptchaAnswer(String(requestCaptcha.a + requestCaptcha.b));
     }
   }, [requestCaptcha]);
@@ -235,25 +223,9 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       return;
     }
     setLoginError(null);
-    const expected = loginCaptcha.a + loginCaptcha.b;
-    const normalizedAnswer = loginCaptchaAnswer.trim();
-    if (CAPTCHA_ENABLED) {
-      const provided = Number.parseInt(normalizedAnswer, 10);
-      if (!normalizedAnswer || Number.isNaN(provided) || provided !== expected) {
-        setLoginError("Debes resolver el captcha correctamente");
-        setLoginCaptcha(createChallenge());
-        setLoginCaptchaAnswer("");
-        return;
-      }
-    }
     await loginMutation.mutateAsync({
       email: loginForm.email.trim(),
       password: loginForm.password,
-      captcha: {
-        a: loginCaptcha.a,
-        b: loginCaptcha.b,
-        answer: CAPTCHA_ENABLED ? normalizedAnswer : String(expected),
-      },
     });
   };
 
@@ -364,24 +336,6 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
                       onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
                     />
                   </label>
-                  {CAPTCHA_ENABLED ? (
-                    <label className="landing-label landing-captcha">
-                      <span className="landing-captcha__label">Captcha: ¿Cuánto es {loginCaptcha.a} + {loginCaptcha.b}?</span>
-                      <input
-                        inputMode="numeric"
-
-                        pattern="\\d*"
-                        value={loginCaptchaAnswer}
-                        onChange={(event) => setLoginCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
-                        required
-                        aria-label={`Captcha: ¿Cuánto es ${loginCaptcha.a} + ${loginCaptcha.b}?`}
-                      />
-                    </label>
-                  ) : (
-                    <p className="landing-captcha__label" role="status">
-                      Captcha deshabilitado en este entorno (respuesta enviada automáticamente).
-                    </p>
-                  )}
                   {loginError && (
                     <p className="landing-error" role="alert" aria-live="assertive">
                       {loginError}

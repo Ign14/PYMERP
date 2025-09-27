@@ -1115,7 +1115,6 @@ export type SimpleCaptchaPayload = {
 export type LoginPayload = {
   email: string;
   password: string;
-  captcha: SimpleCaptchaPayload;
 };
 
 export type RefreshPayload = {
