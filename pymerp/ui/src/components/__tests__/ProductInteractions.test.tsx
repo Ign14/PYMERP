@@ -6,17 +6,12 @@ import type React from "react";
 import ProductFormDialog from "../dialogs/ProductFormDialog";
 import ProductQrModal from "../dialogs/ProductQrModal";
 import ProductInventoryAlertModal from "../dialogs/ProductInventoryAlertModal";
-import {
-  createProduct,
-  fetchProductQrBlob,
-  updateProductInventoryAlert,
-} from "../../services/client";
+import { createProduct, fetchProductQrBlob } from "../../services/client";
 
 vi.mock("../../services/client", () => ({
   createProduct: vi.fn(),
   updateProduct: vi.fn(),
   fetchProductQrBlob: vi.fn(),
-  updateProductInventoryAlert: vi.fn(),
 }));
 
 type ProductMock = {
@@ -35,8 +30,6 @@ type ProductMock = {
 
 const createProductMock = createProduct as unknown as vi.Mock;
 const fetchProductQrBlobMock = fetchProductQrBlob as unknown as vi.Mock;
-const updateProductInventoryAlertMock = updateProductInventoryAlert as unknown as vi.Mock;
-
 const createObjectUrlSpy = vi
   .spyOn(global.URL, "createObjectURL")
   .mockImplementation(() => "blob:test");
@@ -59,7 +52,6 @@ const renderWithQueryClient = (ui: React.ReactElement) => {
 beforeEach(() => {
   createProductMock.mockReset();
   fetchProductQrBlobMock.mockReset();
-  updateProductInventoryAlertMock.mockReset();
   createObjectUrlSpy.mockClear();
   revokeObjectUrlSpy.mockClear();
 });
@@ -138,8 +130,9 @@ describe("Product QR modal", () => {
 });
 
 describe("Product inventory alert modal", () => {
-  it("updates critical stock", async () => {
-    const onSaved = vi.fn();
+  it("returns the submitted value", async () => {
+    const onSubmit = vi.fn();
+    const onClose = vi.fn();
     const product: ProductMock = {
       id: "prd-alert",
       sku: "SKU-ALERT",
@@ -147,26 +140,19 @@ describe("Product inventory alert modal", () => {
       criticalStock: 2,
       active: true,
     };
-    updateProductInventoryAlertMock.mockResolvedValue({ ...product, criticalStock: 5 });
 
     renderWithQueryClient(
-      <ProductInventoryAlertModal
-        open
-        product={product as any}
-        onClose={() => undefined}
-        onSaved={onSaved}
-      />,
+      <ProductInventoryAlertModal open product={product as any} onClose={onClose} onSubmit={onSubmit} />,
     );
 
-    const input = screen.getByLabelText(/Stock crítico/i);
+    const input = screen.getByRole("spinbutton", { name: /Stock crítico/i });
     await userEvent.clear(input);
     await userEvent.type(input, "5");
 
     await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
 
     await waitFor(() => {
-      expect(updateProductInventoryAlertMock).toHaveBeenCalledWith(product.id, 5);
+      expect(onSubmit).toHaveBeenCalledWith(5);
     });
-    expect(onSaved).toHaveBeenCalled();
   });
 });

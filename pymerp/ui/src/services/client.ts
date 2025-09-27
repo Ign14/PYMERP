@@ -133,7 +133,8 @@ const demoState: DemoState = {
       currentPrice: 11990,
       imageUrl: undefined,
       qrUrl: undefined,
-      criticalStock: 0,
+      stock: 120,
+      criticalStock: 40,
       active: true,
     },
     {
@@ -146,7 +147,8 @@ const demoState: DemoState = {
       currentPrice: 3290,
       imageUrl: undefined,
       qrUrl: undefined,
-      criticalStock: 0,
+      stock: 68,
+      criticalStock: 25,
       active: true,
     },
     {
@@ -159,7 +161,8 @@ const demoState: DemoState = {
       currentPrice: 8990,
       imageUrl: undefined,
       qrUrl: undefined,
-      criticalStock: 0,
+      stock: 22,
+      criticalStock: 30,
       active: true,
     },
     {
@@ -172,7 +175,8 @@ const demoState: DemoState = {
       currentPrice: 7490,
       imageUrl: undefined,
       qrUrl: undefined,
-      criticalStock: 0,
+      stock: 6,
+      criticalStock: 15,
       active: false,
     },
   ],
@@ -620,6 +624,7 @@ function fallbackCreateProduct(payload: ProductPayload): Product {
     barcode: payload.barcode,
     imageUrl: payload.imageUrl,
     qrUrl: undefined,
+    stock: 0,
     criticalStock: 0,
     currentPrice: 0,
     active: true,
@@ -718,6 +723,12 @@ function fallbackProductStock(productId: string): ProductStock {
     },
   ];
   const total = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+  const productIndex = demoState.products.findIndex((product) => product.id === productId);
+  if (productIndex !== -1) {
+    demoState.products = demoState.products.map((product, index) =>
+      index === productIndex ? { ...product, stock: total } : product,
+    );
+  }
   return { productId, total, lots };
 }
 
@@ -1200,6 +1211,7 @@ export type Product = {
   barcode?: string;
   imageUrl?: string | null;
   qrUrl?: string;
+  stock?: number | string | null;
   criticalStock?: number | string;
   currentPrice?: number | string;
   active: boolean;

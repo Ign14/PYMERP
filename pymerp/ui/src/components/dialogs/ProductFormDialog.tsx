@@ -176,7 +176,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
             onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))}
             placeholder="SKU-001"
             disabled={mutation.isPending}
-            autoFocus
+            data-autofocus
           />
         </label>
         <label>

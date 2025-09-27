@@ -1,30 +1,36 @@
-import { FormEvent, useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
-import { Product, updateProductInventoryAlert } from "../../services/client";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Product } from "../../services/client";
 import Modal from "./Modal";
 
 type Props = {
   open: boolean;
   product: Product | null;
+  pendingValue?: number | null;
+  submitting?: boolean;
+  error?: string | null;
   onClose: () => void;
-  onSaved?: (product: Product) => void;
+  onSubmit: (value: number) => void;
 };
 
-export default function ProductInventoryAlertModal({ open, product, onClose, onSaved }: Props) {
+export default function ProductInventoryAlertModal({
+  open,
+  product,
+  pendingValue,
+  submitting = false,
+  error,
+  onClose,
+  onSubmit,
+}: Props) {
   const [value, setValue] = useState<string>("0");
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: (criticalStock: number) => {
-      if (!product) throw new Error("Producto no seleccionado");
-      return updateProductInventoryAlert(product.id, criticalStock);
-    },
-    onSuccess: (updated) => {
-      onSaved?.(updated);
-      onClose();
-    },
-  });
+  const initialValue = useMemo(() => {
+    if (typeof pendingValue === "number") {
+      return pendingValue;
+    }
+    const numeric = Number(product?.criticalStock ?? 0);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+  }, [pendingValue, product?.criticalStock]);
 
   useEffect(() => {
     if (!open || !product) {
@@ -32,13 +38,11 @@ export default function ProductInventoryAlertModal({ open, product, onClose, onS
       setLocalError(null);
       return;
     }
-    const numeric = Number(product.criticalStock ?? 0);
-    setValue(Number.isFinite(numeric) && numeric >= 0 ? numeric.toString() : "0");
+    setValue(String(initialValue));
     setLocalError(null);
-    mutation.reset();
-  }, [open, product]);
+  }, [open, product?.id, initialValue]);
 
-  const onSubmit = (event: FormEvent) => {
+  const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric < 0) {
@@ -46,62 +50,47 @@ export default function ProductInventoryAlertModal({ open, product, onClose, onS
       return;
     }
     setLocalError(null);
-    mutation.mutate(numeric);
+    onSubmit(numeric);
+  };
+
+  const handleClose = () => {
+    if (!submitting) {
+      onClose();
+    }
   };
 
   const title = product ? `Stock crítico - ${product.name}` : "Stock crítico";
 
+  const hasError = !!localError || !!error;
+
   return (
-    <Modal open={open} title={title} onClose={() => !mutation.isPending && onClose()}>
-      <form className="form-grid" onSubmit={onSubmit}>
+    <Modal open={open} title={title} onClose={handleClose}>
+      <form className="form-grid" onSubmit={handleSubmit}>
         <label>
           <span>Stock crítico</span>
           <input
-            className="input"
+            className={`input${hasError ? " input-error" : ""}`}
             type="number"
             min="0"
             step="1"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            disabled={mutation.isPending}
-            autoFocus
+            onChange={(event) => setValue(event.target.value)}
+            disabled={submitting}
+            data-autofocus
+            inputMode="numeric"
           />
         </label>
         <div className="buttons">
-          <button className="btn" type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Guardando..." : "Guardar"}
+          <button className="btn" type="submit" disabled={submitting}>
+            {submitting ? "Guardando..." : "Guardar"}
           </button>
-          <button className="btn ghost" type="button" onClick={onClose} disabled={mutation.isPending}>
+          <button className="btn ghost" type="button" onClick={handleClose} disabled={submitting}>
             Cancelar
           </button>
         </div>
         {localError && <p className="error">{localError}</p>}
-        {mutation.isError && <p className="error">{resolveErrorMessage(mutation.error)}</p>}
+        {!localError && error && <p className="error">{error}</p>}
       </form>
     </Modal>
   );
-}
-
-function resolveErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const detail = error.response?.data as { detail?: string; message?: string; error?: string } | string | undefined;
-    if (typeof detail === "string" && detail.trim().length > 0) {
-      return detail;
-    }
-    if (detail && typeof detail === "object") {
-      if (typeof detail.detail === "string" && detail.detail.trim().length > 0) {
-        return detail.detail;
-      }
-      if (typeof detail.message === "string" && detail.message.trim().length > 0) {
-        return detail.message;
-      }
-      if (typeof detail.error === "string" && detail.error.trim().length > 0) {
-        return detail.error;
-      }
-    }
-  }
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return "No se pudo guardar";
 }

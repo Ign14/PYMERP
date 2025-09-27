@@ -92,7 +92,13 @@ export default function ProductQrModal({ open, product, onClose }: Props) {
         </div>
       )}
       <div className="buttons">
-        <button className="btn" type="button" onClick={handlePrint} disabled={!imageUrl || loading}>
+        <button
+          className="btn"
+          type="button"
+          onClick={handlePrint}
+          disabled={!imageUrl || loading}
+          data-autofocus
+        >
           Imprimir
         </button>
         <button className="btn ghost" type="button" onClick={handleDownload} disabled={!product || loading}>
