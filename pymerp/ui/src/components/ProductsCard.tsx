@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createProductPrice,
@@ -6,6 +7,7 @@ import {
   fetchProductStock,
   listProductPrices,
   listProducts,
+  updateProductInventoryAlert,
   updateProductStatus,
   PriceChangePayload,
   PriceHistoryEntry,
@@ -16,6 +18,8 @@ import {
 import ProductFormDialog from "./dialogs/ProductFormDialog";
 import ProductInventoryAlertModal from "./dialogs/ProductInventoryAlertModal";
 import ProductQrModal from "./dialogs/ProductQrModal";
+import ProductImageModal from "./dialogs/ProductImageModal";
+import placeholderImage from "../../assets/product-placeholder.svg";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -31,9 +35,22 @@ export default function ProductsCard() {
   const [qrProduct, setQrProduct] = useState<Product | null>(null);
   const [criticalModalOpen, setCriticalModalOpen] = useState(false);
   const [criticalProduct, setCriticalProduct] = useState<Product | null>(null);
+  const [pendingCriticalStock, setPendingCriticalStock] = useState<Record<string, number>>({});
+  const [criticalErrors, setCriticalErrors] = useState<Record<string, string>>({});
+  const [savingCritical, setSavingCritical] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<
+    | {
+        type: "success" | "error";
+        text: string;
+      }
+    | null
+  >(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageProduct, setImageProduct] = useState<Product | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const resolveNumericPrice = (value?: string | number | null) => {
+  const resolveNumeric = (value?: string | number | null) => {
     if (typeof value === "number") {
       return Number.isFinite(value) ? value : null;
     }
@@ -45,9 +62,54 @@ export default function ProductsCard() {
   };
 
   const formatPriceLabel = (value?: string | number | null) => {
-    const numeric = resolveNumericPrice(value);
+    const numeric = resolveNumeric(value);
     return numeric === null || numeric <= 0 ? "Sin precio" : `$${numeric.toFixed(2)}`;
   };
+
+  const dirty = useMemo(() => Object.keys(pendingCriticalStock).length > 0, [pendingCriticalStock]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [dirty]);
+
+  const resolveStockValue = (value?: string | number | null) => {
+    const numeric = resolveNumeric(value);
+    return numeric === null || Number.isNaN(numeric) ? 0 : numeric;
+  };
+
+  const getDisplayCriticalStock = (product: Product) => {
+    if (!product) return 0;
+    const pending = pendingCriticalStock[product.id];
+    if (typeof pending === "number") {
+      return pending;
+    }
+    return resolveStockValue(product.criticalStock ?? 0);
+  };
+
+  const getDisplayStock = (product: Product) => {
+    if (!product) return 0;
+    return resolveStockValue(product.stock ?? 0);
+  };
+
+  const isStockCritical = (product: Product) => {
+    const stockValue = getDisplayStock(product);
+    const criticalValue = getDisplayCriticalStock(product);
+    return criticalValue > 0 && stockValue <= criticalValue;
+  };
+
+  const hasPendingCriticalChange = (productId: string) =>
+    Object.prototype.hasOwnProperty.call(pendingCriticalStock, productId);
 
   useEffect(() => {
     setPage(0);
@@ -118,7 +180,7 @@ export default function ProductsCard() {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["products"], exact: false });
       setSelectedProduct(updated);
-      setPriceForm({ price: resolveNumericPrice(updated.currentPrice) ?? 0 });
+      setPriceForm({ price: resolveNumeric(updated.currentPrice) ?? 0 });
     },
   });
 
@@ -150,9 +212,10 @@ export default function ProductsCard() {
     setQrProduct(null);
   };
 
-  const openCriticalStockModal = () => {
-    if (!selectedProduct) return;
-    setCriticalProduct(selectedProduct);
+  const openCriticalStockModal = (product?: Product | null) => {
+    const target = product ?? selectedProduct;
+    if (!target) return;
+    setCriticalProduct(target);
     setCriticalModalOpen(true);
   };
 
@@ -161,23 +224,124 @@ export default function ProductsCard() {
     setCriticalProduct(null);
   };
 
-  const handleCriticalStockSaved = (updated: Product) => {
+  const handleCriticalStockSubmit = (value: number) => {
+    if (!criticalProduct) return;
+    const productId = criticalProduct.id;
+    const baseValue = resolveStockValue(criticalProduct.criticalStock ?? 0);
+    setPendingCriticalStock((prev) => {
+      const next = { ...prev };
+      if (value === baseValue) {
+        delete next[productId];
+      } else {
+        next[productId] = value;
+      }
+      return next;
+    });
+    setCriticalErrors((prev) => {
+      if (!prev[productId]) {
+        return prev;
+      }
+      const { [productId]: _removed, ...rest } = prev;
+      return rest;
+    });
+    setStatusMessage(null);
+    if (selectedProduct?.id === productId) {
+      setSelectedProduct({ ...selectedProduct, criticalStock: value });
+    }
+    setCriticalModalOpen(false);
+    setCriticalProduct(null);
+  };
+
+  const handleSaveCriticalChanges = async () => {
+    const entries = Object.entries(pendingCriticalStock);
+    if (entries.length === 0 || savingCritical) {
+      return;
+    }
+    setSavingCritical(true);
+    setStatusMessage(null);
+    const remaining = { ...pendingCriticalStock };
+    const updatedProducts: Product[] = [];
+
+    for (const [productId, value] of entries) {
+      try {
+        const updated = await updateProductInventoryAlert(productId, value);
+        updatedProducts.push(updated);
+        delete remaining[productId];
+        setCriticalErrors((prev) => {
+          if (!prev[productId]) {
+            return prev;
+          }
+          const { [productId]: _removed, ...rest } = prev;
+          return rest;
+        });
+      } catch (error) {
+        const parsed = resolveProblemDetail(error);
+        const productName = productsQuery.data?.content?.find((item) => item.id === productId)?.name ?? productId;
+        setCriticalErrors((prev) => ({
+          ...prev,
+          [productId]: parsed.fieldMessage ?? parsed.message,
+        }));
+        setPendingCriticalStock(remaining);
+        setStatusMessage({
+          type: "error",
+          text: `${productName}: ${parsed.message}`,
+        });
+        setSavingCritical(false);
+        return;
+      }
+    }
+
+    setPendingCriticalStock({});
+    setStatusMessage({ type: "success", text: "Cambios guardados correctamente." });
+    setSavingCritical(false);
     queryClient.invalidateQueries({ queryKey: ["products"], exact: false });
-    setSelectedProduct(updated);
-    setPriceForm({ price: resolveNumericPrice(updated.currentPrice) ?? 0 });
+    updatedProducts.forEach((product) => {
+      queryClient.invalidateQueries({ queryKey: ["product", product.id, "stock"] });
+    });
+    if (selectedProduct) {
+      const refreshed = updatedProducts.find((item) => item.id === selectedProduct.id);
+      if (refreshed) {
+        setSelectedProduct(refreshed);
+        setPriceForm({ price: resolveNumeric(refreshed.currentPrice) ?? 0 });
+      }
+    }
   };
 
   const handleProductSaved = (product: Product) => {
     queryClient.invalidateQueries({ queryKey: ["products"], exact: false });
     setSelectedProduct(product);
-    setPriceForm({ price: resolveNumericPrice(product.currentPrice) ?? 0 });
+    setPriceForm({ price: resolveNumeric(product.currentPrice) ?? 0 });
     if (qrProduct?.id === product.id) {
       setQrProduct(product);
     }
-    if (criticalProduct?.id === product.id) {
-      setCriticalProduct(product);
-    }
+    setPendingCriticalStock((prev) => {
+      if (!prev[product.id]) {
+        return prev;
+      }
+      const { [product.id]: _removed, ...rest } = prev;
+      return rest;
+    });
+    setCriticalErrors((prev) => {
+      if (!prev[product.id]) {
+        return prev;
+      }
+      const { [product.id]: _removed, ...rest } = prev;
+      return rest;
+    });
     queryClient.invalidateQueries({ queryKey: ["product", product.id, "stock"] });
+  };
+
+  const openImageModal = (product: Product) => {
+    const src = typeof product.imageUrl === "string" && product.imageUrl.trim().length > 0 ? product.imageUrl : placeholderImage;
+    setImageProduct(product);
+    setImageSrc(src);
+    setImageModalOpen(true);
+  };
+
+  const closeImageModal = () => {
+    setImageModalOpen(false);
+    setImageProduct(null);
+    setImageSrc(null);
   };
 
   const handleDelete = () => {
@@ -205,7 +369,7 @@ export default function ProductsCard() {
     }
     if (latest !== selectedProduct) {
       setSelectedProduct(latest);
-      setPriceForm({ price: resolveNumericPrice(latest.currentPrice) ?? 0 });
+      setPriceForm({ price: resolveNumeric(latest.currentPrice) ?? 0 });
     }
   }, [productsQuery.data, selectedProduct]);
 
@@ -216,8 +380,8 @@ export default function ProductsCard() {
 
   const selectedCriticalStock = useMemo(() => {
     if (!selectedProduct) return 0;
-    return resolveNumericPrice(selectedProduct.criticalStock ?? 0) ?? 0;
-  }, [selectedProduct]);
+    return getDisplayCriticalStock(selectedProduct);
+  }, [selectedProduct, pendingCriticalStock]);
 
   const onSubmitPrice = (event: FormEvent) => {
     event.preventDefault();
@@ -230,9 +394,33 @@ export default function ProductsCard() {
   };
 
   return (
-    <div className="card">
+    <div className="card products-card">
+      <div className="products-banner">
+        <div>
+          <h2>Productos</h2>
+          <p className="muted small">
+            {dirty
+              ? "Tienes cambios sin guardar en los stocks críticos."
+              : "Administra tu catálogo, imágenes y alertas de stock."}
+          </p>
+        </div>
+        <button
+          className="btn primary"
+          type="button"
+          onClick={handleSaveCriticalChanges}
+          disabled={!dirty || savingCritical}
+        >
+          {savingCritical ? "Guardando..." : "Guardar cambios"}
+        </button>
+      </div>
+
+      {statusMessage && (
+        <div className={`status-message ${statusMessage.type}`} role="status">
+          {statusMessage.text}
+        </div>
+      )}
+
       <div className="card-header">
-        <h2>Productos</h2>
         <div className="inline-actions">
           <input
             className="input"
@@ -261,6 +449,7 @@ export default function ProductsCard() {
           </button>
         </div>
       </div>
+
       <div className="inline-actions">
         <button className="btn" type="button" onClick={openCreateDialog}>
           + Producto
@@ -288,6 +477,10 @@ export default function ProductsCard() {
           {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
         </button>
       </div>
+
+      {dirty && (
+        <p className="muted small notice-dirty">Recuerda guardar para aplicar los cambios pendientes.</p>
+      )}
       {deleteMutation.isError && (
         <p className="error">{(deleteMutation.error as Error)?.message ?? "No se pudo eliminar el producto"}</p>
       )}
@@ -302,46 +495,108 @@ export default function ProductsCard() {
       {!productsQuery.isLoading && !productsQuery.isError && (
         <>
           <div className="table-wrapper">
-            <table className="table">
+            <table className="table products-table">
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>SKU</th>
+                  <th>Producto</th>
                   <th>Precio actual</th>
+                  <th>Stock</th>
+                  <th>Stock crítico</th>
                   <th>Estado</th>
-                  <th>QR</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((product: Product) => (
-                  <tr
-                    key={product.id}
-                    className={selectedProduct?.id === product.id ? "selected" : undefined}
-                    onClick={() => {
-                      setSelectedProduct(product);
-                      setPriceForm({ price: resolveNumericPrice(product.currentPrice) ?? 0 });
-                    }}
-                  >
-                    <td>{product.name}</td>
-                    <td className="mono">{product.sku}</td>
-                    <td className="mono">
-                      {formatPriceLabel(product.currentPrice)}
-                    </td>
-                    <td>{product.active ? "Activo" : "Inactivo"}</td>
-                    <td>
-                      <button
-                        className="btn ghost"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openQrModal(product);
-                        }}
-                      >
-                        Ver QR
-                      </button>
-                    </td>
-                </tr>
-                ))}
+                {products.map((product: Product) => {
+                  const pendingValue = pendingCriticalStock[product.id];
+                  const stockValue = getDisplayStock(product);
+                  const criticalValue = getDisplayCriticalStock(product);
+                  const criticalError = criticalErrors[product.id];
+                  const imageSource =
+                    typeof product.imageUrl === "string" && product.imageUrl.trim().length > 0
+                      ? product.imageUrl
+                      : placeholderImage;
+                  const rowClass = [
+                    selectedProduct?.id === product.id ? "selected" : "",
+                    isStockCritical(product) ? "product-row--critical" : "",
+                    hasPendingCriticalChange(product.id) ? "product-row--pending" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || undefined;
+
+                  return (
+                    <tr
+                      key={product.id}
+                      className={rowClass}
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setPriceForm({ price: resolveNumeric(product.currentPrice) ?? 0 });
+                      }}
+                    >
+                      <td>
+                        <div className="product-cell">
+                          <button
+                            type="button"
+                            className="product-thumbnail"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openImageModal(product);
+                            }}
+                            aria-label={`Ver imagen de ${product.name}`}
+                          >
+                            <img src={imageSource} alt={`Imagen de ${product.name}`} />
+                          </button>
+                          <div className="product-meta">
+                            <span className="product-name">{product.name}</span>
+                            <span className="product-sku mono">{product.sku}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="mono">{formatPriceLabel(product.currentPrice)}</td>
+                      <td>
+                        <span className={`stock-badge${isStockCritical(product) ? " stock-badge--alert" : ""}`}>
+                          {stockValue}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="critical-cell">
+                          <span
+                            className={`critical-value${typeof pendingValue === "number" ? " critical-value--pending" : ""}`}
+                          >
+                            {criticalValue}
+                          </span>
+                          {typeof pendingValue === "number" && <span className="critical-tag">Pendiente</span>}
+                          {criticalError && <span className="error small">{criticalError}</span>}
+                        </div>
+                      </td>
+                      <td>{product.active ? "Activo" : "Inactivo"}</td>
+                      <td>
+                        <div className="row-actions">
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCriticalStockModal(product);
+                            }}
+                          >
+                            Stock crítico
+                          </button>
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openQrModal(product);
+                            }}
+                          >
+                            Ver QR
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -464,11 +719,58 @@ export default function ProductsCard() {
       <ProductInventoryAlertModal
         open={criticalModalOpen}
         product={criticalProduct}
+        pendingValue={criticalProduct ? pendingCriticalStock[criticalProduct.id] : undefined}
+        error={criticalProduct ? criticalErrors[criticalProduct.id] : undefined}
+        submitting={savingCritical}
         onClose={closeCriticalModal}
-        onSaved={handleCriticalStockSaved}
+        onSubmit={handleCriticalStockSubmit}
       />
+      <ProductImageModal open={imageModalOpen} product={imageProduct} imageUrl={imageSrc} onClose={closeImageModal} />
     </div>
   );
+}
+
+type ProblemDetailPayload = {
+  title?: string;
+  detail?: string;
+  message?: string;
+  error?: string;
+  errors?: Record<string, string[] | string | undefined>;
+};
+
+function resolveProblemDetail(error: unknown): { message: string; fieldMessage?: string } {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as ProblemDetailPayload | string | undefined;
+    if (typeof data === "string" && data.trim().length > 0) {
+      return { message: data };
+    }
+    if (data && typeof data === "object") {
+      const errors = data.errors ?? {};
+      let fieldMessage: string | undefined;
+      const criticalErrors = errors.criticalStock;
+      if (Array.isArray(criticalErrors) && criticalErrors.length > 0) {
+        fieldMessage = criticalErrors[0];
+      } else if (typeof criticalErrors === "string" && criticalErrors.trim().length > 0) {
+        fieldMessage = criticalErrors;
+      }
+
+      const message =
+        [data.detail, data.message, data.error, data.title]
+          .find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ??
+        error.response?.statusText ??
+        "No se pudo guardar";
+
+      return { message, fieldMessage };
+    }
+    const statusMessage = error.response?.statusText;
+    if (statusMessage) {
+      return { message: statusMessage };
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return { message: error.message };
+  }
+  return { message: "No se pudo guardar" };
 }
 
 
