@@ -8,7 +8,6 @@ import com.datakomerz.pymes.company.Company;
 import com.datakomerz.pymes.company.CompanyRepository;
 import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
-import com.datakomerz.pymes.common.captcha.SimpleCaptchaPayload;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
@@ -185,24 +184,18 @@ class AuthControllerIT {
   }
 
   @Test
-  void loginFailsWhenCaptchaInvalid() throws Exception {
-    SimpleCaptchaPayload captcha = new SimpleCaptchaPayload(3, 4, "999");
-    AuthRequest request = new AuthRequest(ADMIN_EMAIL, "Secret123!", captcha);
+  void loginFailsWithInvalidCredentials() throws Exception {
+    AuthRequest request = new AuthRequest(ADMIN_EMAIL, "WrongPassword!");
 
     mockMvc.perform(post("/api/v1/auth/login")
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(request))
         .header("X-Company-Id", companyId.toString()))
-      .andExpect(status().isBadRequest())
-      .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
-      .andExpect(jsonPath("$.title").value("Bad Request"))
-      .andExpect(jsonPath("$.field").value("captcha.answer"))
-      .andExpect(jsonPath("$.type").value("https://pymerp.cl/problems/captcha-invalid"));
+      .andExpect(status().isUnauthorized());
   }
 
   private AuthResponse login() throws Exception {
-    SimpleCaptchaPayload captcha = new SimpleCaptchaPayload(2, 3, "5");
-    AuthRequest request = new AuthRequest(ADMIN_EMAIL, "Secret123!", captcha);
+    AuthRequest request = new AuthRequest(ADMIN_EMAIL, "Secret123!");
 
     String loginResponse = mockMvc.perform(post("/api/v1/auth/login")
         .contentType(MediaType.APPLICATION_JSON)

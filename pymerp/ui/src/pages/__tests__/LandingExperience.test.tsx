@@ -74,48 +74,21 @@ async function openLoginPanel() {
   return user;
 }
 
-describe('LandingExperience login captcha', () => {
-  it('bloquea el submit cuando el captcha es incorrecto', async () => {
+describe('LandingExperience login', () => {
+  it('envía las credenciales al hacer submit', async () => {
     const user = await openLoginPanel();
 
-    await user.type(await screen.findByLabelText(/^Email$/i), 'user@example.com');
+    await user.type(await screen.findByLabelText(/^Email$/i), ' user@example.com ');
     await user.type(screen.getByLabelText(/^Contraseña$/i), 'Secret123!');
 
-    const captchaInput = screen.getByLabelText(/Captcha: ¿Cuánto es/i);
-    const expected = parseCaptchaAnswerFromInput(captchaInput as HTMLInputElement);
-    await user.type(captchaInput, String(expected + 1));
-
-    const loginDialog = screen.getByRole('dialog', { name: /Iniciar sesión/i });
-    const form = loginDialog.querySelector('form');
-    if (!form) {
-      throw new Error('No se encontró el formulario de login');
-    }
-    await act(async () => {
-      fireEvent.submit(form);
-    });
-
-    await waitFor(() => {
-      expect(loginMock).not.toHaveBeenCalled();
-    });
-    expect(await screen.findByText(/Debes resolver el captcha correctamente/i)).toBeInTheDocument();
-  });
-
-  it('envía el captcha correcto cuando se resuelve', async () => {
-    const user = await openLoginPanel();
-
-    await user.type(screen.getByLabelText(/^Email$/i), 'user@example.com');
-    await user.type(screen.getByLabelText(/^Contraseña$/i), 'Secret123!');
-
-    const captchaInput = screen.getByLabelText(/Captcha: ¿Cuánto es/i) as HTMLInputElement;
-    const expected = parseCaptchaAnswerFromInput(captchaInput);
     loginMock.mockResolvedValueOnce(undefined);
 
-    await user.type(captchaInput, String(expected));
     const loginDialog = screen.getByRole('dialog', { name: /Iniciar sesión/i });
     const form = loginDialog.querySelector('form');
     if (!form) {
       throw new Error('No se encontró el formulario de login');
     }
+
     await act(async () => {
       fireEvent.submit(form);
     });
@@ -124,8 +97,14 @@ describe('LandingExperience login captcha', () => {
     expect(loginMock).toHaveBeenCalledWith({
       email: 'user@example.com',
       password: 'Secret123!',
-      captcha: expect.objectContaining({ a: expect.any(Number), b: expect.any(Number), answer: String(expected) }),
     });
+  });
+
+  it('no muestra el captcha en el formulario de login', async () => {
+    await openLoginPanel();
+
+    expect(screen.queryByLabelText(/Captcha:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Captcha deshabilitado/i)).not.toBeInTheDocument();
   });
 });
 
