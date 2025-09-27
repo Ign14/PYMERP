@@ -1050,6 +1050,109 @@ function fallbackListSalesDaily(days = 14): SalesDailyPoint[] {
   return demoState.salesDaily.slice(-days);
 }
 
+function parseWindowToDays(window: string): number {
+  const trimmed = window.trim();
+  const match = /^(\d+)\s*d$/i.exec(trimmed);
+  if (!match) {
+    return 14;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isNaN(parsed) ? 14 : Math.max(1, parsed);
+}
+
+function fallbackListSalesTrend({ from, to }: SalesTrendParams): SalesDailyPoint[] {
+  if (!from || !to || from > to) {
+    return [];
+  }
+  return demoState.salesDaily.filter((point) => point.date >= from && point.date <= to);
+}
+
+function fallbackGetSalesWindowMetrics(window: string): SalesWindowMetrics {
+  const days = parseWindowToDays(window);
+  const data = fallbackListSalesDaily(days);
+  const totalWithTax = data.reduce((acc, point) => acc + (point.total ?? 0), 0);
+  const documentCount = data.reduce((acc, point) => acc + (point.count ?? 0), 0);
+  const dailyAverage = days > 0 ? totalWithTax / days : 0;
+  return {
+    window,
+    totalWithTax,
+    dailyAverage,
+    documentCount,
+  };
+}
+
+function fallbackGetSalesSummary(period: SalesPeriod): SalesPeriodSummary {
+  const now = new Date();
+  const end = new Date(now);
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  switch (period) {
+    case "week":
+      start.setDate(start.getDate() - 6);
+      break;
+    case "month":
+      start.setDate(1);
+      break;
+    default:
+      break;
+  }
+  const endTime = end.getTime();
+  const startTime = start.getTime();
+  const filtered = demoState.sales.filter((sale) => {
+    if (!sale.issuedAt) {
+      return false;
+    }
+    if (sale.status?.toLowerCase() === "cancelled") {
+      return false;
+    }
+    const issuedTime = new Date(sale.issuedAt).getTime();
+    if (Number.isNaN(issuedTime)) {
+      return false;
+    }
+    return issuedTime >= startTime && issuedTime <= endTime;
+  });
+  const total = filtered.reduce((acc, sale) => acc + (sale.total ?? 0), 0);
+  const net = filtered.reduce((acc, sale) => acc + (sale.net ?? 0), 0);
+  return {
+    period,
+    total,
+    net,
+    count: filtered.length,
+  };
+}
+
+function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): DocumentsGroupedResponse {
+  const size = params.size && params.size > 0 ? params.size : 10;
+  const salesPage = params.salesPage ?? 0;
+  const purchasesPage = params.purchasesPage ?? 0;
+  const salesDocuments = [...demoState.sales]
+    .map((sale) => ({
+      id: sale.id,
+      direction: "sales" as const,
+      type: sale.docType ?? "Documento",
+      number: sale.id,
+      issuedAt: sale.issuedAt,
+      total: sale.total,
+      status: sale.status,
+    }))
+    .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
+  const purchaseDocuments = [...demoState.purchases]
+    .map((purchase) => ({
+      id: purchase.id,
+      direction: "purchases" as const,
+      type: purchase.docType ?? "Documento",
+      number: purchase.docNumber ?? purchase.id,
+      issuedAt: purchase.issuedAt,
+      total: purchase.total,
+      status: purchase.status,
+    }))
+    .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
+  return {
+    sales: paginate(salesDocuments, salesPage, size),
+    purchases: paginate(purchaseDocuments, purchasesPage, size),
+  };
+}
+
 function fallbackListPurchases(params: ListPurchasesParams = {}): Page<PurchaseSummary> {
   const query = normalizeString(params.search ?? "");
   const filtered = demoState.purchases.filter((purchase) => {
@@ -1488,6 +1591,48 @@ export type SalesDailyPoint = {
   date: string;
   total: number;
   count: number;
+};
+
+export type SalesTrendParams = {
+  from: string;
+  to: string;
+};
+
+export type SalesWindowMetrics = {
+  window: string;
+  totalWithTax: number;
+  dailyAverage: number;
+  documentCount: number;
+};
+
+export type SalesPeriod = "today" | "week" | "month";
+
+export type SalesPeriodSummary = {
+  period: SalesPeriod;
+  total: number;
+  net: number;
+  count: number;
+};
+
+export type ListDocumentsParams = {
+  salesPage?: number;
+  purchasesPage?: number;
+  size?: number;
+};
+
+export type DocumentSummary = {
+  id: string;
+  direction: "sales" | "purchases";
+  type: string;
+  number?: string;
+  issuedAt?: string;
+  total: number;
+  status: string;
+};
+
+export type DocumentsGroupedResponse = {
+  sales: Page<DocumentSummary>;
+  purchases: Page<DocumentSummary>;
 };
 
 export type PurchaseItemPayload = {
@@ -2030,6 +2175,62 @@ export function getSaleDetail(id: string): Promise<SaleDetail> {
       return data;
     },
     () => fallbackGetSaleDetail(id),
+  );
+}
+
+export function listSalesTrend(params: SalesTrendParams): Promise<SalesDailyPoint[]> {
+  return withOfflineFallback(
+    "listSalesTrend",
+    async () => {
+      const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/trend", { params });
+      return data;
+    },
+    () => fallbackListSalesTrend(params),
+  );
+}
+
+export function getSalesWindowMetrics(window = "14d"): Promise<SalesWindowMetrics> {
+  const safeWindow = window && window.trim().length > 0 ? window : "14d";
+  return withOfflineFallback(
+    "getSalesWindowMetrics",
+    async () => {
+      const { data } = await api.get<SalesWindowMetrics>("/v1/sales/metrics", {
+        params: { window: safeWindow },
+      });
+      return data;
+    },
+    () => fallbackGetSalesWindowMetrics(safeWindow),
+  );
+}
+
+export function getSalesSummaryByPeriod(period: SalesPeriod): Promise<SalesPeriodSummary> {
+  return withOfflineFallback(
+    "getSalesSummaryByPeriod",
+    async () => {
+      const { data } = await api.get<SalesPeriodSummary>("/v1/sales/metrics/summary", {
+        params: { period },
+      });
+      return data;
+    },
+    () => fallbackGetSalesSummary(period),
+  );
+}
+
+export function listDocumentsGrouped(params: ListDocumentsParams = {}): Promise<DocumentsGroupedResponse> {
+  return withOfflineFallback(
+    "listDocumentsGrouped",
+    async () => {
+      const { data } = await api.get<DocumentsGroupedResponse>("/v1/documents", {
+        params: {
+          groupBy: "type",
+          salesPage: params.salesPage,
+          purchasesPage: params.purchasesPage,
+          size: params.size,
+        },
+      });
+      return data;
+    },
+    () => fallbackListDocumentsGrouped(params),
   );
 }
 
