@@ -4,21 +4,27 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export const NAV_ITEMS = [
-  { to: "/", label: "Panel", icon: "DB", module: "dashboard" },
-  { to: "/sales", label: "Ventas", icon: "VE", module: "sales" },
-  { to: "/purchases", label: "Compras", icon: "CO", module: "purchases" },
-  { to: "/inventory", label: "Inventario", icon: "IN", module: "inventory" },
-  { to: "/customers", label: "Clientes", icon: "CL", module: "customers" },
-  { to: "/suppliers", label: "Proveedores", icon: "PR", module: "suppliers" },
-  { to: "/finances", label: "Finanzas", icon: "FI", module: "finances" },
-  { to: "/reports", label: "Reportes", icon: "RP", module: "reports" },
-  { to: "/settings", label: "Configuracion", icon: "CF", module: "settings" },
+  { to: "/app", label: "Panel", icon: "DB", module: "dashboard" },
+  { to: "/app/sales", label: "Ventas", icon: "VE", module: "sales" },
+  { to: "/app/purchases", label: "Compras", icon: "CO", module: "purchases" },
+  { to: "/app/inventory", label: "Inventario", icon: "IN", module: "inventory" },
+  { to: "/app/customers", label: "Clientes", icon: "CL", module: "customers" },
+  { to: "/app/suppliers", label: "Proveedores", icon: "PR", module: "suppliers" },
+  { to: "/app/finances", label: "Finanzas", icon: "FI", module: "finances" },
+  { to: "/app/reports", label: "Reportes", icon: "RP", module: "reports" },
+  { to: "/app/settings", label: "Configuracion", icon: "CF", module: "settings" },
 ] as const;
 
 export default function LayoutShell() {
   const { session, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const currentPath = useMemo(() => {
+    if (location.pathname.length > 1 && location.pathname.endsWith("/")) {
+      return location.pathname.replace(/\/+$/, "");
+    }
+    return location.pathname;
+  }, [location.pathname]);
 
   const allowedModules = useMemo(() => {
     const modules = new Set(session?.modules ?? []);
@@ -44,8 +50,8 @@ export default function LayoutShell() {
         </div>
         <nav>
           {visibleNavItems.map((item) => {
-            const isRoot = item.to === "/";
-            const isActive = location.pathname === item.to || (!isRoot && location.pathname.startsWith(item.to));
+            const isRoot = item.to === "/app";
+            const isActive = currentPath === item.to || (!isRoot && currentPath.startsWith(item.to));
             return (
               <NavLink
                 key={item.to}

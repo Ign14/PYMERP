@@ -1,9 +1,11 @@
 import "./App.css";
 
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Suspense, lazy, useMemo } from "react";
 import { useAuth } from "./context/AuthContext";
 import LayoutShell, { NAV_ITEMS } from "./layout/LayoutShell";
+import LandingExperience from "./pages/LandingExperience";
+import LandingBackground from "./pages/LandingBackground";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const SalesPage = lazy(() => import("./pages/SalesPage"));
@@ -14,8 +16,6 @@ const SuppliersPage = lazy(() => import("./pages/SuppliersPage"));
 const FinancesPage = lazy(() => import("./pages/FinancesPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const LoginPage = lazy(() => import("./pages/LoginPage"));
-
 type ModuleRoute = {
   index?: boolean;
   path?: string;
@@ -47,27 +47,31 @@ function RoutesShell() {
 
   const defaultPath = useMemo(() => {
     const first = NAV_ITEMS.find((item) => allowedModules.has(item.module));
-    return first ? first.to : "/";
+    return first ? first.to : "/app";
   }, [allowedModules]);
 
   return (
     <Suspense fallback={<div className="page"><p>Cargando...</p></div>}>
       <Routes>
-        <Route path="/login" element={isAuthenticated ? <Navigate to={defaultPath} replace /> : <LoginPage />} />
-        <Route
-          path="/"
-          element={isAuthenticated ? <LayoutShell /> : <Navigate to="/login" replace />}
-        >
-          {ROUTES.map((config) => {
-            const element = allowedModules.has(config.module)
-              ? config.element
-              : <Navigate to={defaultPath} replace />;
-            if (config.index) {
-              return <Route key="index" index element={element} />;
-            }
-            return <Route key={config.path} path={config.path} element={element} />;
-          })}
+        <Route element={<LandingLayout />}>
+          <Route index element={<LandingBackground />} />
+          <Route
+            path="app"
+            element={isAuthenticated ? <LayoutShell /> : <Navigate to="/" replace />}
+          >
+            {ROUTES.map((config) => {
+              const element = allowedModules.has(config.module)
+                ? config.element
+                : <Navigate to={defaultPath} replace />;
+              if (config.index) {
+                return <Route key="index" index element={element} />;
+              }
+              return <Route key={config.path} path={config.path} element={element} />;
+            })}
+            <Route path="*" element={<Navigate to={defaultPath} replace />} />
+          </Route>
         </Route>
+        <Route path="*" element={<Navigate to={isAuthenticated ? defaultPath : "/"} replace />} />
       </Routes>
     </Suspense>
   );
@@ -75,4 +79,12 @@ function RoutesShell() {
 
 export default function App() {
   return <RoutesShell />;
+}
+
+function LandingLayout() {
+  return (
+    <LandingExperience>
+      <Outlet />
+    </LandingExperience>
+  );
 }
