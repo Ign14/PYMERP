@@ -42,6 +42,9 @@ dependencies {
   // S3 (MinIO compatible)
   implementation "software.amazon.awssdk:s3:2.25.39"
 
+  implementation "com.google.zxing:core:3.5.3"
+  implementation "com.google.zxing:javase:3.5.3"
+
   // JWT
   implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
   runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'

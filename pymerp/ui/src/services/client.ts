@@ -132,6 +132,8 @@ const demoState: DemoState = {
       barcode: "7800001001002",
       currentPrice: 11990,
       imageUrl: undefined,
+      qrUrl: undefined,
+      criticalStock: 0,
       active: true,
     },
     {
@@ -143,6 +145,8 @@ const demoState: DemoState = {
       barcode: "7800001002001",
       currentPrice: 3290,
       imageUrl: undefined,
+      qrUrl: undefined,
+      criticalStock: 0,
       active: true,
     },
     {
@@ -154,6 +158,8 @@ const demoState: DemoState = {
       barcode: "7801234567005",
       currentPrice: 8990,
       imageUrl: undefined,
+      qrUrl: undefined,
+      criticalStock: 0,
       active: true,
     },
     {
@@ -165,6 +171,8 @@ const demoState: DemoState = {
       barcode: "7801231234568",
       currentPrice: 7490,
       imageUrl: undefined,
+      qrUrl: undefined,
+      criticalStock: 0,
       active: false,
     },
   ],
@@ -611,6 +619,8 @@ function fallbackCreateProduct(payload: ProductPayload): Product {
     category: payload.category,
     barcode: payload.barcode,
     imageUrl: payload.imageUrl,
+    qrUrl: undefined,
+    criticalStock: 0,
     currentPrice: 0,
     active: true,
   };
@@ -649,6 +659,87 @@ function fallbackDeleteProduct(id: string) {
   demoState.products = demoState.products.filter((product) => product.id !== id);
   delete demoState.productPrices[id];
   recalcInventorySummary();
+}
+
+function cleanupOptional(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function toProductPayload(form: ProductFormData): ProductPayload {
+  const payload: ProductPayload = {
+    sku: form.sku.trim(),
+    name: form.name.trim(),
+    description: cleanupOptional(form.description),
+    category: cleanupOptional(form.category),
+    barcode: cleanupOptional(form.barcode),
+  };
+  if (form.imageFile) {
+    payload.imageUrl = null;
+  } else if (form.imageUrl === null) {
+    payload.imageUrl = null;
+  } else if (typeof form.imageUrl === "string") {
+    const trimmed = form.imageUrl.trim();
+    payload.imageUrl = trimmed.length > 0 ? trimmed : null;
+  }
+  return payload;
+}
+
+function buildProductFormData(payload: ProductPayload, imageFile?: File | null): FormData {
+  const body = new FormData();
+  body.append(
+    "product",
+    new Blob([JSON.stringify(payload)], {
+      type: "application/json",
+    }),
+  );
+  if (imageFile instanceof File) {
+    body.append("image", imageFile);
+  }
+  return body;
+}
+
+function fallbackProductStock(productId: string): ProductStock {
+  const lots: ProductStockLot[] = [
+    {
+      lotId: `${productId}-lot-1`,
+      quantity: 42,
+      location: "Bodega central",
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 120).toISOString(),
+    },
+    {
+      lotId: `${productId}-lot-2`,
+      quantity: 18,
+      location: "Tienda principal",
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString(),
+    },
+  ];
+  const total = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+  return { productId, total, lots };
+}
+
+function fallbackUpdateProductInventoryAlert(id: string, criticalStock: number): Product {
+  const index = demoState.products.findIndex((product) => product.id === id);
+  if (index === -1) {
+    throw new Error("Producto no encontrado");
+  }
+  const updated: Product = {
+    ...demoState.products[index],
+    criticalStock,
+  };
+  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
+  return updated;
+}
+
+function fallbackFetchProductQrBlob(productId: string): Blob {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+    <rect width="120" height="120" fill="#0b0d17" />
+    <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-size="18">${productId.slice(-4)}</text>
+  </svg>`;
+  return new Blob([svg], { type: "image/svg+xml" });
 }
 
 function fallbackListProductPrices(productId: string, params?: { page?: number; size?: number }) {
@@ -1107,7 +1198,9 @@ export type Product = {
   description?: string;
   category?: string;
   barcode?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  qrUrl?: string;
+  criticalStock?: number | string;
   currentPrice?: number | string;
   active: boolean;
 };
@@ -1118,7 +1211,24 @@ export type ProductPayload = {
   description?: string;
   category?: string;
   barcode?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
+};
+
+export type ProductFormData = ProductPayload & {
+  imageFile?: File | null;
+};
+
+export type ProductStockLot = {
+  lotId: string;
+  quantity: number;
+  location?: string | null;
+  expiresAt?: string | null;
+};
+
+export type ProductStock = {
+  productId: string;
+  total: number;
+  lots: ProductStockLot[];
 };
 
 export type Supplier = {
@@ -1569,22 +1679,30 @@ export function listProducts(
   );
 }
 
-export function createProduct(payload: ProductPayload): Promise<Product> {
+export function createProduct(form: ProductFormData): Promise<Product> {
+  const payload = toProductPayload(form);
   return withOfflineFallback(
     "createProduct",
     async () => {
-      const { data } = await api.post<Product>("/v1/products", payload);
+      const body = buildProductFormData(payload, form.imageFile ?? null);
+      const { data } = await api.post<Product>("/v1/products", body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       return data;
     },
     () => fallbackCreateProduct(payload),
   );
 }
 
-export function updateProduct(id: string, payload: ProductPayload): Promise<Product> {
+export function updateProduct(id: string, form: ProductFormData): Promise<Product> {
+  const payload = toProductPayload(form);
   return withOfflineFallback(
     "updateProduct",
     async () => {
-      const { data } = await api.put<Product>(`/v1/products/${id}`, payload);
+      const body = buildProductFormData(payload, form.imageFile ?? null);
+      const { data } = await api.put<Product>(`/v1/products/${id}`, body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       return data;
     },
     () => fallbackUpdateProduct(id, payload),
@@ -1599,6 +1717,42 @@ export function updateProductStatus(id: string, active: boolean): Promise<Produc
       return data;
     },
     () => fallbackUpdateProductStatus(id, active),
+  );
+}
+
+export function fetchProductStock(id: string): Promise<ProductStock> {
+  return withOfflineFallback(
+    "fetchProductStock",
+    async () => {
+      const { data } = await api.get<ProductStock>(`/v1/products/${id}/stock`);
+      return data;
+    },
+    () => fallbackProductStock(id),
+  );
+}
+
+export function updateProductInventoryAlert(id: string, criticalStock: number): Promise<Product> {
+  return withOfflineFallback(
+    "updateProductInventoryAlert",
+    async () => {
+      const { data } = await api.patch<Product>(`/v1/products/${id}/inventory-alert`, { criticalStock });
+      return data;
+    },
+    () => fallbackUpdateProductInventoryAlert(id, criticalStock),
+  );
+}
+
+export function fetchProductQrBlob(id: string, options?: { download?: boolean }): Promise<Blob> {
+  return withOfflineFallback(
+    "fetchProductQrBlob",
+    async () => {
+      const { data } = await api.get<Blob>(`/v1/products/${id}/qr`, {
+        responseType: "blob",
+        params: options?.download ? { download: true } : undefined,
+      });
+      return data;
+    },
+    () => fallbackFetchProductQrBlob(id),
   );
 }
 

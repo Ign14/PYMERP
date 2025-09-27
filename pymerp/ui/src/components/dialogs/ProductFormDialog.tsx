@@ -1,12 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
-import {
-  Product,
-  ProductPayload,
-  createProduct,
-  updateProduct,
-} from "../../services/client";
+import { Product, ProductFormData, createProduct, updateProduct } from "../../services/client";
 import Modal from "./Modal";
 
 type Props = {
@@ -16,20 +11,46 @@ type Props = {
   onSaved?: (product: Product) => void;
 };
 
-const EMPTY_FORM: ProductPayload = {
+type FormState = {
+  sku: string;
+  name: string;
+  description: string;
+  category: string;
+  barcode: string;
+  imageUrl: string | null;
+  imageFile: File | null;
+};
+
+const EMPTY_FORM: FormState = {
   sku: "",
   name: "",
   description: "",
   category: "",
   barcode: "",
-  imageUrl: "",
+  imageUrl: null,
+  imageFile: null,
 };
 
 export default function ProductFormDialog({ open, product, onClose, onSaved }: Props) {
-  const [form, setForm] = useState<ProductPayload>(EMPTY_FORM);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (previewUrlRef.current && previewUrlRef.current.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setForm(EMPTY_FORM);
+      setImageError(null);
+      resetPreview(null);
+      return;
+    }
     if (product) {
       setForm({
         sku: product.sku ?? "",
@@ -37,15 +58,20 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
         description: product.description ?? "",
         category: product.category ?? "",
         barcode: product.barcode ?? "",
-        imageUrl: product.imageUrl ?? "",
+        imageUrl: product.imageUrl ?? null,
+        imageFile: null,
       });
+      setImageError(null);
+      resetPreview(product.imageUrl ?? null);
     } else {
       setForm(EMPTY_FORM);
+      setImageError(null);
+      resetPreview(null);
     }
   }, [open, product]);
 
   const mutation = useMutation({
-    mutationFn: (payload: ProductPayload) => {
+    mutationFn: (payload: ProductFormData) => {
       if (product) {
         return updateProduct(product.id, payload);
       }
@@ -63,6 +89,49 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
     }
   }, [open, mutation]);
 
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (file.size > 512 * 1024) {
+      setImageError("La imagen debe pesar 500 KB o menos");
+      event.target.value = "";
+      return;
+    }
+    setImageError(null);
+    setForm((prev) => ({ ...prev, imageFile: file }));
+    const url = URL.createObjectURL(file);
+    updatePreview(url);
+  };
+
+  const removeImage = () => {
+    setImageError(null);
+    if (form.imageFile) {
+      const previousUrl = form.imageUrl ?? null;
+      setForm((prev) => ({ ...prev, imageFile: null }));
+      updatePreview(previousUrl);
+    } else {
+      setForm((prev) => ({ ...prev, imageUrl: null }));
+      updatePreview(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const resetPreview = (value: string | null) => {
+    updatePreview(value);
+  };
+
+  const updatePreview = (value: string | null) => {
+    if (previewUrlRef.current && previewUrlRef.current.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+    previewUrlRef.current = value;
+    setImagePreview(value);
+  };
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     const sku = form.sku.trim();
@@ -75,17 +144,26 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
       window.alert("El nombre es obligatorio");
       return;
     }
-    mutation.mutate({
+    const payload: ProductFormData = {
       sku,
       name,
-      description: form.description?.trim() || undefined,
-      category: form.category?.trim() || undefined,
-      barcode: form.barcode?.trim() || undefined,
-      imageUrl: form.imageUrl?.trim() || undefined,
-    });
+      description: form.description.trim() ? form.description.trim() : undefined,
+      category: form.category.trim() ? form.category.trim() : undefined,
+      barcode: form.barcode.trim() ? form.barcode.trim() : undefined,
+    };
+    if (form.imageFile) {
+      payload.imageFile = form.imageFile;
+      payload.imageUrl = null;
+    } else if (form.imageUrl === null) {
+      payload.imageUrl = null;
+    } else if (typeof form.imageUrl === "string" && form.imageUrl.trim().length > 0) {
+      payload.imageUrl = form.imageUrl.trim();
+    }
+    mutation.mutate(payload);
   };
 
   const title = product ? "Editar producto" : "Nuevo producto";
+  const hasImage = Boolean(imagePreview);
 
   return (
     <Modal open={open} title={title} onClose={() => !mutation.isPending && onClose()}>
@@ -98,6 +176,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
             onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))}
             placeholder="SKU-001"
             disabled={mutation.isPending}
+            autoFocus
           />
         </label>
         <label>
@@ -114,7 +193,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <span>Categoria</span>
           <input
             className="input"
-            value={form.category ?? ""}
+            value={form.category}
             onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}
             placeholder="Bebidas"
             disabled={mutation.isPending}
@@ -124,7 +203,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <span>Codigo de barras</span>
           <input
             className="input"
-            value={form.barcode ?? ""}
+            value={form.barcode}
             onChange={(e) => setForm((prev) => ({ ...prev, barcode: e.target.value }))}
             placeholder="7890000000"
             disabled={mutation.isPending}
@@ -134,7 +213,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <span>Descripcion</span>
           <textarea
             className="input"
-            value={form.description ?? ""}
+            value={form.description}
             onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
             placeholder="Notas internas"
             rows={3}
@@ -142,14 +221,37 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           />
         </label>
         <label>
-          <span>Imagen (URL)</span>
+          <span>Imagen</span>
+          {hasImage ? (
+            <div className="image-preview">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imagePreview ?? undefined} alt="Vista previa del producto" />
+            </div>
+          ) : (
+            <p className="muted small">No has seleccionado una imagen</p>
+          )}
           <input
+            ref={fileInputRef}
             className="input"
-            value={form.imageUrl ?? ""}
-            onChange={(e) => setForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-            placeholder="https://..."
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/*"
+            onChange={handleImageChange}
             disabled={mutation.isPending}
           />
+          <p className="muted small">Formatos aceptados: PNG, JPG o WebP. Tamao mximo 500 KB.</p>
+          {(form.imageFile || form.imageUrl) && (
+            <div className="inline-actions">
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={removeImage}
+                disabled={mutation.isPending}
+              >
+                Quitar imagen
+              </button>
+            </div>
+          )}
+          {imageError && <p className="error">{imageError}</p>}
         </label>
         <div className="buttons">
           <button className="btn" type="submit" disabled={mutation.isPending}>

@@ -130,6 +130,13 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
+  public List<InventoryLot> lotsForProduct(UUID productId) {
+    UUID companyId = companyContext.require();
+    validateProductBelongsToCompany(productId, companyId);
+    return lots.findByCompanyIdAndProductIdOrderByCreatedAtAsc(companyId, productId);
+  }
+
+  @Transactional(readOnly = true)
   public InventorySummary summary() {
     UUID companyId = companyContext.require();
     BigDecimal totalValue = lots.sumInventoryValue(companyId);
