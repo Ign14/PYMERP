@@ -82,9 +82,45 @@ type DemoState = {
 
 const demoState: DemoState = {
   companies: [
-    { id: "cmp-demo-001", name: "Demo Comercial SpA", rut: "76.123.456-7", industry: "Retail", createdAt: iso(daysAgo(180)) },
-    { id: "cmp-demo-002", name: "Servicios Norte Ltda.", rut: "77.987.654-3", industry: "Servicios", createdAt: iso(daysAgo(95)) },
-    { id: "cmp-demo-003", name: "Distribuidora Andina", rut: "78.321.654-9", industry: "Logística", createdAt: iso(daysAgo(45)) },
+    {
+      id: "cmp-demo-001",
+      businessName: "Demo Comercial SpA",
+      rut: "76.123.456-0",
+      businessActivity: "Retail",
+      address: "Av. Siempre Viva 742, Santiago",
+      commune: "Providencia",
+      phone: "+56 2 2345 6677",
+      email: "contacto@democomercial.cl",
+      receiptFooterMessage: "¡Gracias por tu compra!",
+      createdAt: iso(daysAgo(180)),
+      updatedAt: iso(daysAgo(20)),
+    },
+    {
+      id: "cmp-demo-002",
+      businessName: "Servicios Norte Ltda.",
+      rut: "77.987.654-3",
+      businessActivity: "Servicios",
+      address: "Av. Costanera 1200, Antofagasta",
+      commune: "Antofagasta",
+      phone: "+56 55 278 9900",
+      email: "administracion@serviciosnorte.cl",
+      receiptFooterMessage: "Servicio garantizado",
+      createdAt: iso(daysAgo(95)),
+      updatedAt: iso(daysAgo(10)),
+    },
+    {
+      id: "cmp-demo-003",
+      businessName: "Distribuidora Andina",
+      rut: "78.321.654-K",
+      businessActivity: "Logística",
+      address: "Camino a Melipilla 15000, Maipú",
+      commune: "Maipú",
+      phone: "+56 2 2388 1122",
+      email: "ventas@andina.cl",
+      receiptFooterMessage: "Despachos en 24 horas",
+      createdAt: iso(daysAgo(45)),
+      updatedAt: iso(daysAgo(3)),
+    },
   ],
   products: [
     {
@@ -501,14 +537,52 @@ function fallbackListCompanies() {
 }
 
 function fallbackCreateCompany(payload: CreateCompanyPayload): Company {
+  const nowIso = new Date().toISOString();
   const company: Company = {
     id: nextId("cmp-demo"),
-    name: payload.name,
+    businessName: payload.businessName,
     rut: payload.rut,
-    createdAt: new Date().toISOString(),
+    businessActivity: payload.businessActivity,
+    address: payload.address,
+    commune: payload.commune,
+    phone: payload.phone,
+    email: payload.email?.toLowerCase(),
+    receiptFooterMessage: payload.receiptFooterMessage,
+    createdAt: nowIso,
+    updatedAt: nowIso,
   };
   demoState.companies = [...demoState.companies, company];
   return company;
+}
+
+function fallbackUpdateCompany(id: string, payload: UpdateCompanyPayload): Company {
+  const index = demoState.companies.findIndex((company) => company.id === id);
+  if (index === -1) {
+    throw new Error("Company not found");
+  }
+  const existing = demoState.companies[index];
+  const updated: Company = {
+    ...existing,
+    businessName: payload.businessName,
+    rut: payload.rut,
+    businessActivity: payload.businessActivity,
+    address: payload.address,
+    commune: payload.commune,
+    phone: payload.phone,
+    email: payload.email?.toLowerCase(),
+    receiptFooterMessage: payload.receiptFooterMessage,
+    updatedAt: new Date().toISOString(),
+  };
+  demoState.companies = [
+    ...demoState.companies.slice(0, index),
+    updated,
+    ...demoState.companies.slice(index + 1),
+  ];
+  return updated;
+}
+
+function fallbackDeleteCompany(id: string) {
+  demoState.companies = demoState.companies.filter((company) => company.id !== id);
 }
 
 function fallbackListProducts(params?: { q?: string; page?: number; size?: number; status?: "active" | "inactive" | "all" }) {
@@ -1014,10 +1088,16 @@ export type HealthResponse = {
 
 export type Company = {
   id: string;
-  name: string;
-  rut?: string;
-  industry?: string;
+  businessName: string;
+  rut: string;
+  businessActivity?: string;
+  address?: string;
+  commune?: string;
+  phone?: string;
+  email?: string;
+  receiptFooterMessage?: string;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Product = {
@@ -1063,10 +1143,20 @@ export type Customer = {
   segment?: string;
 };
 
-export type CreateCompanyPayload = {
-  name: string;
-  rut?: string;
+export type CompanyPayload = {
+  businessName: string;
+  rut: string;
+  businessActivity?: string;
+  address?: string;
+  commune?: string;
+  phone?: string;
+  email?: string;
+  receiptFooterMessage?: string;
 };
+
+export type CreateCompanyPayload = CompanyPayload;
+
+export type UpdateCompanyPayload = CompanyPayload;
 
 export type ListCustomersParams = {
   q?: string;
@@ -1442,6 +1532,27 @@ export function createCompany(payload: CreateCompanyPayload): Promise<Company> {
       return data;
     },
     () => fallbackCreateCompany(payload),
+  );
+}
+
+export function updateCompany(id: string, payload: UpdateCompanyPayload): Promise<Company> {
+  return withOfflineFallback(
+    "updateCompany",
+    async () => {
+      const { data } = await api.put<Company>(`/v1/companies/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdateCompany(id, payload),
+  );
+}
+
+export function deleteCompany(id: string): Promise<void> {
+  return withOfflineVoid(
+    "deleteCompany",
+    async () => {
+      await api.delete(`/v1/companies/${id}`);
+    },
+    () => fallbackDeleteCompany(id),
   );
 }
 

@@ -70,7 +70,8 @@ class AuthControllerIT {
 
     Company company = new Company();
     company.setId(UUID.randomUUID());
-    company.setName("Test Company");
+    company.setBusinessName("Test Company");
+    company.setRut("76000000-0");
     companyRepository.save(company);
     this.companyId = company.getId();
 

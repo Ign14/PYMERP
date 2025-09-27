@@ -29,3 +29,9 @@
 - Backend pruebas: `cd backend && ./gradlew test`
 - Frontend build: `cd ui && npm run build`
 - Lint/format (pendiente): integrar `eslint` + `prettier`.
+
+## Actualización Compañías
+
+- Ejecuta la nueva migración Flyway (`cd backend && ./gradlew flywayMigrate`) antes de iniciar el backend para que se apliquen las columnas `business_name`, `business_activity`, `address`, `commune`, `phone`, `email`, `receipt_footer_message` y `updated_at`.
+- Para validar el backend después del cambio: `cd backend && ./gradlew test --tests com.datakomerz.pymes.company.CompanyControllerIT`.
+- El frontend incorpora validaciones y CRUD extendido para compañías; puedes ejecutar `cd ui && npm run test -- CreateCompanyForm` para verificar los formularios.

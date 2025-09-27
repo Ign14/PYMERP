@@ -144,7 +144,7 @@ public class SalesService {
       : new SaleDetailCustomer(sale.getCustomerId(), customerName);
 
     String companyName = companies.findById(companyId)
-      .map(com.datakomerz.pymes.company.Company::getName)
+      .map(com.datakomerz.pymes.company.Company::getBusinessName)
       .orElse("PyMEs Suite");
 
     String ticket = ThermalTicketFormatter.build(companyName, sale, customerName, lines);

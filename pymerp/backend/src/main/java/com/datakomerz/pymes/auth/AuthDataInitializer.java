@@ -1,6 +1,7 @@
 package com.datakomerz.pymes.auth;
 
 import com.datakomerz.pymes.company.Company;
+import com.datakomerz.pymes.common.validation.RutUtils;
 import com.datakomerz.pymes.config.AppProperties;
 import com.datakomerz.pymes.company.CompanyRepository;
 import java.util.UUID;
@@ -46,8 +47,8 @@ public class AuthDataInitializer implements CommandLineRunner {
     companyRepository.findById(companyId).orElseGet(() -> {
       Company company = new Company();
       company.setId(companyId);
-      company.setName("Dev Company");
-      company.setRut("76.000.000-0");
+      company.setBusinessName("Dev Company");
+      company.setRut(RutUtils.normalize("76.000.000-0"));
       return companyRepository.save(company);
     });
 
