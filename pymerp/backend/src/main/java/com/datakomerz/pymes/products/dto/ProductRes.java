@@ -11,6 +11,8 @@ public record ProductRes(
   String category,
   String barcode,
   String imageUrl,
+  String qrUrl,
+  BigDecimal criticalStock,
   BigDecimal currentPrice,
   boolean active
 ) {}

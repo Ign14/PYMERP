@@ -1,6 +1,7 @@
 package com.datakomerz.pymes.products;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -29,6 +30,12 @@ public class Product {
 
   @Column(name = "image_url")
   private String imageUrl;
+
+  @Column(name = "qr_url")
+  private String qrUrl;
+
+  @Column(name = "critical_stock", nullable = false)
+  private BigDecimal criticalStock = BigDecimal.ZERO;
 
   @Column(name = "is_active", nullable = false)
   private Boolean active;
@@ -61,6 +68,9 @@ public class Product {
     if (active == null) {
       active = Boolean.TRUE;
     }
+    if (criticalStock == null) {
+      criticalStock = BigDecimal.ZERO;
+    }
   }
 
   @PreUpdate
@@ -69,6 +79,9 @@ public class Product {
     this.version = (this.version == null ? 0 : this.version + 1);
     if (active == null) {
       active = Boolean.TRUE;
+    }
+    if (criticalStock == null) {
+      criticalStock = BigDecimal.ZERO;
     }
   }
 
@@ -134,6 +147,22 @@ public class Product {
 
   public void setImageUrl(String imageUrl) {
     this.imageUrl = imageUrl;
+  }
+
+  public String getQrUrl() {
+    return qrUrl;
+  }
+
+  public void setQrUrl(String qrUrl) {
+    this.qrUrl = qrUrl;
+  }
+
+  public BigDecimal getCriticalStock() {
+    return criticalStock;
+  }
+
+  public void setCriticalStock(BigDecimal criticalStock) {
+    this.criticalStock = criticalStock;
   }
 
   public Boolean getActive() {

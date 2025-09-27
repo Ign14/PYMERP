@@ -3,15 +3,19 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   createProductPrice,
   deleteProduct,
+  fetchProductStock,
   listProductPrices,
   listProducts,
   updateProductStatus,
   PriceChangePayload,
   PriceHistoryEntry,
   Product,
+  ProductStock,
 } from "../services/client";
 
 import ProductFormDialog from "./dialogs/ProductFormDialog";
+import ProductInventoryAlertModal from "./dialogs/ProductInventoryAlertModal";
+import ProductQrModal from "./dialogs/ProductQrModal";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -23,6 +27,10 @@ export default function ProductsCard() {
   const [priceForm, setPriceForm] = useState<PriceChangePayload>({ price: 0 });
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrProduct, setQrProduct] = useState<Product | null>(null);
+  const [criticalModalOpen, setCriticalModalOpen] = useState(false);
+  const [criticalProduct, setCriticalProduct] = useState<Product | null>(null);
   const queryClient = useQueryClient();
 
   const resolveNumericPrice = (value?: string | number | null) => {
@@ -63,6 +71,17 @@ export default function ProductsCard() {
         throw new Error("Producto no seleccionado");
       }
       return listProductPrices(selectedProduct.id, { size: 5 });
+    },
+    enabled: !!selectedProduct,
+  });
+
+  const stockQuery = useQuery<ProductStock>({
+    queryKey: ["product", selectedProduct?.id, "stock"],
+    queryFn: () => {
+      if (!selectedProduct) {
+        throw new Error("Producto no seleccionado");
+      }
+      return fetchProductStock(selectedProduct.id);
     },
     enabled: !!selectedProduct,
   });
@@ -119,10 +138,46 @@ export default function ProductsCard() {
     setEditingProduct(null);
   };
 
+  const openQrModal = (product?: Product | null) => {
+    const target = product ?? selectedProduct;
+    if (!target) return;
+    setQrProduct(target);
+    setQrModalOpen(true);
+  };
+
+  const closeQrModal = () => {
+    setQrModalOpen(false);
+    setQrProduct(null);
+  };
+
+  const openCriticalStockModal = () => {
+    if (!selectedProduct) return;
+    setCriticalProduct(selectedProduct);
+    setCriticalModalOpen(true);
+  };
+
+  const closeCriticalModal = () => {
+    setCriticalModalOpen(false);
+    setCriticalProduct(null);
+  };
+
+  const handleCriticalStockSaved = (updated: Product) => {
+    queryClient.invalidateQueries({ queryKey: ["products"], exact: false });
+    setSelectedProduct(updated);
+    setPriceForm({ price: resolveNumericPrice(updated.currentPrice) ?? 0 });
+  };
+
   const handleProductSaved = (product: Product) => {
     queryClient.invalidateQueries({ queryKey: ["products"], exact: false });
     setSelectedProduct(product);
     setPriceForm({ price: resolveNumericPrice(product.currentPrice) ?? 0 });
+    if (qrProduct?.id === product.id) {
+      setQrProduct(product);
+    }
+    if (criticalProduct?.id === product.id) {
+      setCriticalProduct(product);
+    }
+    queryClient.invalidateQueries({ queryKey: ["product", product.id, "stock"] });
   };
 
   const handleDelete = () => {
@@ -157,6 +212,11 @@ export default function ProductsCard() {
   const selectedPriceLabel = useMemo(() => {
     if (!selectedProduct) return "";
     return formatPriceLabel(selectedProduct.currentPrice);
+  }, [selectedProduct]);
+
+  const selectedCriticalStock = useMemo(() => {
+    if (!selectedProduct) return 0;
+    return resolveNumericPrice(selectedProduct.criticalStock ?? 0) ?? 0;
   }, [selectedProduct]);
 
   const onSubmitPrice = (event: FormEvent) => {
@@ -208,6 +268,9 @@ export default function ProductsCard() {
         <button className="btn ghost" type="button" onClick={openEditDialog} disabled={!selectedProduct}>
           Editar
         </button>
+        <button className="btn ghost" type="button" onClick={() => openQrModal(selectedProduct)} disabled={!selectedProduct}>
+          Ver QR
+        </button>
         <button
           className="btn ghost"
           type="button"
@@ -246,6 +309,7 @@ export default function ProductsCard() {
                   <th>SKU</th>
                   <th>Precio actual</th>
                   <th>Estado</th>
+                  <th>QR</th>
                 </tr>
               </thead>
               <tbody>
@@ -264,7 +328,19 @@ export default function ProductsCard() {
                       {formatPriceLabel(product.currentPrice)}
                     </td>
                     <td>{product.active ? "Activo" : "Inactivo"}</td>
-                  </tr>
+                    <td>
+                      <button
+                        className="btn ghost"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openQrModal(product);
+                        }}
+                      >
+                        Ver QR
+                      </button>
+                    </td>
+                </tr>
                 ))}
               </tbody>
             </table>
@@ -287,48 +363,94 @@ export default function ProductsCard() {
           )}
 
           {selectedProduct && (
-            <div className="panel">
-              <h3 className="panel-title">Precio</h3>
-              <p className="muted">Actual: {selectedPriceLabel}</p>
+            <>
+              <div className="panel">
+                <h3 className="panel-title">Precio</h3>
+                <p className="muted">Actual: {selectedPriceLabel}</p>
 
-              <p className="muted">Estado: {selectedProduct.active ? "Activo" : "Inactivo"}</p>
+                <p className="muted">Estado: {selectedProduct.active ? "Activo" : "Inactivo"}</p>
 
-              <form className="form-inline" onSubmit={onSubmitPrice}>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Nuevo precio"
-                  value={priceForm.price}
-                  onChange={(e) => setPriceForm((prev) => ({ ...prev, price: Number(e.target.value) }))}
-                />
-                <button className="btn" type="submit" disabled={priceMutation.isPending}>
-                  {priceMutation.isPending ? "Guardando..." : "Actualizar"}
-                </button>
-              </form>
+                <form className="form-inline" onSubmit={onSubmitPrice}>
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Nuevo precio"
+                    value={priceForm.price}
+                    onChange={(e) => setPriceForm((prev) => ({ ...prev, price: Number(e.target.value) }))}
+                  />
+                  <button className="btn" type="submit" disabled={priceMutation.isPending}>
+                    {priceMutation.isPending ? "Guardando..." : "Actualizar"}
+                  </button>
+                </form>
 
-              {priceMutation.isError && <p className="error">{(priceMutation.error as Error)?.message}</p>}
+                {priceMutation.isError && <p className="error">{(priceMutation.error as Error)?.message}</p>}
 
-              <div className="table-wrapper compact">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Precio</th>
-                      <th>Desde</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(pricesQuery.data?.content ?? []).map((entry: PriceHistoryEntry) => (
-                      <tr key={entry.id}>
-                        <td className="mono">{`$${entry.price.toFixed(2)}`}</td>
-                        <td className="mono small">{new Date(entry.validFrom).toLocaleString()}</td>
+                <div className="table-wrapper compact">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Precio</th>
+                        <th>Desde</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(pricesQuery.data?.content ?? []).map((entry: PriceHistoryEntry) => (
+                        <tr key={entry.id}>
+                          <td className="mono">{`$${entry.price.toFixed(2)}`}</td>
+                          <td className="mono small">{new Date(entry.validFrom).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+
+              <div className="panel">
+                <h3 className="panel-title">Inventario</h3>
+                <p className="muted">
+                  Stock total: {stockQuery.isLoading ? "Cargando..." : stockQuery.data ? stockQuery.data.total : "Sin datos"}
+                </p>
+                <p className="muted">Stock crítico configurado: {selectedCriticalStock}</p>
+                <button className="btn ghost" type="button" onClick={openCriticalStockModal}>
+                  Definir stock crítico
+                </button>
+                {stockQuery.isError && (
+                  <p className="error">{(stockQuery.error as Error)?.message ?? "No se pudo obtener el stock"}</p>
+                )}
+                {stockQuery.isLoading && <p className="muted">Cargando lotes...</p>}
+                {stockQuery.data && stockQuery.data.lots.length > 0 && (
+                  <div className="table-wrapper compact">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Lote</th>
+                          <th>Cantidad</th>
+                          <th>Ubicación</th>
+                          <th>Vence</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stockQuery.data.lots.map((lot) => (
+                          <tr key={lot.lotId}>
+                            <td className="mono small">{lot.lotId}</td>
+                            <td className="mono">{lot.quantity}</td>
+                            <td>{lot.location ?? "—"}</td>
+                            <td className="mono small">
+                              {lot.expiresAt ? new Date(lot.expiresAt).toLocaleDateString() : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {stockQuery.data && stockQuery.data.lots.length === 0 && !stockQuery.isLoading && (
+                  <p className="muted small">No hay lotes registrados para este producto.</p>
+                )}
+              </div>
+            </>
           )}
         </>
       )}
@@ -337,6 +459,13 @@ export default function ProductsCard() {
         product={editingProduct}
         onClose={closeProductDialog}
         onSaved={handleProductSaved}
+      />
+      <ProductQrModal open={qrModalOpen} product={qrProduct} onClose={closeQrModal} />
+      <ProductInventoryAlertModal
+        open={criticalModalOpen}
+        product={criticalProduct}
+        onClose={closeCriticalModal}
+        onSaved={handleCriticalStockSaved}
       />
     </div>
   );
