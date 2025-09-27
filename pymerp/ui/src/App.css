@@ -504,6 +504,34 @@ body {
   color: var(--muted);
 }
 
+.supplier-details {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.supplier-detail-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-alt);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.supplier-detail-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.supplier-detail-value {
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
 .btn-link.danger {
   color: #f87171;
 }

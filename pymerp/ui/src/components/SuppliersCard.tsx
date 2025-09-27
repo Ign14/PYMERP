@@ -76,6 +76,26 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
 
   const { data, isLoading, isError, error, refetch, isFetching } = suppliersQuery;
 
+  const formatValue = (value?: string | null) => {
+    if (!value) {
+      return "Sin información";
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : "Sin información";
+  };
+
+  const detailItems = selectedSupplier
+    ? [
+        { label: "Nombre", value: selectedSupplier.name },
+        { label: "RUT", value: selectedSupplier.rut ?? null },
+        { label: "Dirección", value: selectedSupplier.address ?? null },
+        { label: "Comuna", value: selectedSupplier.commune ?? null },
+        { label: "Giro / actividad", value: selectedSupplier.businessActivity ?? null },
+        { label: "Teléfono", value: selectedSupplier.phone ?? null },
+        { label: "Email", value: selectedSupplier.email ?? null, type: "email" as const },
+      ]
+    : [];
+
   return (
     <div className="card">
       <div className="card-header">
@@ -109,19 +129,39 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
       {isError && <p className="error">{error?.message ?? "No se pudieron cargar los proveedores"}</p>}
 
       {!isLoading && !isError && (
-        <ul className="list">
-          {(data ?? []).map((supplier) => (
-            <li
-              key={supplier.id}
-              className={selectedSupplier?.id === supplier.id ? "selected" : undefined}
-              onClick={() => setSelectedSupplier(supplier)}
-            >
-              <strong>{supplier.name}</strong>
-              {supplier.rut ? <span className="mono small"> rut {supplier.rut}</span> : null}
-            </li>
-          ))}
-          {(data ?? []).length === 0 && <li className="muted">Sin proveedores</li>}
-        </ul>
+        <>
+          <ul className="list">
+            {(data ?? []).map((supplier) => (
+              <li
+                key={supplier.id}
+                className={selectedSupplier?.id === supplier.id ? "selected" : undefined}
+                onClick={() => setSelectedSupplier(supplier)}
+              >
+                <strong>{supplier.name}</strong>
+                {supplier.rut ? <span className="mono small"> rut {supplier.rut}</span> : null}
+              </li>
+            ))}
+            {(data ?? []).length === 0 && <li className="muted">Sin proveedores</li>}
+          </ul>
+          {selectedSupplier ? (
+            <div className="supplier-details" aria-live="polite">
+              {detailItems.map((item) => (
+                <div key={item.label} className="supplier-detail-item">
+                  <span className="supplier-detail-label">{item.label}</span>
+                  <span className="supplier-detail-value">
+                    {item.type === "email" && item.value && item.value.trim().length > 0 ? (
+                      <a href={`mailto:${item.value.trim()}`}>{item.value.trim()}</a>
+                    ) : (
+                      formatValue(item.value)
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">Selecciona un proveedor para ver sus datos.</p>
+          )}
+        </>
       )}
 
       <SupplierFormDialog

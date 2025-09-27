@@ -71,13 +71,25 @@ public class SupplierController {
 
   private void apply(Supplier supplier, SupplierRequest request) {
     supplier.setName(request.name().trim());
-    String rut = request.rut();
-    supplier.setRut(rut == null || rut.isBlank() ? null : rut.trim());
+    supplier.setRut(normalize(request.rut()));
+    supplier.setAddress(normalize(request.address()));
+    supplier.setCommune(normalize(request.commune()));
+    supplier.setBusinessActivity(normalize(request.businessActivity()));
+    supplier.setPhone(normalize(request.phone()));
+    supplier.setEmail(normalize(request.email()));
   }
 
   private Supplier ensureOwnership(UUID supplierId) {
     UUID companyId = companyContext.require();
     return repo.findByIdAndCompanyId(supplierId, companyId)
       .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + supplierId));
+  }
+
+  private String normalize(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 }

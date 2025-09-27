@@ -197,9 +197,36 @@ const demoState: DemoState = {
     ],
   },
   suppliers: [
-    { id: "sup-demo-001", name: "Proveedor Andes", rut: "76.555.111-1" },
-    { id: "sup-demo-002", name: "Granos Latino", rut: "77.444.333-2" },
-    { id: "sup-demo-003", name: "Eco Packaging", rut: "79.222.888-5" },
+    {
+      id: "sup-demo-001",
+      name: "Proveedor Andes",
+      rut: "76.555.111-1",
+      businessActivity: "Distribución de alimentos",
+      address: "Av. Los Leones 1200, Providencia",
+      commune: "Providencia",
+      phone: "+56 2 2456 7788",
+      email: "ventas@proveedorandes.cl",
+    },
+    {
+      id: "sup-demo-002",
+      name: "Granos Latino",
+      rut: "77.444.333-2",
+      businessActivity: "Importación de granos",
+      address: "Camino a Noviciado 2345, Pudahuel",
+      commune: "Pudahuel",
+      phone: "+56 2 2988 1100",
+      email: "contacto@granoslatino.cl",
+    },
+    {
+      id: "sup-demo-003",
+      name: "Eco Packaging",
+      rut: "79.222.888-5",
+      businessActivity: "Envases sustentables",
+      address: "Av. República 980, Santiago",
+      commune: "Santiago",
+      phone: "+56 2 2311 4455",
+      email: "ventas@ecopackaging.cl",
+    },
   ],
   customers: [
     {
@@ -782,7 +809,16 @@ function fallbackListSuppliers() {
 }
 
 function fallbackCreateSupplier(payload: SupplierPayload): Supplier {
-  const supplier: Supplier = { id: nextId("sup-demo"), name: payload.name, rut: payload.rut };
+  const supplier: Supplier = {
+    id: nextId("sup-demo"),
+    name: payload.name,
+    rut: payload.rut,
+    address: payload.address ?? null,
+    commune: payload.commune ?? null,
+    businessActivity: payload.businessActivity ?? null,
+    phone: payload.phone ?? null,
+    email: payload.email ?? null,
+  };
   demoState.suppliers = [...demoState.suppliers, supplier];
   return supplier;
 }
@@ -1247,11 +1283,21 @@ export type Supplier = {
   id: string;
   name: string;
   rut?: string;
+  address?: string | null;
+  commune?: string | null;
+  businessActivity?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 export type SupplierPayload = {
   name: string;
-  rut?: string;
+  rut: string;
+  address?: string | null;
+  commune?: string | null;
+  businessActivity?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 export type Customer = {
