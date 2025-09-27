@@ -1,6 +1,5 @@
 package com.datakomerz.pymes.company;
 
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -8,6 +7,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 @Entity
@@ -18,29 +18,35 @@ public class Company {
   @Column(columnDefinition = "uuid")
   private UUID id;
 
-  @Column(nullable = false, length = 100)
-  private String name;
+  @Column(name = "business_name", nullable = false, length = 160)
+  private String businessName;
 
-  @Column(length = 20)
+  @Column(nullable = false, length = 20, unique = true)
   private String rut;
 
-  @Column(length = 30)
-  private String industry;
+  @Column(name = "business_activity", length = 120)
+  private String businessActivity;
 
-  @Column(name = "open_time")
-  private LocalTime openTime;
+  @Column(length = 160)
+  private String address;
 
-  @Column(name = "close_time")
-  private LocalTime closeTime;
+  @Column(length = 80)
+  private String commune;
 
-  @Column(name = "receipt_footer", length = 200)
-  private String receiptFooter;
+  @Column(length = 40)
+  private String phone;
 
-  @Column(name = "logo_url")
-  private String logoUrl;
+  @Column(length = 160)
+  private String email;
+
+  @Column(name = "receipt_footer_message", columnDefinition = "text")
+  private String receiptFooterMessage;
 
   @Column(name = "created_at")
   private OffsetDateTime createdAt;
+
+  @Column(name = "updated_at")
+  private OffsetDateTime updatedAt;
 
   @PrePersist
   public void prePersist() {
@@ -50,6 +56,14 @@ public class Company {
     if (createdAt == null) {
       createdAt = OffsetDateTime.now();
     }
+    if (updatedAt == null) {
+      updatedAt = createdAt;
+    }
+  }
+
+  @PreUpdate
+  public void preUpdate() {
+    updatedAt = OffsetDateTime.now();
   }
 
   public UUID getId() {
@@ -60,12 +74,12 @@ public class Company {
     this.id = id;
   }
 
-  public String getName() {
-    return name;
+  public String getBusinessName() {
+    return businessName;
   }
 
-  public void setName(String name) {
-    this.name = name;
+  public void setBusinessName(String businessName) {
+    this.businessName = businessName;
   }
 
   public String getRut() {
@@ -76,44 +90,52 @@ public class Company {
     this.rut = rut;
   }
 
-  public String getIndustry() {
-    return industry;
+  public String getBusinessActivity() {
+    return businessActivity;
   }
 
-  public void setIndustry(String industry) {
-    this.industry = industry;
+  public void setBusinessActivity(String businessActivity) {
+    this.businessActivity = businessActivity;
   }
 
-  public LocalTime getOpenTime() {
-    return openTime;
+  public String getAddress() {
+    return address;
   }
 
-  public void setOpenTime(LocalTime openTime) {
-    this.openTime = openTime;
+  public void setAddress(String address) {
+    this.address = address;
   }
 
-  public LocalTime getCloseTime() {
-    return closeTime;
+  public String getCommune() {
+    return commune;
   }
 
-  public void setCloseTime(LocalTime closeTime) {
-    this.closeTime = closeTime;
+  public void setCommune(String commune) {
+    this.commune = commune;
   }
 
-  public String getReceiptFooter() {
-    return receiptFooter;
+  public String getPhone() {
+    return phone;
   }
 
-  public void setReceiptFooter(String receiptFooter) {
-    this.receiptFooter = receiptFooter;
+  public void setPhone(String phone) {
+    this.phone = phone;
   }
 
-  public String getLogoUrl() {
-    return logoUrl;
+  public String getEmail() {
+    return email;
   }
 
-  public void setLogoUrl(String logoUrl) {
-    this.logoUrl = logoUrl;
+  public void setEmail(String email) {
+    this.email = email;
+  }
+
+  public String getReceiptFooterMessage() {
+    return receiptFooterMessage;
+  }
+
+  public void setReceiptFooterMessage(String receiptFooterMessage) {
+    this.receiptFooterMessage = receiptFooterMessage;
   }
 
   public OffsetDateTime getCreatedAt() {
@@ -122,5 +144,13 @@ public class Company {
 
   public void setCreatedAt(OffsetDateTime createdAt) {
     this.createdAt = createdAt;
+  }
+
+  public OffsetDateTime getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setUpdatedAt(OffsetDateTime updatedAt) {
+    this.updatedAt = updatedAt;
   }
 }

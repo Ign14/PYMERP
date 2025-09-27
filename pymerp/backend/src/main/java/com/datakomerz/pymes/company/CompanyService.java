@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.datakomerz.pymes.common.validation.RutUtils;
 import com.datakomerz.pymes.company.dto.CompanyRequest;
 
 @Service
@@ -23,19 +24,19 @@ public class CompanyService {
 
   @Transactional(Transactional.TxType.SUPPORTS)
   public List<Company> findAll() {
-    return repository.findAllByOrderByNameAsc();
+    return repository.findAllByOrderByBusinessNameAsc();
   }
 
   public Company create(CompanyRequest request) {
     Company company = new Company();
-    apply(company, request);
+    apply(company, request, null);
     return repository.save(company);
   }
 
   public Company update(UUID id, CompanyRequest request) {
     Company company = repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Company not found: " + id));
-    apply(company, request);
+    apply(company, request, id);
     return repository.save(company);
   }
 
@@ -45,14 +46,31 @@ public class CompanyService {
       .orElseThrow(() -> new EntityNotFoundException("Company not found: " + id));
   }
 
-  private void apply(Company company, CompanyRequest request) {
-    company.setName(request.name().trim());
-    company.setRut(normalize(request.rut()));
-    company.setIndustry(normalize(request.industry()));
-    company.setOpenTime(request.openTime());
-    company.setCloseTime(request.closeTime());
-    company.setReceiptFooter(normalize(request.receiptFooter()));
-    company.setLogoUrl(normalize(request.logoUrl()));
+  private void apply(Company company, CompanyRequest request, UUID currentId) {
+    company.setBusinessName(request.businessName().trim());
+
+    String normalizedRut = RutUtils.normalize(request.rut());
+    ensureRutUnique(normalizedRut, currentId);
+    company.setRut(normalizedRut);
+
+    company.setBusinessActivity(normalize(request.businessActivity()));
+    company.setAddress(normalize(request.address()));
+    company.setCommune(normalize(request.commune()));
+    company.setPhone(normalize(request.phone()));
+
+    String email = normalize(request.email());
+    company.setEmail(email != null ? email.toLowerCase() : null);
+
+    company.setReceiptFooterMessage(normalize(request.receiptFooterMessage()));
+  }
+
+  private void ensureRutUnique(String rut, UUID currentId) {
+    boolean exists = currentId == null
+      ? repository.existsByRut(rut)
+      : repository.existsByRutAndIdNot(rut, currentId);
+    if (exists) {
+      throw new IllegalArgumentException("Ya existe una compañía con este RUT");
+    }
   }
 
   private String normalize(String value) {

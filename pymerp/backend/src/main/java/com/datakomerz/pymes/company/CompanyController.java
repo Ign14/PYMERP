@@ -52,14 +52,16 @@ public class CompanyController {
   private CompanyResponse toResponse(Company company) {
     return new CompanyResponse(
       company.getId(),
-      company.getName(),
+      company.getBusinessName(),
       company.getRut(),
-      company.getIndustry(),
-      company.getOpenTime(),
-      company.getCloseTime(),
-      company.getReceiptFooter(),
-      company.getLogoUrl(),
-      company.getCreatedAt()
+      company.getBusinessActivity(),
+      company.getAddress(),
+      company.getCommune(),
+      company.getPhone(),
+      company.getEmail(),
+      company.getReceiptFooterMessage(),
+      company.getCreatedAt(),
+      company.getUpdatedAt()
     );
   }
 }

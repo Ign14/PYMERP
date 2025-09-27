@@ -61,9 +61,9 @@ export default function DashboardPage() {
   const inventoryAlerts = alertsQuery.data ?? [];
 
   const kpiData = [
-    { title: "Empresas", value: companiesQuery.data?.length ?? 0, trend: "Multi-tenant" },
+    { title: "Compa√±√≠as", value: companiesQuery.data?.length ?? 0, trend: "Entorno multi-tenant" },
     { title: "Ventas 14d", value: `$${salesTotals.total.toLocaleString()}`, trend: `${salesTotals.docs} documentos` },
-    { title: "Ticket diario", value: `$${salesTotals.avg.toFixed(0)}`, trend: "Promedio 14 dÌas" },
+    { title: "Ticket diario", value: `$${salesTotals.avg.toFixed(0)}`, trend: "Promedio 14 d√≠as" },
     { title: "Alertas stock", value: inventoryAlerts.length, trend: "Umbral configurado" },
   ];
 
@@ -71,7 +71,7 @@ export default function DashboardPage() {
     <div className="dashboard">
       <PageHeader
         title="Resumen ejecutivo"
-        description="Monitorea indicadores clave, salud del sistema y cat·logos recientes."
+        description="Monitorea indicadores clave, salud del sistema y cat√°logos recientes."
       />
 
       <section className="kpi-grid">
@@ -85,7 +85,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="card">
-        <h3>Tendencia de ventas (14 dÌas)</h3>
+        <h3>Tendencia de ventas (14 d√≠as)</h3>
         <div style={{ height: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>

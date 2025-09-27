@@ -6,5 +6,9 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CompanyRepository extends JpaRepository<Company, UUID> {
-  List<Company> findAllByOrderByNameAsc();
+  List<Company> findAllByOrderByBusinessNameAsc();
+
+  boolean existsByRut(String rut);
+
+  boolean existsByRutAndIdNot(String rut, UUID id);
 }
