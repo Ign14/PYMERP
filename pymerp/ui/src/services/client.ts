@@ -1106,9 +1106,16 @@ export type PriceChangePayload = {
   validFrom?: string;
 };
 
+export type SimpleCaptchaPayload = {
+  a: number;
+  b: number;
+  answer: string;
+};
+
 export type LoginPayload = {
   email: string;
   password: string;
+  captcha: SimpleCaptchaPayload;
 };
 
 export type RefreshPayload = {
@@ -1140,6 +1147,7 @@ export type AccountRequestPayload = {
   companyName: string;
   password: string;
   confirmPassword: string;
+  captcha: SimpleCaptchaPayload;
 };
 
 export type AccountRequestResponse = {
@@ -1395,6 +1403,7 @@ export async function submitAccountRequest(payload: AccountRequestPayload): Prom
     companyName: payload.companyName,
     password: payload.password,
     confirmPassword: payload.confirmPassword,
+    captcha: payload.captcha,
   };
   const { data } = await api.post<AccountRequestResponse>("/v1/requests", body);
   return data;
