@@ -20,5 +20,9 @@ app_flutter/web/.dart_tool/
 .DS_Store
 Thumbs.db
 
+# Node / JavaScript
+node_modules/
+ui/node_modules/
+
 # Docker
 .env

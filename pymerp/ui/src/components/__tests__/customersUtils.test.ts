@@ -4,8 +4,8 @@ import type { Customer, Page } from "../../services/client";
 describe('customersUtils', () => {
   const makeCustomer = (id: string): Customer => ({
     id,
-    name: Customer ,
-    email: ${id}@example.com,
+    name: `Customer ${id}`,
+    email: `${id}@example.com`,
   } as Customer);
 
   const makePage = (content: Customer[], number: number, totalPages: number, hasNext?: boolean): Page<Customer> => ({

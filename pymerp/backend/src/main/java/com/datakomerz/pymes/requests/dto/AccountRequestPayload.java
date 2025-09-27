@@ -1,8 +1,11 @@
 package com.datakomerz.pymes.requests.dto;
 
+import com.datakomerz.pymes.common.captcha.SimpleCaptchaPayload;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record AccountRequestPayload(
@@ -25,7 +28,10 @@ public record AccountRequestPayload(
   @Size(min = 8, max = 120, message = "La contraseña debe tener entre 8 y 120 caracteres")
   String password,
   @NotBlank(message = "Debes confirmar la contraseña")
-  String confirmPassword
+  String confirmPassword,
+  @NotNull(message = "El captcha es obligatorio")
+  @Valid
+  SimpleCaptchaPayload captcha
 ) {
   @AssertTrue(message = "Las contraseñas no coinciden")
   public boolean isPasswordConfirmed() {
