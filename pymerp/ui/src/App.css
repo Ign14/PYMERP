@@ -384,6 +384,12 @@ button.card:focus-visible {
   border-color: rgba(248, 113, 113, 0.35);
 }
 
+.status-message.loading {
+  background: rgba(96, 165, 250, 0.12);
+  color: var(--accent);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
 .notice-dirty {
   margin: -6px 0 0 0;
 }
@@ -396,6 +402,115 @@ button.card:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.lookup-section {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .lookup-section {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.scan-input-wrapper label,
+.manual-entry label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scan-input {
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+
+.scan-hint {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.manual-entry__inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.manual-entry__inputs .input {
+  flex: 1 1 180px;
+}
+
+.manual-entry__type {
+  flex: 0 0 180px;
+}
+
+.manual-entry__inputs .btn {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .manual-entry__inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .manual-entry__type,
+  .manual-entry__inputs .btn {
+    width: 100%;
+  }
+}
+
+.lookup-feedback {
+  margin-top: -4px;
+}
+
+.table.nowrap {
+  table-layout: fixed;
+  min-width: 100%;
+}
+
+.table.nowrap th,
+.table.nowrap td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table.nowrap th:first-child,
+.table.nowrap td:first-child {
+  width: 55%;
+}
+
+.table.nowrap th:nth-child(2),
+.table.nowrap td:nth-child(2) {
+  width: 15%;
+}
+
+.table.nowrap th:nth-child(3),
+.table.nowrap td:nth-child(3) {
+  width: 20%;
+}
+
+.table.nowrap th:nth-child(4),
+.table.nowrap td:nth-child(4) {
+  width: 10%;
+}
+
+.cell-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions-cell {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .product-thumbnail {
@@ -1291,6 +1406,16 @@ button.card:focus-visible {
 
 .modal-body {
   padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sales-create-modal .modal-body {
+  gap: 20px;
+}
+
+.sales-create-modal .form-grid {
   display: flex;
   flex-direction: column;
   gap: 16px;
