@@ -44,9 +44,11 @@ describe("SalesDashboardOverview", () => {
     expect(screen.getAllByTestId("sales-trend-point")).toHaveLength(14);
     expect(screen.getByText(/Sin ventas registradas en los últimos días/i)).toBeInTheDocument();
 
+
     const frame = buildFrame(14);
     const rangeLabel = `Rango seleccionado: ${frame[0]} a ${frame[13]}`;
     expect(screen.getAllByText(rangeLabel)).toHaveLength(2);
+
 
     expect(screen.getByLabelText(/Desde/i)).toHaveAttribute("type", "date");
     expect(screen.getByLabelText(/Hasta/i)).toHaveAttribute("type", "date");
