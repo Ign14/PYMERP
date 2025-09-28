@@ -1,15 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import SalesDashboardOverview from "../SalesDashboardOverview";
-import { fetchSalesSummary, fetchSalesTimeseries } from "../../../services/reports";
+import { fetchSalesTimeseries } from "../../../services/reports";
 
 vi.mock("../../../services/reports", () => ({
-  fetchSalesSummary: vi.fn(),
   fetchSalesTimeseries: vi.fn(),
 }));
 
-const mockFetchSalesSummary = fetchSalesSummary as unknown as vi.MockedFunction<typeof fetchSalesSummary>;
 const mockFetchSalesTimeseries = fetchSalesTimeseries as unknown as vi.MockedFunction<typeof fetchSalesTimeseries>;
 
 const currencyFormatter = new Intl.NumberFormat("es-CL", {
@@ -34,20 +32,28 @@ describe("SalesDashboardOverview", () => {
   });
 
   it("renders zero state when there are no sales", async () => {
-    mockFetchSalesSummary.mockResolvedValue({ total14d: 0, avgDaily14d: 0 });
     mockFetchSalesTimeseries.mockResolvedValue({ points: [] });
 
     renderDashboard();
+
+    expect(await screen.findByRole("heading", { name: /Resumen de ventas/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Tendencia de ventas/i })).toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByTestId("sales-daily-average")).toHaveTextContent("$0"));
     expect(screen.getByTestId("sales-total-14d")).toHaveTextContent("$0");
     expect(screen.getAllByTestId("sales-trend-point")).toHaveLength(14);
     expect(screen.getByText(/Sin ventas registradas en los últimos días/i)).toBeInTheDocument();
+
+    const frame = buildFrame(14);
+    const rangeLabel = `Rango seleccionado: ${frame[0]} a ${frame[13]}`;
+    expect(screen.getAllByText(rangeLabel)).toHaveLength(2);
+
+    expect(screen.getByLabelText(/Desde/i)).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText(/Hasta/i)).toHaveAttribute("type", "date");
   });
 
   it("fills missing days with zeros", async () => {
     const frame = buildFrame(14);
-    mockFetchSalesSummary.mockResolvedValue({ total14d: 300, avgDaily14d: 21.43 });
     mockFetchSalesTimeseries.mockResolvedValue({
       points: [
         { date: frame[5], total: 100 },
@@ -72,7 +78,6 @@ describe("SalesDashboardOverview", () => {
     const total = points.reduce((acc, point) => acc + point.total, 0);
     const average = total / 14;
 
-    mockFetchSalesSummary.mockResolvedValue({ total14d: total, avgDaily14d: average });
     mockFetchSalesTimeseries.mockResolvedValue({ points });
 
     renderDashboard();
