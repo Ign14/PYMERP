@@ -1125,6 +1125,108 @@ function fallbackListSalesTrend({ from, to }: SalesTrendParams): SalesDailyPoint
   return demoState.salesDaily.filter((point) => point.date >= from && point.date <= to);
 }
 
+type DateRangeBounds = { start: number; end: number };
+
+function createRangeBounds(from: string, to: string): DateRangeBounds | null {
+  if (!from || !to) {
+    return null;
+  }
+  const startDate = new Date(`${from}T00:00:00Z`);
+  const endDate = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+  const start = startDate.getTime();
+  const end = endDate.getTime() + 86_399_999; // include full end day
+  return start <= end ? { start, end } : { start: end, end: start };
+}
+
+function fallbackGetDashboardSalesMetrics({ from, to }: DashboardSalesMetricsParams): DashboardSalesMetrics {
+  const bounds = createRangeBounds(from, to);
+  if (!bounds) {
+    return { totalDay: 0, topProduct: null, topPaymentMethods: [] };
+  }
+
+  const salesInRange = demoState.sales.filter((sale) => {
+    if (!sale.issuedAt || sale.status === "cancelled") {
+      return false;
+    }
+    const issuedAt = new Date(sale.issuedAt).getTime();
+    return issuedAt >= bounds.start && issuedAt <= bounds.end;
+  });
+
+  const dayBounds = createRangeBounds(to, to);
+  const totalDay = salesInRange.reduce((acc, sale) => {
+    if (!dayBounds) {
+      return acc;
+    }
+    const issuedAt = new Date(sale.issuedAt).getTime();
+    if (issuedAt >= dayBounds.start && issuedAt <= dayBounds.end) {
+      return acc + (sale.total ?? 0);
+    }
+    return acc;
+  }, 0);
+
+  const productAggregates = new Map<string, { id: string; name: string; qty: number }>();
+  salesInRange.forEach((sale) => {
+    const detail = demoState.saleDetails[sale.id];
+    const items = detail?.items ?? [];
+    items.forEach((item) => {
+      const productId = item.productId ?? item.productName;
+      if (!productId) {
+        return;
+      }
+      const aggregate = productAggregates.get(productId) ?? {
+        id: productId,
+        name: item.productName,
+        qty: 0,
+      };
+      aggregate.qty += item.qty ?? 0;
+      aggregate.name = item.productName;
+      productAggregates.set(productId, aggregate);
+    });
+  });
+
+  let topProduct: DashboardSalesMetrics["topProduct"] = null;
+  productAggregates.forEach((aggregate) => {
+    if (!topProduct || aggregate.qty > topProduct.qty) {
+      topProduct = aggregate;
+    }
+  });
+
+  const paymentCounts = new Map<string, number>();
+  salesInRange.forEach((sale) => {
+    const method = sale.paymentMethod?.trim().length ? sale.paymentMethod : "Sin método";
+    paymentCounts.set(method, (paymentCounts.get(method) ?? 0) + 1);
+  });
+
+  const topPaymentMethods = Array.from(paymentCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([method, count]) => ({ method, count }));
+
+  return {
+    totalDay,
+    topProduct,
+    topPaymentMethods,
+  };
+}
+
+function fallbackGetPurchaseSaleTrend({ from, to }: TrendSeriesParams): TrendSeriesResponse {
+  if (!from || !to || from > to) {
+    return { purchase: [], sale: [] };
+  }
+
+  const purchase = demoState.purchaseDaily
+    .filter((point) => point.date >= from && point.date <= to)
+    .map((point) => ({ date: point.date, value: point.total }));
+
+  const sale = demoState.salesDaily
+    .filter((point) => point.date >= from && point.date <= to)
+    .map((point) => ({ date: point.date, value: point.total }));
+
+  return { purchase, sale };
+}
+
 function fallbackGetSalesWindowMetrics(window: string): SalesWindowMetrics {
   const days = parseWindowToDays(window);
   const data = fallbackListSalesDaily(days);
@@ -1664,6 +1766,30 @@ export type SalesDailyPoint = {
 export type SalesTrendParams = {
   from: string;
   to: string;
+};
+
+export type DashboardSalesMetricsParams = {
+  from: string;
+  to: string;
+};
+
+export type DashboardSalesMetrics = {
+  totalDay: number;
+  topProduct: { id: string; name: string; qty: number } | null;
+  topPaymentMethods: { method: string; count: number }[];
+};
+
+export type TrendSeriesPoint = { date: string; value: number };
+
+export type TrendSeriesResponse = {
+  purchase: TrendSeriesPoint[];
+  sale: TrendSeriesPoint[];
+};
+
+export type TrendSeriesParams = {
+  from: string;
+  to: string;
+  series: string;
 };
 
 export type SalesWindowMetrics = {
@@ -2254,6 +2380,30 @@ export function listSalesTrend(params: SalesTrendParams): Promise<SalesDailyPoin
       return data;
     },
     () => fallbackListSalesTrend(params),
+  );
+}
+
+export function getDashboardSalesMetrics(
+  params: DashboardSalesMetricsParams,
+): Promise<DashboardSalesMetrics> {
+  return withOfflineFallback(
+    "getDashboardSalesMetrics",
+    async () => {
+      const { data } = await api.get<DashboardSalesMetrics>("/v1/sales/metrics", { params });
+      return data;
+    },
+    () => fallbackGetDashboardSalesMetrics(params),
+  );
+}
+
+export function getPurchaseSaleTrend(params: TrendSeriesParams): Promise<TrendSeriesResponse> {
+  return withOfflineFallback(
+    "getPurchaseSaleTrend",
+    async () => {
+      const { data } = await api.get<TrendSeriesResponse>("/v1/trend", { params });
+      return data;
+    },
+    () => fallbackGetPurchaseSaleTrend(params),
   );
 }
 
