@@ -89,6 +89,17 @@ function formatNumber(value: number | null | undefined): string {
   return value.toLocaleString("es-CL");
 }
 
+function formatAdjustments(discount?: number | null, tax?: number | null): string {
+  const parts: string[] = [];
+  if (discount && discount > 0) {
+    parts.push(`- ${formatCurrency(discount)}`);
+  }
+  if (tax && tax > 0) {
+    parts.push(`+ ${formatCurrency(tax)}`);
+  }
+  return parts.length > 0 ? parts.join(" / ") : "—";
+}
+
 function sanitizeFileSegment(segment: string): string {
   return segment
     .normalize("NFD")
@@ -187,7 +198,8 @@ export default function SalesPage() {
   const [docTypeFilter, setDocTypeFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
+  const [receiptDocument, setReceiptDocument] = useState<DocumentSummary | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   const [trendFrom, setTrendFrom] = useState(() =>
     formatDateInput(subtractDays(new Date(), TREND_DEFAULT_DAYS - 1)),
   );
@@ -201,6 +213,8 @@ export default function SalesPage() {
   const documentsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentsPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
   const documentsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const receiptPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
+  const receiptCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const isTrendRangeInvalid = Boolean(trendFrom && trendTo && trendFrom > trendTo);
@@ -350,15 +364,38 @@ export default function SalesPage() {
   }, [documentsModalOpen, firstDocument]);
 
   const saleDetailQuery = useQuery<SaleDetail, Error>({
-    queryKey: ["sale-detail", receiptSaleId],
+    queryKey: ["sale-detail", receiptDocument?.id],
     queryFn: () => {
-      if (!receiptSaleId) {
-        throw new Error("Venta no seleccionada");
+      if (!receiptDocument) {
+        throw new Error("Documento no seleccionado");
       }
-      return getSaleDetail(receiptSaleId);
+      return getSaleDetail(receiptDocument.id);
     },
-    enabled: !!receiptSaleId,
+    enabled: !!receiptDocument,
   });
+
+  const receiptDetail = saleDetailQuery.data ?? null;
+
+  const receiptTotals = useMemo(() => {
+    if (!receiptDetail) {
+      return { subtotal: 0, discount: 0, tax: 0, total: 0 };
+    }
+    const discount = receiptDetail.items.reduce((acc, item) => acc + (item.discount ?? 0), 0);
+    const subtotal = receiptDetail.net;
+    const tax = receiptDetail.vat ?? 0;
+    const total = receiptDetail.total ?? subtotal + tax;
+    return { subtotal, discount, tax, total };
+  }, [receiptDetail]);
+
+  useEffect(() => {
+    if (!receiptDocument || !receiptDetail) {
+      return;
+    }
+    const element = receiptPrimaryActionRef.current;
+    if (element) {
+      requestAnimationFrame(() => element.focus());
+    }
+  }, [receiptDocument, receiptDetail]);
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => cancelSale(id),
@@ -422,6 +459,41 @@ export default function SalesPage() {
     },
   });
 
+  const receiptPrintMutation = useMutation({
+    mutationFn: async (document: DocumentSummary) => {
+      const file = await getDocumentPreview(document.id);
+      await openFileInPrintWindow(file, formatDocumentLabel(document));
+    },
+    onMutate: () => {
+      setReceiptError(null);
+    },
+    onError: (error: unknown) => {
+      setReceiptError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo preparar la impresión. Intenta nuevamente.",
+      );
+    },
+  });
+
+  const receiptDownloadMutation = useMutation({
+    mutationFn: async (document: DocumentSummary) => {
+      const file = await downloadDocument(document.id);
+      const filename = buildDocumentFilename(document, file);
+      triggerBrowserDownload(file, filename);
+    },
+    onMutate: () => {
+      setReceiptError(null);
+    },
+    onError: (error: unknown) => {
+      setReceiptError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo descargar el documento. Intenta nuevamente.",
+      );
+    },
+  });
+
   const handleCancel = (sale: SaleSummary) => {
     if (sale.status?.toLowerCase() === "cancelled") {
       window.alert("La venta ya fue cancelada.");
@@ -445,11 +517,24 @@ export default function SalesPage() {
   };
 
   const handleShowReceipt = (sale: SaleSummary) => {
-    setReceiptSaleId(sale.id);
+    const summary: DocumentSummary = {
+      id: sale.id,
+      direction: "sales",
+      type: sale.docType ?? "Documento",
+      number: sale.id,
+      issuedAt: sale.issuedAt,
+      total: sale.total,
+      status: sale.status,
+    };
+    setReceiptDocument(summary);
+    setReceiptError(null);
   };
 
   const handleCloseReceipt = () => {
-    setReceiptSaleId(null);
+    setReceiptDocument(null);
+    setReceiptError(null);
+    receiptPrintMutation.reset();
+    receiptDownloadMutation.reset();
   };
 
   const handleOpenDocumentsModal = () => {
@@ -473,24 +558,6 @@ export default function SalesPage() {
       return;
     }
     documentActionMutation.mutate({ document, action });
-  };
-
-  const handlePrint = () => {
-    const detail = saleDetailQuery.data;
-    if (!detail) return;
-    const printWindow = window.open("", "_blank", "width=420,height=640");
-    if (!printWindow) return;
-    const doc = printWindow.document;
-    doc.write("<title>Comprobante de venta</title>");
-    const pre = doc.createElement("pre");
-    pre.style.fontFamily = "'Courier New', monospace";
-    pre.style.fontSize = "12px";
-    pre.style.whiteSpace = "pre-wrap";
-    pre.textContent = detail.thermalTicket;
-    doc.body.appendChild(pre);
-    doc.close();
-    printWindow.focus();
-    printWindow.print();
   };
 
   const handleSaleCreated = (sale: SaleRes) => {
@@ -946,8 +1013,28 @@ export default function SalesPage() {
                       {salesDocuments.map((document) => (
                         <tr key={document.id}>
                           <td>{document.type}</td>
-                          <td>{document.number ?? "-"}</td>
-                          <td>{document.issuedAt ? new Date(document.issuedAt).toLocaleDateString() : "-"}</td>
+                          <td>
+                            <span
+                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--number"
+                              title={document.number ?? "-"}
+                            >
+                              {document.number ?? "-"}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--date"
+                              title={
+                                document.issuedAt
+                                  ? new Date(document.issuedAt).toLocaleDateString()
+                                  : "-"
+                              }
+                            >
+                              {document.issuedAt
+                                ? new Date(document.issuedAt).toLocaleDateString()
+                                : "-"}
+                            </span>
+                          </td>
                           <td>{formatCurrency(document.total)}</td>
                           <td>{document.status}</td>
                           <td>
@@ -1051,8 +1138,28 @@ export default function SalesPage() {
                       {purchaseDocuments.map((document) => (
                         <tr key={document.id}>
                           <td>{document.type}</td>
-                          <td>{document.number ?? "-"}</td>
-                          <td>{document.issuedAt ? new Date(document.issuedAt).toLocaleDateString() : "-"}</td>
+                          <td>
+                            <span
+                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--number"
+                              title={document.number ?? "-"}
+                            >
+                              {document.number ?? "-"}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--date"
+                              title={
+                                document.issuedAt
+                                  ? new Date(document.issuedAt).toLocaleDateString()
+                                  : "-"
+                              }
+                            >
+                              {document.issuedAt
+                                ? new Date(document.issuedAt).toLocaleDateString()
+                                : "-"}
+                            </span>
+                          </td>
                           <td>{formatCurrency(document.total)}</td>
                           <td>{document.status}</td>
                           <td>
@@ -1191,27 +1298,166 @@ export default function SalesPage() {
         onCreated={handleSaleCreated}
       />
 
-      <Modal open={!!receiptSaleId} onClose={handleCloseReceipt} title="Comprobante termico">
+      <Modal
+        open={!!receiptDocument}
+        onClose={handleCloseReceipt}
+        title="Detalle del comprobante"
+        initialFocusRef={receiptPrimaryActionRef}
+        className="modal--wide"
+      >
         {saleDetailQuery.isLoading && <p>Cargando comprobante...</p>}
         {saleDetailQuery.isError && (
-          <p className="error">{saleDetailQuery.error?.message ?? "No se pudo cargar el comprobante"}</p>
+          <p className="error">{saleDetailQuery.error?.message ?? "No se pudo cargar el comprobante."}</p>
         )}
-        {saleDetailQuery.data && (
-          <div className="receipt-modal">
-            <div className="receipt-summary">
-              <p><strong>Documento:</strong> {saleDetailQuery.data.docType}</p>
-              <p><strong>Pago:</strong> {saleDetailQuery.data.paymentMethod}</p>
-              {saleDetailQuery.data.customer && (
-                <p><strong>Cliente:</strong> {saleDetailQuery.data.customer.name}</p>
-              )}
-              <p><strong>Total:</strong> ${saleDetailQuery.data.total.toLocaleString()}</p>
+        {receiptError && !saleDetailQuery.isLoading && <p className="error">{receiptError}</p>}
+        {receiptDetail && (
+          <div className="document-detail" aria-live="polite">
+            <section className="document-detail__header">
+              <div className="document-detail__headline">
+                <p className="document-detail__type">
+                  {receiptDetail.docType ?? receiptDocument?.type ?? "Documento"}
+                </p>
+                <p className="document-detail__number">
+                  #{receiptDocument?.number ?? receiptDetail.id}
+                </p>
+              </div>
+              <div className="document-detail__meta-grid">
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Fecha</span>
+                  <span className="document-detail__meta-value">
+                    {receiptDocument?.issuedAt
+                      ? new Date(receiptDocument.issuedAt).toLocaleString()
+                      : "—"}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">
+                    {receiptDetail.customer
+                      ? "Cliente"
+                      : receiptDetail.supplier
+                        ? "Proveedor"
+                        : "Contraparte"}
+                  </span>
+                  <span className="document-detail__meta-value">
+                    {receiptDetail.customer?.name ??
+                      receiptDetail.supplier?.name ??
+                      "—"}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Pago</span>
+                  <span className="document-detail__meta-value">
+                    {receiptDetail.paymentMethod ?? "—"}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Estado</span>
+                  <span className="document-detail__meta-value">{receiptDetail.status}</span>
+                </div>
+                <div className="document-detail__meta-item document-detail__meta-item--highlight">
+                  <span className="document-detail__meta-label">Total</span>
+                  <span className="document-detail__meta-value document-detail__meta-value--highlight">
+                    {formatCurrency(receiptTotals.total)}
+                  </span>
+                </div>
+              </div>
+            </section>
+            <div className="document-detail__items table-wrapper compact">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Descripción</th>
+                    <th className="mono">Cantidad</th>
+                    <th className="mono">Precio unitario</th>
+                    <th className="mono">Descuentos/Impuestos</th>
+                    <th className="mono">Total ítem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receiptDetail.items.map((item, index) => (
+                    <tr key={`${item.productId ?? "item"}-${index}`}>
+                      <td className="mono">{item.productId ?? "—"}</td>
+                      <td>
+                        <span className="document-detail__description" title={item.productName}>
+                          {item.productName}
+                        </span>
+                      </td>
+                      <td className="mono">{formatNumber(item.qty)}</td>
+                      <td className="mono">{formatCurrency(item.unitPrice)}</td>
+                      <td className="mono">{formatAdjustments(item.discount, item.tax)}</td>
+                      <td className="mono">{formatCurrency(item.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <pre className="mono small" style={{ whiteSpace: "pre-wrap" }}>
-              {saleDetailQuery.data.thermalTicket}
-            </pre>
-            <div className="buttons">
-              <button className="btn" type="button" onClick={handlePrint}>Imprimir</button>
-              <button className="btn ghost" type="button" onClick={handleCloseReceipt}>Cerrar</button>
+            <div className="document-detail__totals">
+              <div className="document-detail__totals-item">
+                <span>Subtotal</span>
+                <strong>{formatCurrency(receiptTotals.subtotal)}</strong>
+              </div>
+              <div className="document-detail__totals-item">
+                <span>Descuentos</span>
+                <strong>
+                  {receiptTotals.discount > 0
+                    ? `- ${formatCurrency(receiptTotals.discount)}`
+                    : formatCurrency(receiptTotals.discount)}
+                </strong>
+              </div>
+              <div className="document-detail__totals-item">
+                <span>Impuestos</span>
+                <strong>{formatCurrency(receiptTotals.tax)}</strong>
+              </div>
+              <div className="document-detail__totals-item document-detail__totals-item--accent">
+                <span>Total</span>
+                <strong>{formatCurrency(receiptTotals.total)}</strong>
+              </div>
+            </div>
+            <div className="document-detail__actions">
+              <button
+                ref={receiptPrimaryActionRef}
+                className="btn"
+                type="button"
+                onClick={() =>
+                  receiptDocument &&
+                  receiptDetail &&
+                  receiptPrintMutation.mutate(receiptDocument)
+                }
+                disabled={
+                  !receiptDocument ||
+                  !receiptDetail ||
+                  receiptPrintMutation.isPending ||
+                  receiptDownloadMutation.isPending
+                }
+              >
+                {receiptPrintMutation.isPending ? "Preparando..." : "Imprimir"}
+              </button>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() =>
+                  receiptDocument &&
+                  receiptDetail &&
+                  receiptDownloadMutation.mutate(receiptDocument)
+                }
+                disabled={
+                  !receiptDocument ||
+                  !receiptDetail ||
+                  receiptDownloadMutation.isPending ||
+                  receiptPrintMutation.isPending
+                }
+              >
+                {receiptDownloadMutation.isPending ? "Descargando..." : "Descargar"}
+              </button>
+              <button
+                ref={receiptCloseButtonRef}
+                className="btn ghost"
+                type="button"
+                onClick={handleCloseReceipt}
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         )}

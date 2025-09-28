@@ -1,6 +1,7 @@
 export const SALE_DOCUMENT_TYPES = [
   { value: "Factura", label: "Factura" },
   { value: "Boleta", label: "Boleta" },
+  { value: "Cotización", label: "Cotización" },
   { value: "Comprobante", label: "Comprobante" },
 ] as const;
 

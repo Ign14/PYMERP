@@ -1630,6 +1630,7 @@ export type SaleDetailLine = {
   qty: number;
   unitPrice: number;
   discount: number;
+  tax?: number;
   lineTotal: number;
 };
 
@@ -1640,6 +1641,7 @@ export type SaleDetail = {
   paymentMethod: string;
   status: string;
   customer?: { id: string; name: string } | null;
+  supplier?: { id: string; name: string } | null;
   items: SaleDetailLine[];
   net: number;
   vat: number;
