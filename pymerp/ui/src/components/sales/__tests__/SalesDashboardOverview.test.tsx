@@ -39,10 +39,16 @@ describe("SalesDashboardOverview", () => {
 
     renderDashboard();
 
+    expect(await screen.findByRole("heading", { name: /Resumen de ventas/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Tendencia de ventas/i })).toBeInTheDocument();
+
     await waitFor(() => expect(screen.getByTestId("sales-daily-average")).toHaveTextContent("$0"));
     expect(screen.getByTestId("sales-total-14d")).toHaveTextContent("$0");
     expect(screen.getAllByTestId("sales-trend-point")).toHaveLength(14);
     expect(screen.getByText(/Sin ventas registradas en los últimos días/i)).toBeInTheDocument();
+
+    expect(screen.getByLabelText(/Desde/i)).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText(/Hasta/i)).toHaveAttribute("type", "date");
   });
 
   it("fills missing days with zeros", async () => {
