@@ -2657,6 +2657,8 @@ export function createInventoryAdjustment(payload: InventoryAdjustmentPayload): 
   );
 }
 
+export default api;
+
 
 
 
