@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosResponse } from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const DEFAULT_COMPANY_ID = import.meta.env.VITE_COMPANY_ID ?? null;
@@ -51,6 +51,64 @@ function maybeClone<T>(value: T): T {
 
 function ensureArray<T>(value: T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [];
+}
+
+function extractFilenameFromDisposition(header: unknown): string | null {
+  if (typeof header !== "string") {
+    return null;
+  }
+  const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch && utfMatch[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1]);
+    } catch (error) {
+      console.warn("[API] Failed to decode UTF-8 filename", error);
+    }
+  }
+  const match = header.match(/filename="?([^";]+)"?/i);
+  if (match && match[1]) {
+    return match[1];
+  }
+  return null;
+}
+
+export type DocumentFile = {
+  blob: Blob;
+  filename: string;
+  mimeType: string;
+};
+
+function createDocumentFileFromResponse(
+  response: AxiosResponse<Blob>,
+  fallbackName: string,
+): DocumentFile {
+  const blob = response.data;
+  const responseType = typeof blob?.type === "string" && blob.type ? blob.type : undefined;
+  const headerType = typeof response.headers["content-type"] === "string"
+    ? response.headers["content-type"]
+    : undefined;
+  const mimeType = responseType || headerType || "application/octet-stream";
+  const filename =
+    extractFilenameFromDisposition(response.headers["content-disposition"]) || fallbackName;
+  return {
+    blob,
+    filename,
+    mimeType,
+  };
+}
+
+function createFallbackDocumentFile(id: string, action: "preview" | "download"): DocumentFile {
+  const title = action === "preview" ? "Vista previa no disponible" : "Descarga no disponible";
+  const body = action === "preview"
+    ? "No hay contenido disponible sin conexión para mostrar este documento."
+    : "No hay archivo disponible para descargar sin conexión.";
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" /><title>${title}</title></head><body><main style="font-family:system-ui,sans-serif;padding:24px;max-width:640px;margin:auto;"><h1 style="margin-bottom:16px;">${title}</h1><p style="margin-bottom:16px;">${body}</p><p style="color:#555;">Documento: ${id}</p></main></body></html>`;
+  const blob = new Blob([html], { type: "text/html" });
+  return {
+    blob,
+    filename: `${action}-documento-${id}.html`,
+    mimeType: "text/html",
+  };
 }
 
 const now = new Date();
@@ -1153,6 +1211,14 @@ function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): Documen
   };
 }
 
+function fallbackGetDocumentPreview(id: string): DocumentFile {
+  return createFallbackDocumentFile(id, "preview");
+}
+
+function fallbackDownloadDocument(id: string): DocumentFile {
+  return createFallbackDocumentFile(id, "download");
+}
+
 function fallbackListPurchases(params: ListPurchasesParams = {}): Page<PurchaseSummary> {
   const query = normalizeString(params.search ?? "");
   const filtered = demoState.purchases.filter((purchase) => {
@@ -2232,6 +2298,32 @@ export function listDocumentsGrouped(params: ListDocumentsParams = {}): Promise<
     },
     () => fallbackListDocumentsGrouped(params),
   );
+}
+
+export function getDocumentPreview(id: string): Promise<DocumentFile> {
+  return withOfflineFallback(
+    "getDocumentPreview",
+    async () => {
+      const response = await api.get<Blob>(`/v1/documents/${id}`, { responseType: "blob" });
+      return createDocumentFileFromResponse(response, `${id}.pdf`);
+    },
+    () => fallbackGetDocumentPreview(id),
+  );
+}
+
+export function downloadDocument(id: string): Promise<DocumentFile> {
+  return withOfflineFallback(
+    "downloadDocument",
+    async () => {
+      const response = await api.get<Blob>(`/v1/documents/${id}/download`, { responseType: "blob" });
+      return createDocumentFileFromResponse(response, `${id}.pdf`);
+    },
+    () => fallbackDownloadDocument(id),
+  );
+}
+
+export function getDocumentDetailUrl(id: string): string {
+  return api.getUri({ url: `/v1/documents/${id}` });
 }
 
 export function listSalesDaily(days = 14): Promise<SalesDailyPoint[]> {

@@ -6,9 +6,17 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   initialFocusRef?: RefObject<HTMLElement>;
+  className?: string;
 }
 
-export default function Modal({ open, title, onClose, children, initialFocusRef }: ModalProps) {
+export default function Modal({
+  open,
+  title,
+  onClose,
+  children,
+  initialFocusRef,
+  className,
+}: ModalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const headingId = useId();
 
@@ -64,7 +72,7 @@ export default function Modal({ open, title, onClose, children, initialFocusRef 
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="modal"
+        className={className ? `modal ${className}` : "modal"}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
