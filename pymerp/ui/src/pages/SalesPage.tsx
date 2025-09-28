@@ -17,6 +17,10 @@ import {
   listDocumentsGrouped,
   DocumentSummary,
   DocumentsGroupedResponse,
+  DocumentFile,
+  downloadDocument,
+  getDocumentDetailUrl,
+  getDocumentPreview,
   updateSale,
 } from "../services/client";
 import PageHeader from "../components/layout/PageHeader";
@@ -85,6 +89,94 @@ function formatNumber(value: number | null | undefined): string {
   return value.toLocaleString("es-CL");
 }
 
+function sanitizeFileSegment(segment: string): string {
+  return segment
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getDefaultExtension(mimeType?: string): string {
+  if (!mimeType) {
+    return ".pdf";
+  }
+  const lower = mimeType.toLowerCase();
+  if (lower.includes("pdf")) return ".pdf";
+  if (lower.includes("html")) return ".html";
+  if (lower.includes("json")) return ".json";
+  if (lower.includes("xml")) return ".xml";
+  return ".bin";
+}
+
+function buildDocumentFilename(document: DocumentSummary, file?: DocumentFile): string {
+  if (file?.filename) {
+    return file.filename;
+  }
+  const typeSegment = sanitizeFileSegment(document.type || "documento");
+  const identifierSegment = sanitizeFileSegment(document.number ?? document.id);
+  const extension = getDefaultExtension(file?.mimeType);
+  return `${typeSegment || "documento"}-${identifierSegment || document.id}${extension}`;
+}
+
+function formatDocumentLabel(document: DocumentSummary): string {
+  return `${document.type} ${document.number ?? document.id}`;
+}
+
+function triggerBrowserDownload(file: DocumentFile, filename: string) {
+  const url = URL.createObjectURL(file.blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function openFileInPrintWindow(file: DocumentFile, title: string) {
+  const url = URL.createObjectURL(file.blob);
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) {
+    URL.revokeObjectURL(url);
+    throw new Error("No se pudo abrir la ventana de impresión. Revisa el bloqueador de ventanas emergentes.");
+  }
+
+  const cleanup = () => {
+    URL.revokeObjectURL(url);
+  };
+
+  printWindow.addEventListener("beforeunload", cleanup, { once: true });
+
+  if (file.mimeType.toLowerCase().includes("pdf")) {
+    printWindow.document.body.style.margin = "0";
+    printWindow.document.body.style.height = "100vh";
+    const iframe = printWindow.document.createElement("iframe");
+    iframe.src = url;
+    iframe.title = title;
+    iframe.style.border = "0";
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    printWindow.document.body.appendChild(iframe);
+    iframe.onload = () => {
+      printWindow.document.title = title;
+      printWindow.focus();
+      printWindow.print();
+    };
+  } else {
+    const textContent = await file.blob.text();
+    printWindow.document.open();
+    printWindow.document.write(textContent);
+    printWindow.document.title = title;
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  setTimeout(cleanup, 60_000);
+}
+
 type DocumentAction = "open" | "preview" | "print" | "download";
 
 export default function SalesPage() {
@@ -103,8 +195,12 @@ export default function SalesPage() {
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [documentsSalesPage, setDocumentsSalesPage] = useState(0);
   const [documentsPurchasesPage, setDocumentsPurchasesPage] = useState(0);
+  const [previewDocument, setPreviewDocument] = useState<DocumentSummary | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [documentActionError, setDocumentActionError] = useState<string | null>(null);
   const documentsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentsPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
+  const documentsTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const isTrendRangeInvalid = Boolean(trendFrom && trendTo && trendFrom > trendTo);
@@ -114,11 +210,17 @@ export default function SalesPage() {
   }, [statusFilter, docTypeFilter, paymentFilter, debouncedSearch]);
 
   useEffect(() => {
-    if (!documentsModalOpen) {
+    if (documentsModalOpen) {
+      setDocumentsSalesPage(0);
+      setDocumentsPurchasesPage(0);
       return;
     }
-    setDocumentsSalesPage(0);
-    setDocumentsPurchasesPage(0);
+    setPreviewDocument(null);
+    setPreviewUrl(null);
+    setDocumentActionError(null);
+    requestAnimationFrame(() => {
+      documentsTriggerRef.current?.focus();
+    });
   }, [documentsModalOpen]);
 
   const salesQuery = useQuery({
@@ -187,6 +289,38 @@ export default function SalesPage() {
     placeholderData: keepPreviousData,
   });
 
+  const previewQuery = useQuery<DocumentFile, Error>({
+    queryKey: ["document-preview", previewDocument?.id],
+    queryFn: () => {
+      if (!previewDocument) {
+        throw new Error("Documento no seleccionado");
+      }
+      return getDocumentPreview(previewDocument.id);
+    },
+    enabled: Boolean(previewDocument),
+    gcTime: 0,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (!previewQuery.data) {
+      return;
+    }
+    const url = URL.createObjectURL(previewQuery.data.blob);
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [previewQuery.data]);
+
+  useEffect(() => {
+    if (!previewDocument) {
+      setPreviewUrl(null);
+      return;
+    }
+    setPreviewUrl(null);
+  }, [previewDocument?.id]);
+
   const firstDocument = useMemo(() => {
     if (!documentsQuery.data) {
       return null;
@@ -236,6 +370,58 @@ export default function SalesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales"] }),
   });
 
+  const documentActionMutation = useMutation({
+    mutationFn: async ({
+      document,
+      action,
+    }: {
+      document: DocumentSummary;
+      action: Exclude<DocumentAction, "preview">;
+    }) => {
+      switch (action) {
+        case "open": {
+          const url = getDocumentDetailUrl(document.id);
+          const opened = window.open(url, "_blank", "noopener,noreferrer");
+          if (!opened) {
+            throw new Error(
+              "No se pudo abrir la pestaña del documento. Revisa el bloqueador de ventanas emergentes.",
+            );
+          }
+          opened.focus();
+          return;
+        }
+        case "download": {
+          const file = await downloadDocument(document.id);
+          const filename = buildDocumentFilename(document, file);
+          triggerBrowserDownload(file, filename);
+          return;
+        }
+        case "print": {
+          const file =
+            previewDocument && previewDocument.id === document.id && previewQuery.data
+              ? previewQuery.data
+              : await getDocumentPreview(document.id);
+          await openFileInPrintWindow(file, formatDocumentLabel(document));
+          return;
+        }
+        default: {
+          const exhaustiveCheck: never = action;
+          throw new Error(`Acción no soportada: ${exhaustiveCheck}`);
+        }
+      }
+    },
+    onMutate: () => {
+      setDocumentActionError(null);
+    },
+    onError: (error: unknown) => {
+      setDocumentActionError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo ejecutar la acción. Intenta nuevamente.",
+      );
+    },
+  });
+
   const handleCancel = (sale: SaleSummary) => {
     if (sale.status?.toLowerCase() === "cancelled") {
       window.alert("La venta ya fue cancelada.");
@@ -268,15 +454,25 @@ export default function SalesPage() {
 
   const handleOpenDocumentsModal = () => {
     setDocumentsModalOpen(true);
+    setDocumentActionError(null);
   };
 
   const handleCloseDocumentsModal = () => {
     setDocumentsModalOpen(false);
   };
 
+  const handleClosePreview = () => {
+    setPreviewDocument(null);
+    setPreviewUrl(null);
+  };
+
   const handleDocumentAction = (document: DocumentSummary, action: DocumentAction) => {
-    const label = `${document.type} ${document.number ?? document.id}`;
-    window.alert(`Acción "${action}" para ${label}`);
+    if (action === "preview") {
+      setDocumentActionError(null);
+      setPreviewDocument(document);
+      return;
+    }
+    documentActionMutation.mutate({ document, action });
   };
 
   const handlePrint = () => {
@@ -448,7 +644,15 @@ export default function SalesPage() {
   const purchaseDocumentsPage = documentsData?.purchases;
   const salesDocuments = salesDocumentsPage?.content ?? [];
   const purchaseDocuments = purchaseDocumentsPage?.content ?? [];
-  const documentsActionsDisabled = documentsQuery.isFetching;
+  const isDocumentsRefreshing =
+    documentsModalOpen && documentsQuery.isFetching && !documentsQuery.isLoading;
+  const isPreviewLoading = previewQuery.isFetching;
+  const documentsActionsDisabled =
+    documentsQuery.isFetching || documentActionMutation.isPending || isPreviewLoading;
+  const previewFile = previewQuery.data;
+  const previewMimeType = previewFile?.mimeType?.toLowerCase() ?? "";
+  const previewIsPdf = previewMimeType.includes("pdf");
+  const previewLabel = previewDocument ? formatDocumentLabel(previewDocument) : "";
 
   return (
     <div className="page-section">
@@ -571,6 +775,7 @@ export default function SalesPage() {
           onClick={handleOpenDocumentsModal}
           disabled={documentsActionsDisabled || documentsModalOpen}
           aria-label="Ver documentos agrupados por compras y ventas"
+          ref={documentsTriggerRef}
         >
           <h3>Número de documentos</h3>
           <p className="stat-value">
@@ -585,8 +790,12 @@ export default function SalesPage() {
               ? "No se pudo calcular el total."
               : documentsQuery.isError
               ? "No se pudo cargar el listado."
-              : documentsActionsDisabled
+              : isDocumentsRefreshing
               ? "Cargando documentos..."
+              : documentActionMutation.isPending
+              ? "Ejecutando acción..."
+              : isPreviewLoading
+              ? "Cargando vista previa..."
               : "Compras y ventas recientes"}
           </span>
         </button>
@@ -700,6 +909,7 @@ export default function SalesPage() {
         onClose={handleCloseDocumentsModal}
         title="Documentos"
         initialFocusRef={documentsCloseButtonRef}
+        className="modal--wide"
       >
         {documentsQuery.isLoading && <p>Cargando documentos...</p>}
         {documentsQuery.isError && (
@@ -707,8 +917,11 @@ export default function SalesPage() {
             {documentsQuery.error?.message ?? "No se pudieron obtener los documentos."}
           </p>
         )}
-        {documentsActionsDisabled && !documentsQuery.isLoading && !documentsQuery.isError && (
+        {isDocumentsRefreshing && !documentsQuery.isLoading && !documentsQuery.isError && (
           <p className="muted" role="status">Actualizando documentos...</p>
+        )}
+        {documentActionError && (
+          <p className="error" role="alert">{documentActionError}</p>
         )}
         {!documentsQuery.isLoading && !documentsQuery.isError && (
           <div className="documents-modal__sections">
@@ -923,6 +1136,42 @@ export default function SalesPage() {
               </div>
             </section>
           </div>
+        )}
+        {previewDocument && (
+          <section className="documents-modal__preview" aria-live="polite">
+            <div className="documents-modal__preview-header">
+              <div>
+                <h4>Vista previa</h4>
+                <p className="documents-modal__preview-meta">{previewLabel}</p>
+              </div>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={handleClosePreview}
+                disabled={isPreviewLoading}
+              >
+                Cerrar vista previa
+              </button>
+            </div>
+            {isPreviewLoading ? (
+              <p>Obteniendo vista previa...</p>
+            ) : previewQuery.isError ? (
+              <p className="error">
+                No se pudo cargar la vista previa: {previewQuery.error?.message ?? "Intenta nuevamente."}
+              </p>
+            ) : previewUrl ? (
+              <iframe
+                key={previewDocument.id}
+                className="documents-modal__preview-frame"
+                src={previewUrl}
+                title={`Vista previa de ${previewLabel}`}
+              />
+            ) : (
+              <p className="documents-modal__empty">
+                Este documento no tiene contenido disponible para previsualizar.
+              </p>
+            )}
+          </section>
         )}
         <div className="documents-modal__footer">
           <button
