@@ -1,14 +1,17 @@
 import { ReactNode, RefObject, useEffect, useId, useRef } from "react";
 
+type ModalSize = "default" | "wide";
+
 interface ModalProps {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
   initialFocusRef?: RefObject<HTMLElement>;
+  size?: ModalSize;
 }
 
-export default function Modal({ open, title, onClose, children, initialFocusRef }: ModalProps) {
+export default function Modal({ open, title, onClose, children, initialFocusRef, size = "default" }: ModalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const headingId = useId();
 
@@ -64,7 +67,7 @@ export default function Modal({ open, title, onClose, children, initialFocusRef 
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="modal"
+        className={`modal${size === "wide" ? " modal--wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}

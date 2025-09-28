@@ -1153,6 +1153,191 @@ function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): Documen
   };
 }
 
+const clpFormatter = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  maximumFractionDigits: 0,
+});
+
+function formatCurrencyCL(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return clpFormatter.format(0);
+  }
+  return clpFormatter.format(Math.round(value));
+}
+
+function createHtmlDataUrl(html: string): string {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+function slugifyForFile(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function buildDocumentFileName(type: string | undefined, number?: string, extension = "html"): string {
+  const safeType = type ? slugifyForFile(type) : "documento";
+  const safeNumber = number ? slugifyForFile(number) : null;
+  const base = [safeType, safeNumber].filter(Boolean).join("-") || "documento";
+  return `${base}.${extension}`;
+}
+
+function generateSaleDocumentHtml(sale: SaleSummary, detail?: DemoSaleDetail): string {
+  const docType = detail?.docType ?? sale.docType ?? "Documento";
+  const customer = detail?.customer?.name ?? sale.customerName ?? "Cliente";
+  const issuedAt = detail?.issuedAt ?? sale.issuedAt ?? new Date().toISOString();
+  const items = detail?.items ?? [];
+  const rows = items.length
+    ? items
+        .map(
+          (item) =>
+            `<tr><td>${item.productName}</td><td style="text-align:right;">${item.qty}</td><td style="text-align:right;">${formatCurrencyCL(item.unitPrice)}</td><td style="text-align:right;">${formatCurrencyCL(item.lineTotal)}</td></tr>`,
+        )
+        .join("")
+    : '<tr><td colspan="4">Sin ítems registrados</td></tr>';
+  return `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charSet="utf-8" />
+    <title>${docType} ${sale.id}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+      h1 { margin-bottom: 4px; }
+      h2 { margin-top: 0; color: #4b5563; font-size: 1rem; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { border-bottom: 1px solid #d1d5db; padding: 8px; font-size: 0.95rem; }
+      th { text-align: left; background: #f3f4f6; }
+      .totals { margin-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+      .totals span { display: flex; justify-content: space-between; }
+    </style>
+  </head>
+  <body>
+    <h1>${docType}</h1>
+    <h2>${sale.number ?? sale.id}</h2>
+    <p><strong>Cliente:</strong> ${customer}</p>
+    <p><strong>Fecha:</strong> ${new Date(issuedAt).toLocaleString()}</p>
+    <table>
+      <thead>
+        <tr><th>Descripción</th><th style="text-align:right;">Cantidad</th><th style="text-align:right;">Precio</th><th style="text-align:right;">Total</th></tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+    <div class="totals">
+      <span><strong>Neto:</strong><strong>${formatCurrencyCL(detail?.net ?? sale.net)}</strong></span>
+      <span><strong>IVA:</strong><strong>${formatCurrencyCL(detail?.vat ?? sale.vat)}</strong></span>
+      <span><strong>Total:</strong><strong>${formatCurrencyCL(detail?.total ?? sale.total)}</strong></span>
+    </div>
+  </body>
+</html>`;
+}
+
+function generatePurchaseDocumentHtml(purchase: PurchaseSummary): string {
+  const docType = purchase.docType ?? "Documento";
+  const issuedAt = purchase.issuedAt ?? new Date().toISOString();
+  return `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charSet="utf-8" />
+    <title>${docType} ${purchase.docNumber ?? purchase.id}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+      h1 { margin-bottom: 4px; }
+      h2 { margin-top: 0; color: #4b5563; font-size: 1rem; }
+      .summary { margin-top: 16px; display: grid; gap: 8px; }
+      .summary span { display: flex; justify-content: space-between; }
+    </style>
+  </head>
+  <body>
+    <h1>${docType}</h1>
+    <h2>${purchase.docNumber ?? purchase.id}</h2>
+    <p><strong>Proveedor:</strong> ${purchase.supplierName ?? "Proveedor"}</p>
+    <p><strong>Fecha:</strong> ${new Date(issuedAt).toLocaleString()}</p>
+    <div class="summary">
+      <span><strong>Neto:</strong><strong>${formatCurrencyCL(purchase.net)}</strong></span>
+      <span><strong>IVA:</strong><strong>${formatCurrencyCL(purchase.vat)}</strong></span>
+      <span><strong>Total:</strong><strong>${formatCurrencyCL(purchase.total)}</strong></span>
+      <span><strong>Estado:</strong><strong>${purchase.status}</strong></span>
+    </div>
+  </body>
+</html>`;
+}
+
+type FallbackDocumentParams = { direction?: DocumentSummary["direction"] };
+
+function fallbackGetDocumentDetail(id: string, params: FallbackDocumentParams = {}): DocumentDetail {
+  const direction = params.direction;
+  if (!direction || direction === "sales") {
+    const sale = demoState.sales.find((item) => item.id === id);
+    if (sale) {
+      const detail = demoState.saleDetails[id];
+      const html = generateSaleDocumentHtml(sale, detail);
+      const previewUrl = createHtmlDataUrl(html);
+      return {
+        id: sale.id,
+        direction: "sales",
+        type: sale.docType ?? "Documento",
+        number: sale.id,
+        issuedAt: sale.issuedAt,
+        total: sale.total,
+        status: sale.status,
+        counterparty: detail?.customer?.name ?? sale.customerName,
+        net: detail?.net ?? sale.net,
+        vat: detail?.vat ?? sale.vat,
+        previewUrl,
+        htmlPreview: html,
+        viewUrl: previewUrl,
+        downloadFileName: buildDocumentFileName(sale.docType ?? "documento", sale.id, "html"),
+        items: detail?.items?.map((item) => ({
+          description: item.productName,
+          quantity: item.qty,
+          unitPrice: item.unitPrice,
+          total: item.lineTotal,
+        })),
+      };
+    }
+  }
+
+  if (!direction || direction === "purchases") {
+    const purchase = demoState.purchases.find((item) => item.id === id);
+    if (purchase) {
+      const html = generatePurchaseDocumentHtml(purchase);
+      const previewUrl = createHtmlDataUrl(html);
+      return {
+        id: purchase.id,
+        direction: "purchases",
+        type: purchase.docType ?? "Documento",
+        number: purchase.docNumber ?? purchase.id,
+        issuedAt: purchase.issuedAt,
+        total: purchase.total,
+        status: purchase.status,
+        counterparty: purchase.supplierName,
+        net: purchase.net,
+        vat: purchase.vat,
+        previewUrl,
+        htmlPreview: html,
+        viewUrl: previewUrl,
+        downloadFileName: buildDocumentFileName(purchase.docType ?? "documento", purchase.docNumber ?? purchase.id, "html"),
+      };
+    }
+  }
+
+  throw new Error("Documento no encontrado");
+}
+
+type FetchDocumentFileParams = { direction?: DocumentSummary["direction"]; format?: "pdf" | "html" };
+
+function fallbackFetchDocumentFile(id: string, params: FetchDocumentFileParams = {}): Blob {
+  const detail = fallbackGetDocumentDetail(id, params);
+  const html = detail.htmlPreview ?? "<p>Documento no disponible.</p>";
+  return new Blob([html], { type: "text/html;charset=utf-8" });
+}
+
 function fallbackListPurchases(params: ListPurchasesParams = {}): Page<PurchaseSummary> {
   const query = normalizeString(params.search ?? "");
   const filtered = demoState.purchases.filter((purchase) => {
@@ -1628,6 +1813,31 @@ export type DocumentSummary = {
   issuedAt?: string;
   total: number;
   status: string;
+};
+
+export type DocumentDetailItem = {
+  description: string;
+  quantity?: number;
+  unitPrice?: number;
+  total?: number;
+};
+
+export type DocumentDetail = {
+  id: string;
+  direction: DocumentSummary["direction"];
+  type: string;
+  number?: string;
+  issuedAt?: string;
+  total: number;
+  status: string;
+  counterparty?: string;
+  net?: number;
+  vat?: number;
+  previewUrl?: string;
+  htmlPreview?: string;
+  downloadFileName?: string;
+  viewUrl?: string;
+  items?: DocumentDetailItem[];
 };
 
 export type DocumentsGroupedResponse = {
@@ -2231,6 +2441,37 @@ export function listDocumentsGrouped(params: ListDocumentsParams = {}): Promise<
       return data;
     },
     () => fallbackListDocumentsGrouped(params),
+  );
+}
+
+export type GetDocumentDetailParams = { direction?: DocumentSummary["direction"] };
+
+export function getDocumentDetail(id: string, params: GetDocumentDetailParams = {}): Promise<DocumentDetail> {
+  return withOfflineFallback(
+    "getDocumentDetail",
+    async () => {
+      const { data } = await api.get<DocumentDetail>(`/v1/documents/${id}`, {
+        params,
+      });
+      return data;
+    },
+    () => fallbackGetDocumentDetail(id, params),
+  );
+}
+
+export type DocumentFileParams = FetchDocumentFileParams;
+
+export function fetchDocumentFile(id: string, params: DocumentFileParams = {}): Promise<Blob> {
+  return withOfflineFallback(
+    "fetchDocumentFile",
+    async () => {
+      const response = await api.get(`/v1/documents/${id}/download`, {
+        params,
+        responseType: "blob",
+      });
+      return response.data as Blob;
+    },
+    () => fallbackFetchDocumentFile(id, params),
   );
 }
 

@@ -15,7 +15,10 @@ import {
   getSalesSummaryByPeriod,
   getSalesWindowMetrics,
   listDocumentsGrouped,
+  getDocumentDetail,
+  fetchDocumentFile,
   DocumentSummary,
+  DocumentDetail,
   DocumentsGroupedResponse,
   updateSale,
 } from "../services/client";
@@ -87,6 +90,40 @@ function formatNumber(value: number | null | undefined): string {
 
 type DocumentAction = "open" | "preview" | "print" | "download";
 
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+
+function slugifyDocumentValue(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function buildDocumentFileName(summary: DocumentSummary, extension: string): string {
+  const type = summary.type ? slugifyDocumentValue(summary.type) : "documento";
+  const number = summary.number ? slugifyDocumentValue(summary.number) : slugifyDocumentValue(summary.id);
+  const base = [type, number].filter(Boolean).join("-") || "documento";
+  return `${base}.${extension}`;
+}
+
+function getBlobExtension(type: string): string {
+  if (!type) {
+    return "pdf";
+  }
+  if (type.includes("pdf")) {
+    return "pdf";
+  }
+  if (type.includes("html")) {
+    return "html";
+  }
+  if (type.includes("json")) {
+    return "json";
+  }
+  return "bin";
+}
+
 export default function SalesPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
@@ -103,8 +140,11 @@ export default function SalesPage() {
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [documentsSalesPage, setDocumentsSalesPage] = useState(0);
   const [documentsPurchasesPage, setDocumentsPurchasesPage] = useState(0);
+  const [previewDocument, setPreviewDocument] = useState<DocumentSummary | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const documentsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentsPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const isTrendRangeInvalid = Boolean(trendFrom && trendTo && trendFrom > trendTo);
@@ -115,6 +155,12 @@ export default function SalesPage() {
 
   useEffect(() => {
     if (!documentsModalOpen) {
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+        previewObjectUrlRef.current = null;
+      }
+      setPreviewDocument(null);
+      setPreviewUrl(null);
       return;
     }
     setDocumentsSalesPage(0);
@@ -187,6 +233,55 @@ export default function SalesPage() {
     placeholderData: keepPreviousData,
   });
 
+  const documentPreviewQuery = useQuery<DocumentDetail, Error>({
+    queryKey: ["documents", "detail", previewDocument?.id],
+    queryFn: () =>
+      getDocumentDetail(previewDocument!.id, { direction: previewDocument!.direction }),
+    enabled: documentsModalOpen && Boolean(previewDocument),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!previewDocument) {
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+        previewObjectUrlRef.current = null;
+      }
+      setPreviewUrl(null);
+      return;
+    }
+  }, [previewDocument]);
+
+  useEffect(() => {
+    const detail = documentPreviewQuery.data;
+    if (!detail) {
+      if (!documentPreviewQuery.isFetching && !previewDocument) {
+        if (previewObjectUrlRef.current) {
+          URL.revokeObjectURL(previewObjectUrlRef.current);
+          previewObjectUrlRef.current = null;
+        }
+        setPreviewUrl(null);
+      }
+      return;
+    }
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = null;
+    }
+    if (detail.previewUrl) {
+      setPreviewUrl(detail.previewUrl);
+      return;
+    }
+    if (detail.htmlPreview) {
+      const blob = new Blob([detail.htmlPreview], { type: "text/html;charset=utf-8" });
+      const objectUrl = URL.createObjectURL(blob);
+      previewObjectUrlRef.current = objectUrl;
+      setPreviewUrl(objectUrl);
+      return;
+    }
+    setPreviewUrl(null);
+  }, [documentPreviewQuery.data, documentPreviewQuery.isFetching, previewDocument]);
+
   const firstDocument = useMemo(() => {
     if (!documentsQuery.data) {
       return null;
@@ -215,6 +310,14 @@ export default function SalesPage() {
     }
   }, [documentsModalOpen, firstDocument]);
 
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+      }
+    };
+  }, []);
+
   const saleDetailQuery = useQuery<SaleDetail, Error>({
     queryKey: ["sale-detail", receiptSaleId],
     queryFn: () => {
@@ -234,6 +337,80 @@ export default function SalesPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: SaleUpdatePayload }) => updateSale(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales"] }),
+  });
+
+  const documentFileMutation = useMutation<
+    { blob: Blob; intent: "download" | "print"; summary: DocumentSummary },
+    Error,
+    { summary: DocumentSummary; intent: "download" | "print" }
+  >({
+    mutationFn: async ({ summary, intent }) => {
+      const blob = await fetchDocumentFile(summary.id, { direction: summary.direction });
+      return { blob, intent, summary };
+    },
+    onSuccess: ({ blob, intent, summary }) => {
+      const extension = getBlobExtension(blob.type);
+      const fileName = buildDocumentFileName(summary, extension);
+      const blobUrl = URL.createObjectURL(blob);
+      if (intent === "download") {
+        const link = window.document.createElement("a");
+        link.href = blobUrl;
+        link.download = fileName;
+        link.rel = "noopener";
+        window.document.body.appendChild(link);
+        link.click();
+        window.document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
+
+      const printWindow = window.open(blobUrl, "_blank", "noopener");
+      if (!printWindow) {
+        URL.revokeObjectURL(blobUrl);
+        window.alert(
+          "No se pudo abrir la ventana de impresión. Permite las ventanas emergentes e inténtalo nuevamente.",
+        );
+        return;
+      }
+
+      let cleaned = false;
+      const cleanup = () => {
+        if (!cleaned) {
+          cleaned = true;
+          URL.revokeObjectURL(blobUrl);
+        }
+      };
+
+      const handleAfterPrint = () => {
+        printWindow.removeEventListener("afterprint", handleAfterPrint);
+        printWindow.close();
+        cleanup();
+      };
+
+      const handleUnload = () => {
+        printWindow.removeEventListener("unload", handleUnload);
+        cleanup();
+      };
+
+      const handleLoad = () => {
+        printWindow.removeEventListener("load", handleLoad);
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch (error) {
+          console.error("No se pudo iniciar la impresión", error);
+        }
+      };
+
+      printWindow.addEventListener("load", handleLoad);
+      printWindow.addEventListener("afterprint", handleAfterPrint);
+      printWindow.addEventListener("unload", handleUnload);
+
+      window.setTimeout(cleanup, 60000);
+    },
+    onError: (error) => {
+      console.error("No se pudo obtener el documento", error);
+    },
   });
 
   const handleCancel = (sale: SaleSummary) => {
@@ -272,11 +449,43 @@ export default function SalesPage() {
 
   const handleCloseDocumentsModal = () => {
     setDocumentsModalOpen(false);
+    documentFileMutation.reset();
   };
 
   const handleDocumentAction = (document: DocumentSummary, action: DocumentAction) => {
-    const label = `${document.type} ${document.number ?? document.id}`;
-    window.alert(`Acción "${action}" para ${label}`);
+    switch (action) {
+      case "open": {
+        const base = API_BASE.endsWith("/") ? API_BASE.slice(0, -1) : API_BASE;
+        const url = `${base}/v1/documents/${document.id}?direction=${document.direction}`;
+        const opened = window.open(url, "_blank", "noopener");
+        if (!opened) {
+          window.alert(
+            "No se pudo abrir el documento en una nueva pestaña. Permite las ventanas emergentes e inténtalo nuevamente.",
+          );
+        }
+        break;
+      }
+      case "preview": {
+        if (previewDocument?.id === document.id) {
+          documentPreviewQuery.refetch();
+        } else {
+          setPreviewDocument(document);
+        }
+        break;
+      }
+      case "print": {
+        documentFileMutation.reset();
+        documentFileMutation.mutate({ summary: document, intent: "print" });
+        break;
+      }
+      case "download": {
+        documentFileMutation.reset();
+        documentFileMutation.mutate({ summary: document, intent: "download" });
+        break;
+      }
+      default:
+        break;
+    }
   };
 
   const handlePrint = () => {
@@ -448,7 +657,12 @@ export default function SalesPage() {
   const purchaseDocumentsPage = documentsData?.purchases;
   const salesDocuments = salesDocumentsPage?.content ?? [];
   const purchaseDocuments = purchaseDocumentsPage?.content ?? [];
-  const documentsActionsDisabled = documentsQuery.isFetching;
+  const documentsActionsDisabled =
+    documentsQuery.isFetching || documentPreviewQuery.isFetching || documentFileMutation.isPending;
+  const documentActionErrorMessage = documentFileMutation.isError
+    ? documentFileMutation.error?.message ?? "No se pudo procesar la acción del documento."
+    : null;
+  const previewDetail = documentPreviewQuery.data;
 
   return (
     <div className="page-section">
@@ -700,6 +914,7 @@ export default function SalesPage() {
         onClose={handleCloseDocumentsModal}
         title="Documentos"
         initialFocusRef={documentsCloseButtonRef}
+        size="wide"
       >
         {documentsQuery.isLoading && <p>Cargando documentos...</p>}
         {documentsQuery.isError && (
@@ -707,220 +922,280 @@ export default function SalesPage() {
             {documentsQuery.error?.message ?? "No se pudieron obtener los documentos."}
           </p>
         )}
+        {documentActionErrorMessage && (
+          <p className="error" role="alert">{documentActionErrorMessage}</p>
+        )}
         {documentsActionsDisabled && !documentsQuery.isLoading && !documentsQuery.isError && (
           <p className="muted" role="status">Actualizando documentos...</p>
         )}
         {!documentsQuery.isLoading && !documentsQuery.isError && (
-          <div className="documents-modal__sections">
-            <section className="documents-modal__section">
-              <h4>Ventas</h4>
-              {salesDocuments.length === 0 ? (
-                <p className="documents-modal__empty">No hay documentos de ventas.</p>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Tipo</th>
-                        <th>Número</th>
-                        <th>Fecha</th>
-                        <th>Total</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {salesDocuments.map((document) => (
-                        <tr key={document.id}>
-                          <td>{document.type}</td>
-                          <td>{document.number ?? "-"}</td>
-                          <td>{document.issuedAt ? new Date(document.issuedAt).toLocaleDateString() : "-"}</td>
-                          <td>{formatCurrency(document.total)}</td>
-                          <td>{document.status}</td>
-                          <td>
-                            <div className="table-actions">
-                              <button
-                                className="btn"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "open")}
-                                disabled={documentsActionsDisabled}
-                                ref={
-                                  firstDocument &&
-                                  firstDocument.direction === "sales" &&
-                                  firstDocument.id === document.id
-                                    ? documentsPrimaryActionRef
-                                    : undefined
-                                }
-                                aria-label={`Abrir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Abrir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "preview")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Ver ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Ver
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "print")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Imprimir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Imprimir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "download")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Descargar ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Descargar
-                              </button>
-                            </div>
-                          </td>
+          <div className="documents-modal__content">
+            <div className="documents-modal__sections">
+              <section className="documents-modal__section">
+                <h4>Ventas</h4>
+                {salesDocuments.length === 0 ? (
+                  <p className="documents-modal__empty">No hay documentos de ventas.</p>
+                ) : (
+                  <div className="table-wrapper">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Tipo</th>
+                          <th>Número</th>
+                          <th>Fecha</th>
+                          <th>Total</th>
+                          <th>Estado</th>
+                          <th>Acciones</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {salesDocuments.map((document) => (
+                          <tr key={document.id}>
+                            <td>{document.type}</td>
+                            <td>{document.number ?? "-"}</td>
+                            <td>{document.issuedAt ? new Date(document.issuedAt).toLocaleDateString() : "-"}</td>
+                            <td>{formatCurrency(document.total)}</td>
+                            <td>{document.status}</td>
+                            <td>
+                              <div className="table-actions">
+                                <button
+                                  className="btn"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "open")}
+                                  disabled={documentsActionsDisabled}
+                                  ref={
+                                    firstDocument &&
+                                    firstDocument.direction === "sales" &&
+                                    firstDocument.id === document.id
+                                      ? documentsPrimaryActionRef
+                                      : undefined
+                                  }
+                                  aria-label={`Abrir ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Abrir
+                                </button>
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "preview")}
+                                  disabled={documentsActionsDisabled}
+                                  aria-label={`Ver ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Ver
+                                </button>
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "print")}
+                                  disabled={documentsActionsDisabled}
+                                  aria-label={`Imprimir ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Imprimir
+                                </button>
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "download")}
+                                  disabled={documentsActionsDisabled}
+                                  aria-label={`Descargar ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Descargar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="pagination">
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={(salesDocumentsPage?.number ?? 0) === 0 || documentsActionsDisabled}
+                    onClick={() =>
+                      setDocumentsSalesPage((prev) => Math.max(0, prev - 1))
+                    }
+                  >
+                    Anterior
+                  </button>
+                  <span className="muted">
+                    Página {(salesDocumentsPage?.number ?? 0) + 1} de {salesDocumentsPage?.totalPages ?? 1}
+                  </span>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={
+                      documentsActionsDisabled ||
+                      ((salesDocumentsPage?.number ?? 0) + 1 >= (salesDocumentsPage?.totalPages ?? 1))
+                    }
+                    onClick={() => setDocumentsSalesPage((prev) => prev + 1)}
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </section>
+              <section className="documents-modal__section">
+                <h4>Compras</h4>
+                {purchaseDocuments.length === 0 ? (
+                  <p className="documents-modal__empty">No hay documentos de compras.</p>
+                ) : (
+                  <div className="table-wrapper">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Tipo</th>
+                          <th>Número</th>
+                          <th>Fecha</th>
+                          <th>Total</th>
+                          <th>Estado</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {purchaseDocuments.map((document) => (
+                          <tr key={document.id}>
+                            <td>{document.type}</td>
+                            <td>{document.number ?? "-"}</td>
+                            <td>{document.issuedAt ? new Date(document.issuedAt).toLocaleDateString() : "-"}</td>
+                            <td>{formatCurrency(document.total)}</td>
+                            <td>{document.status}</td>
+                            <td>
+                              <div className="table-actions">
+                                <button
+                                  className="btn"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "open")}
+                                  disabled={documentsActionsDisabled}
+                                  ref={
+                                    firstDocument &&
+                                    firstDocument.direction === "purchases" &&
+                                    firstDocument.id === document.id
+                                      ? documentsPrimaryActionRef
+                                      : undefined
+                                  }
+                                  aria-label={`Abrir ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Abrir
+                                </button>
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "preview")}
+                                  disabled={documentsActionsDisabled}
+                                  aria-label={`Ver ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Ver
+                                </button>
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "print")}
+                                  disabled={documentsActionsDisabled}
+                                  aria-label={`Imprimir ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Imprimir
+                                </button>
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => handleDocumentAction(document, "download")}
+                                  disabled={documentsActionsDisabled}
+                                  aria-label={`Descargar ${document.type} ${document.number ?? document.id}`}
+                                >
+                                  Descargar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="pagination">
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={(purchaseDocumentsPage?.number ?? 0) === 0 || documentsActionsDisabled}
+                    onClick={() =>
+                      setDocumentsPurchasesPage((prev) => Math.max(0, prev - 1))
+                    }
+                  >
+                    Anterior
+                  </button>
+                  <span className="muted">
+                    Página {(purchaseDocumentsPage?.number ?? 0) + 1} de {purchaseDocumentsPage?.totalPages ?? 1}
+                  </span>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={
+                      documentsActionsDisabled ||
+                      ((purchaseDocumentsPage?.number ?? 0) + 1 >= (purchaseDocumentsPage?.totalPages ?? 1))
+                    }
+                    onClick={() => setDocumentsPurchasesPage((prev) => prev + 1)}
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </section>
+            </div>
+            <section className="documents-modal__preview" aria-live="polite">
+              <header>
+                <h5>Vista previa</h5>
+                <span>
+                  {previewDocument
+                    ? `${previewDocument.type} ${previewDocument.number ?? previewDocument.id}`
+                    : "Selecciona un documento para ver su detalle."}
+                </span>
+              </header>
+              {previewDocument && (
+                <div className="documents-modal__preview-meta">
+                  <span>
+                    Total: <strong>{formatCurrency(previewDocument.total)}</strong>
+                  </span>
+                  {previewDocument.issuedAt && (
+                    <span>Fecha: {new Date(previewDocument.issuedAt).toLocaleDateString()}</span>
+                  )}
+                  <span>Estado: {previewDocument.status}</span>
+                  {previewDetail?.counterparty && (
+                    <span>
+                      {previewDocument.direction === "sales" ? "Cliente" : "Proveedor"}: {previewDetail.counterparty}
+                    </span>
+                  )}
                 </div>
               )}
-              <div className="pagination">
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={(salesDocumentsPage?.number ?? 0) === 0 || documentsActionsDisabled}
-                  onClick={() =>
-                    setDocumentsSalesPage((prev) => Math.max(0, prev - 1))
-                  }
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Página {(salesDocumentsPage?.number ?? 0) + 1} de {salesDocumentsPage?.totalPages ?? 1}
-                </span>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={
-                    documentsActionsDisabled ||
-                    ((salesDocumentsPage?.number ?? 0) + 1 >= (salesDocumentsPage?.totalPages ?? 1))
-                  }
-                  onClick={() => setDocumentsSalesPage((prev) => prev + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </section>
-            <section className="documents-modal__section">
-              <h4>Compras</h4>
-              {purchaseDocuments.length === 0 ? (
-                <p className="documents-modal__empty">No hay documentos de compras.</p>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Tipo</th>
-                        <th>Número</th>
-                        <th>Fecha</th>
-                        <th>Total</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {purchaseDocuments.map((document) => (
-                        <tr key={document.id}>
-                          <td>{document.type}</td>
-                          <td>{document.number ?? "-"}</td>
-                          <td>{document.issuedAt ? new Date(document.issuedAt).toLocaleDateString() : "-"}</td>
-                          <td>{formatCurrency(document.total)}</td>
-                          <td>{document.status}</td>
-                          <td>
-                            <div className="table-actions">
-                              <button
-                                className="btn"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "open")}
-                                disabled={documentsActionsDisabled}
-                                ref={
-                                  firstDocument &&
-                                  firstDocument.direction === "purchases" &&
-                                  firstDocument.id === document.id
-                                    ? documentsPrimaryActionRef
-                                    : undefined
-                                }
-                                aria-label={`Abrir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Abrir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "preview")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Ver ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Ver
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "print")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Imprimir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Imprimir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "download")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Descargar ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Descargar
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {documentPreviewQuery.isLoading && previewDocument && (
+                <p role="status">Cargando vista previa...</p>
               )}
-              <div className="pagination">
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={(purchaseDocumentsPage?.number ?? 0) === 0 || documentsActionsDisabled}
-                  onClick={() =>
-                    setDocumentsPurchasesPage((prev) => Math.max(0, prev - 1))
-                  }
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Página {(purchaseDocumentsPage?.number ?? 0) + 1} de {purchaseDocumentsPage?.totalPages ?? 1}
-                </span>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={
-                    documentsActionsDisabled ||
-                    ((purchaseDocumentsPage?.number ?? 0) + 1 >= (purchaseDocumentsPage?.totalPages ?? 1))
-                  }
-                  onClick={() => setDocumentsPurchasesPage((prev) => prev + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
+              {documentPreviewQuery.isError && previewDocument && (
+                <p className="error" role="alert">
+                  {documentPreviewQuery.error?.message ?? "No se pudo cargar la vista previa."}
+                </p>
+              )}
+              {previewDocument ? (
+                previewUrl ? (
+                  <div className="documents-modal__preview-frame">
+                    <iframe
+                      title={`Vista previa ${previewDocument.type} ${previewDocument.number ?? previewDocument.id}`}
+                      src={previewUrl}
+                    />
+                  </div>
+                ) : (
+                  !documentPreviewQuery.isLoading &&
+                  !documentPreviewQuery.isError && (
+                    <p className="documents-modal__preview-empty">
+                      Este documento no tiene vista previa disponible.
+                    </p>
+                  )
+                )
+              ) : (
+                <p className="documents-modal__preview-empty">
+                  Selecciona un documento de compras o ventas para ver el detalle.
+                </p>
+              )}
             </section>
           </div>
         )}
