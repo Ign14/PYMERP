@@ -699,6 +699,30 @@ function fallbackListProducts(params?: { q?: string; page?: number; size?: numbe
   return paginate(filtered, page, size);
 }
 
+function fallbackLookupProduct(query: string, type: ProductLookupType): Product | null {
+  const normalized = normalizeString(query);
+  if (!normalized) {
+    return null;
+  }
+
+  const matcher = (value?: string | null) => normalizeString(value ?? "") === normalized;
+
+  return (
+    demoState.products.find((product) => {
+      if (type === "barcode") {
+        return matcher(product.barcode ?? null);
+      }
+      if (type === "sku") {
+        return matcher(product.sku);
+      }
+      if (type === "qr") {
+        return matcher(product.qrUrl ?? null);
+      }
+      return false;
+    }) ?? null
+  );
+}
+
 function fallbackCreateProduct(payload: ProductPayload): Product {
   const product: Product = {
     id: nextId("prd-demo"),
@@ -1524,6 +1548,8 @@ export type Product = {
   active: boolean;
 };
 
+export type ProductLookupType = "barcode" | "sku" | "qr";
+
 export type ProductPayload = {
   sku: string;
   name: string;
@@ -2073,6 +2099,26 @@ export function listProducts(
       return data;
     },
     () => fallbackListProducts(params),
+  );
+}
+
+export function lookupProduct(params: { query: string; type: ProductLookupType }): Promise<Product | null> {
+  return withOfflineFallback(
+    "lookupProduct",
+    async () => {
+      try {
+        const { data } = await api.get<Product>(`/v1/products/lookup`, {
+          params: { q: params.query, type: params.type },
+        });
+        return data ?? null;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    () => fallbackLookupProduct(params.query, params.type),
   );
 }
 
