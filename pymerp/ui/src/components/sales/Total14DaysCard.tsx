@@ -8,12 +8,12 @@ type Total14DaysCardProps = {
 
 export default function Total14DaysCard({ value, days = 14, formatter = formatMoneyCLP }: Total14DaysCardProps) {
   return (
-    <article className="card stat" aria-label={`Total de ventas últimos ${days} días`}>
-      <h3>Total de ventas</h3>
+    <article className="card stat" aria-label={`Ventas acumuladas durante ${days} días`}>
+      <h3>Ventas acumuladas</h3>
       <p className="stat-value" data-testid="sales-total-14d">
         {formatter(value)}
       </p>
-      <span className="stat-trend">Incluye impuestos · Últimos {days} días</span>
+      <span className="stat-trend">Montos brutos del periodo</span>
     </article>
   );
 }
