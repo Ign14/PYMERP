@@ -4,12 +4,10 @@ import {
   cancelSale,
   getSaleDetail,
   listSales,
-  listSalesTrend,
   Page,
   SaleDetail,
   SaleRes,
   SaleSummary,
-  SalesDailyPoint,
   SaleUpdatePayload,
   SalesPeriodSummary,
   getSalesSummaryByPeriod,
@@ -27,17 +25,9 @@ import PageHeader from "../components/layout/PageHeader";
 import SalesCreateDialog from "../components/dialogs/SalesCreateDialog";
 import Modal from "../components/dialogs/Modal";
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import {
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../constants/sales";
+import SalesDashboardOverview from "../components/sales/SalesDashboardOverview";
 
 const PAGE_SIZE = 10;
 const DOCUMENTS_PAGE_SIZE = 6;
@@ -63,16 +53,6 @@ function normalizedIncludes(source: string | undefined | null, term: string) {
     return false;
   }
   return source.toLowerCase().includes(term);
-}
-
-function formatDateInput(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function subtractDays(date: Date, amount: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() - amount);
-  return next;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -200,10 +180,6 @@ export default function SalesPage() {
   const [searchInput, setSearchInput] = useState("");
   const [receiptDocument, setReceiptDocument] = useState<DocumentSummary | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
-  const [trendFrom, setTrendFrom] = useState(() =>
-    formatDateInput(subtractDays(new Date(), TREND_DEFAULT_DAYS - 1)),
-  );
-  const [trendTo, setTrendTo] = useState(() => formatDateInput(new Date()));
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [documentsSalesPage, setDocumentsSalesPage] = useState(0);
   const [documentsPurchasesPage, setDocumentsPurchasesPage] = useState(0);
@@ -217,7 +193,6 @@ export default function SalesPage() {
   const receiptCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
-  const isTrendRangeInvalid = Boolean(trendFrom && trendTo && trendFrom > trendTo);
 
   useEffect(() => {
     setPage(0);
@@ -255,13 +230,6 @@ export default function SalesPage() {
         paymentMethod: paymentFilter || undefined,
         search: debouncedSearch || undefined,
       }),
-    placeholderData: keepPreviousData,
-  });
-
-  const salesTrendQuery = useQuery<SalesDailyPoint[], Error>({
-    queryKey: ["sales", "trend", trendFrom, trendTo],
-    queryFn: () => listSalesTrend({ from: trendFrom, to: trendTo }),
-    enabled: !isTrendRangeInvalid && Boolean(trendFrom && trendTo),
     placeholderData: keepPreviousData,
   });
 
@@ -692,16 +660,6 @@ export default function SalesPage() {
     },
   });
 
-  const dailyData = useMemo(
-    () =>
-      (salesTrendQuery.data ?? []).map((point) => ({
-        date: point.date,
-        total: point.total ?? 0,
-        count: point.count ?? 0,
-      })),
-    [salesTrendQuery.data],
-  );
-
   const windowMetrics = windowMetricsQuery.data;
   const salesToday = summaryTodayQuery.data;
   const salesWeek = summaryWeekQuery.data;
@@ -728,6 +686,8 @@ export default function SalesPage() {
         description="Gestiona documentos, monitorea cobranzas y analiza el desempeno."
         actions={<button className="btn" onClick={() => setDialogOpen(true)}>+ Registrar venta</button>}
       />
+
+      <SalesDashboardOverview days={TREND_DEFAULT_DAYS} />
 
       <div className="card">
         <div className="filter-bar">
@@ -761,36 +721,6 @@ export default function SalesPage() {
       </div>
 
       <section className="kpi-grid">
-        <div className="card stat">
-          <h3>Promedio venta diaria</h3>
-          <p className="stat-value">
-            {windowMetricsQuery.isLoading
-              ? "Cargando..."
-              : windowMetricsQuery.isError
-              ? "—"
-              : formatCurrency(windowMetrics?.dailyAverage)}
-          </p>
-          <span className="stat-trend">
-            {windowMetricsQuery.isError
-              ? "No se pudieron obtener los indicadores."
-              : `Últimos ${TREND_DEFAULT_DAYS} días`}
-          </span>
-        </div>
-        <div className="card stat">
-          <h3>Total de ventas</h3>
-          <p className="stat-value">
-            {windowMetricsQuery.isLoading
-              ? "Cargando..."
-              : windowMetricsQuery.isError
-              ? "—"
-              : formatCurrency(windowMetrics?.totalWithTax)}
-          </p>
-          <span className="stat-trend">
-            {windowMetricsQuery.isError
-              ? "Intenta actualizar nuevamente."
-              : "Incluye impuestos - últimos 14 días"}
-          </span>
-        </div>
         <div className="card stat">
           <h3>Ventas del día</h3>
           <p className="stat-value">
@@ -867,68 +797,6 @@ export default function SalesPage() {
           </span>
         </button>
       </section>
-
-      <div className="card">
-        <h3>Tendencia de ventas</h3>
-        <div className="filter-bar">
-          <label>
-            Desde
-            <input
-              className="input"
-              type="date"
-              value={trendFrom}
-              max={trendTo || undefined}
-              onChange={(event) => setTrendFrom(event.target.value)}
-            />
-          </label>
-          <label>
-            Hasta
-            <input
-              className="input"
-              type="date"
-              value={trendTo}
-              min={trendFrom || undefined}
-              onChange={(event) => setTrendTo(event.target.value)}
-            />
-          </label>
-          {salesTrendQuery.isFetching && !salesTrendQuery.isLoading && !isTrendRangeInvalid && (
-            <span className="muted" role="status">Actualizando…</span>
-          )}
-        </div>
-        <div style={{ minHeight: 220 }}>
-          {isTrendRangeInvalid ? (
-            <p className="error">La fecha "Desde" debe ser anterior o igual a "Hasta".</p>
-          ) : salesTrendQuery.isError ? (
-            <p className="error">
-              No se pudo cargar la tendencia: {salesTrendQuery.error?.message ?? "Intenta nuevamente."}
-            </p>
-          ) : dailyData.length === 0 ? (
-            salesTrendQuery.isLoading ? (
-              <p>Cargando tendencia...</p>
-            ) : (
-              <p className="muted">No hay datos en el rango seleccionado.</p>
-            )
-          ) : (
-            <div style={{ height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dailyData}>
-                  <defs>
-                    <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                  <XAxis dataKey="date" stroke="#9aa0a6" tick={{ fontSize: 12 }} />
-                  <YAxis stroke="#9aa0a6" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
-                  <Area type="monotone" dataKey="total" stroke="#60a5fa" fill="url(#salesGradient)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      </div>
 
       <div className="card table-card">
         <h3>Documentos recientes</h3>
