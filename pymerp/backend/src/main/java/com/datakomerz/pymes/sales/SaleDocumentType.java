@@ -5,6 +5,7 @@ import java.util.Locale;
 public enum SaleDocumentType {
   FACTURA("Factura"),
   BOLETA("Boleta"),
+  COTIZACION("Cotización"),
   COMPROBANTE("Comprobante");
 
   private final String label;
@@ -34,6 +35,7 @@ public enum SaleDocumentType {
     return switch (normalized) {
       case "INVOICE", "INVOICING" -> FACTURA;
       case "TICKET" -> BOLETA;
+      case "QUOTE", "QUOTATION", "ESTIMATE", "COTIZACION", "COTIZACIÓN" -> COTIZACION;
       case "RECEIPT" -> COMPROBANTE;
       default -> FACTURA;
     };
