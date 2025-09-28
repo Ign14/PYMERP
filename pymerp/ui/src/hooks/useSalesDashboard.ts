@@ -1,13 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSalesSummary, fetchSalesTimeseries } from "../services/reports";
+import { fetchSalesTimeseries } from "../services/reports";
 
 export function useSalesDashboard(days = 14) {
-  const summary = useQuery({
-    queryKey: ["sales-summary", days],
-    queryFn: () => fetchSalesSummary(days),
-  });
-
   const series = useQuery({
     queryKey: ["sales-series", days],
     queryFn: () => fetchSalesTimeseries(days),
@@ -37,12 +32,7 @@ export function useSalesDashboard(days = 14) {
     }));
   }, [series.data, days]);
 
-  const computedTotal = useMemo(
-    () => points.reduce((acc, point) => acc + point.total, 0),
-    [points],
-  );
-
-  return { summary, series, points, computedTotal };
+  return { series, points };
 }
 
 function buildFrame(days: number): string[] {

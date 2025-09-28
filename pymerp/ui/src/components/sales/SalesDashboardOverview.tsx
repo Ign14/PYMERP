@@ -12,15 +12,17 @@ type SalesDashboardOverviewProps = {
 
 export default function SalesDashboardOverview({ days = 14 }: SalesDashboardOverviewProps) {
   const queryClient = useQueryClient();
-  const { summary, series, points, computedTotal } = useSalesDashboard(days);
+  const { series, points } = useSalesDashboard(days);
+
+  const [chartRange, setChartRange] = useState<{ start: string; end: string } | null>(null);
 
   const [chartRange, setChartRange] = useState<{ start: string; end: string } | null>(null);
 
   const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
   const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
 
-  const totalValue = summary.data?.total14d ?? computedTotal;
-  const averageValue = summary.data?.avgDaily14d ?? (days > 0 ? totalValue / days : 0);
+  const seriesInitialLoading = series.isLoading && !series.data;
+  const seriesRefreshing = series.isFetching && !seriesInitialLoading;
 
   const summaryInitialLoading = summary.isLoading && !summary.data;
   const seriesInitialLoading = series.isLoading && !series.data;
@@ -28,10 +30,10 @@ export default function SalesDashboardOverview({ days = 14 }: SalesDashboardOver
   const seriesRefreshing = series.isFetching && !seriesInitialLoading;
 
   const summaryHasError = summary.isError;
+
   const seriesHasError = series.isError;
 
   const handleRetry = () => {
-    queryClient.invalidateQueries({ queryKey: ["sales-summary", days] });
     queryClient.invalidateQueries({ queryKey: ["sales-series", days] });
   };
 
@@ -77,6 +79,25 @@ export default function SalesDashboardOverview({ days = 14 }: SalesDashboardOver
     return points.filter((point) => point.date >= start && point.date <= end);
   }, [chartRange, points]);
 
+
+  const filteredTotal = useMemo(
+    () => filteredChartPoints.reduce((acc, point) => acc + point.total, 0),
+    [filteredChartPoints],
+  );
+
+  const filteredAverage = useMemo(() => {
+    if (filteredChartPoints.length === 0) {
+      return 0;
+    }
+    return filteredTotal / filteredChartPoints.length;
+  }, [filteredTotal, filteredChartPoints.length]);
+
+  const rangeStart = chartRange?.start ?? minDate;
+  const rangeEnd = chartRange?.end ?? maxDate;
+
+  const rangeLabel = rangeStart && rangeEnd ? formatRange(rangeStart, rangeEnd) : "Sin rango";
+
+
   const handleStartChange = (value: string) => {
     if (!value) {
       return;
@@ -104,14 +125,21 @@ export default function SalesDashboardOverview({ days = 14 }: SalesDashboardOver
           <div>
             <h2 id="sales-dashboard-overview-heading">Resumen de ventas</h2>
           </div>
+
+          {seriesRefreshing && !seriesHasError && (
+
           {summaryRefreshing && !summaryHasError && (
+
             <span className="muted" role="status">
               Actualizando…
             </span>
           )}
         </header>
 
+        {seriesHasError && (
+
         {summaryHasError && (
+
           <div className="error-banner" role="alert">
             <p>No se pudieron cargar los indicadores de ventas.</p>
             <button className="btn" type="button" onClick={handleRetry}>
@@ -121,15 +149,33 @@ export default function SalesDashboardOverview({ days = 14 }: SalesDashboardOver
         )}
 
         <div className="kpi-grid" style={{ marginBottom: "1.5rem" }}>
+
+          {seriesInitialLoading || seriesHasError ? (
+            <SkeletonCard title="Promedio diario" description={`Rango seleccionado: ${rangeLabel}`} />
+
           {summaryInitialLoading ? (
             <SkeletonCard title="Promedio diario" description={`Periodo analizado: ${days} días`} />
+
           ) : (
-            <DailyAvgCard value={averageValue} days={days} formatter={formatCurrency} />
+            <DailyAvgCard
+              value={filteredAverage}
+              rangeLabel={rangeLabel}
+              formatter={formatCurrency}
+            />
           )}
+
+          {seriesInitialLoading || seriesHasError ? (
+            <SkeletonCard title="Ventas acumuladas" description={`Rango seleccionado: ${rangeLabel}`} />
+
           {summaryInitialLoading ? (
             <SkeletonCard title="Ventas acumuladas" description="Montos brutos del periodo" />
+
           ) : (
-            <Total14DaysCard value={totalValue} days={days} formatter={formatCurrency} />
+            <Total14DaysCard
+              value={filteredTotal}
+              rangeLabel={rangeLabel}
+              formatter={formatCurrency}
+            />
           )}
         </div>
       </div>
@@ -210,4 +256,16 @@ function SkeletonCard({ title, description }: SkeletonCardProps) {
       <span className="stat-trend">{description}</span>
     </article>
   );
+}
+
+function formatRange(start: string, end: string) {
+  if (!start) {
+    return end;
+  }
+
+  if (!end || start === end) {
+    return start;
+  }
+
+  return `${start} a ${end}`;
 }
