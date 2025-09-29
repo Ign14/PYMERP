@@ -42,3 +42,11 @@ El panel de ventas ahora consume los nuevos reportes del backend (`/api/v1/repor
 
 - El formato de moneda usa CLP por defecto. Si el tenant expone otra moneda, ajusta el `createCurrencyFormatter` en `src/utils/currency.ts`.
 - El backend excluye automáticamente ventas con estado `cancelled` y completa los días sin datos con cero.
+
+## Registrar venta: productos frecuentes del cliente
+
+- En la pantalla **Registrar venta** activa la casilla **Productos frecuentes del cliente** para ver un panel con los artículos más comprados por el cliente seleccionado.
+- El panel aparece habilitado solo cuando existe un cliente elegido. Cambiar de cliente limpia el filtro y recarga los datos.
+- Puedes filtrar rápidamente por nombre o SKU desde la barra de búsqueda. Cada fila muestra SKU, fecha de la última compra, veces compradas, cantidad promedio y el precio usado en la última venta.
+- Haz clic (o presiona Enter/Espacio) sobre un producto para agregarlo de inmediato a la venta con la última cantidad conocida y el precio vigente.
+- Si el cliente no tiene historial se mostrará un mensaje de estado. En caso de error puedes reintentar desde el botón dentro del panel.

@@ -23,6 +23,8 @@ import {
   ProductLookupType,
 } from "../../services/client";
 import Modal from "./Modal";
+import { FrequentProductsPanel } from "../sales/FrequentProductsPanel";
+import type { FrequentProduct } from "../../services/client";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../../constants/sales";
 
 interface Props {
@@ -58,6 +60,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState<number>(0);
   const [productCache, setProductCache] = useState<Record<string, Product>>({});
+  const [showFrequentProducts, setShowFrequentProducts] = useState(false);
   const scannerInputRef = useRef<HTMLInputElement | null>(null);
   const scannerBufferRef = useRef("");
   const scannerTimerRef = useRef<number | null>(null);
@@ -110,6 +113,12 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
       return changed ? next : prev;
     });
   }, [productOptions]);
+
+  useEffect(() => {
+    if (!customerId) {
+      setShowFrequentProducts(false);
+    }
+  }, [customerId]);
 
   const addProductToSale = useCallback(
     (product: Product, quantity = 1, priceOverride?: number) => {
@@ -312,6 +321,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
       window.clearTimeout(scannerTimerRef.current);
       scannerTimerRef.current = null;
     }
+    setShowFrequentProducts(false);
   };
 
   const handleSubmit = (event: FormEvent) => {
@@ -338,6 +348,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
         window.clearTimeout(scannerTimerRef.current);
         scannerTimerRef.current = null;
       }
+      setShowFrequentProducts(false);
       return;
     }
 
@@ -357,6 +368,35 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
       }
     };
   }, []);
+
+  const handleFrequentProductPick = useCallback(
+    (product: FrequentProduct, meta?: { lastQty?: number }) => {
+      const cachedProduct = productCache[product.productId] ?? productOptions.find((p) => p.id === product.productId);
+      if (!cachedProduct) {
+        setLookupFeedback({
+          status: "error",
+          message: "El producto ya no está disponible en el catálogo.",
+        });
+        return;
+      }
+
+      const lastQty = meta?.lastQty;
+      const fallbackQty = product.avgQty ? Math.round(product.avgQty) : 1;
+      const quantityCandidate = lastQty !== undefined && lastQty > 0 ? lastQty : fallbackQty;
+      const quantity = quantityCandidate > 0 ? quantityCandidate : 1;
+      const priceOverride =
+        cachedProduct.currentPrice !== undefined && cachedProduct.currentPrice !== null
+          ? undefined
+          : product.lastUnitPrice;
+
+      addProductToSale(cachedProduct, quantity, priceOverride);
+      setLookupFeedback({
+        status: "success",
+        message: `Se agregó ${quantity}× "${cachedProduct.name}" desde frecuentes.`,
+      });
+    },
+    [addProductToSale, productCache, productOptions],
+  );
 
   return (
     <Modal
@@ -477,6 +517,24 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
             {lookupFeedback.message ?? ""}
           </div>
         )}
+
+        <section className="frequent-products-wrapper">
+          <label className="frequent-products-toggle">
+            <input
+              type="checkbox"
+              checked={showFrequentProducts}
+              onChange={(event) => setShowFrequentProducts(event.target.checked)}
+              disabled={!customerId}
+            />
+            <span>Productos frecuentes del cliente</span>
+          </label>
+
+          <FrequentProductsPanel
+            customerId={customerId || undefined}
+            visible={showFrequentProducts && Boolean(customerId)}
+            onPick={handleFrequentProductPick}
+          />
+        </section>
 
         <div className="line"></div>
 

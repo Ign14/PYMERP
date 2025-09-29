@@ -1759,3 +1759,159 @@ button.card:focus-visible {
   flex-wrap: wrap;
   gap: 12px;
 }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.frequent-products-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.frequent-products-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.frequent-products-toggle input {
+  width: 20px;
+  height: 20px;
+}
+
+.frequent-products-toggle input:disabled + span {
+  color: var(--muted);
+}
+
+.frequent-products-panel {
+  gap: 12px;
+}
+
+.frequent-products-header {
+  flex-wrap: wrap;
+}
+
+.frequent-products-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.frequent-products-search {
+  max-width: 280px;
+  width: 100%;
+}
+
+.frequent-products-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.frequent-products-loading {
+  display: grid;
+  gap: 8px;
+}
+
+.frequent-products-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.frequent-products-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.frequent-product-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--panel-alt);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.frequent-product-row:hover,
+.frequent-product-row:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.frequent-product-row:active {
+  transform: translateY(0);
+}
+
+.frequent-product-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.frequent-product-name {
+  font-weight: 600;
+}
+
+.frequent-product-sku {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.frequent-product-meta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin: 0;
+}
+
+.frequent-product-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.frequent-product-meta dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.frequent-product-meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .frequent-products-search {
+    max-width: none;
+  }
+
+  .frequent-product-meta {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+}

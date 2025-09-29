@@ -1305,6 +1305,91 @@ function fallbackGetSalesSummary(period: SalesPeriod): SalesPeriodSummary {
   };
 }
 
+function fallbackGetFrequentProducts(customerId: string, limit = 20): FrequentProduct[] {
+  if (!customerId) {
+    return [];
+  }
+
+  const normalizedLimit = limit > 0 ? limit : 20;
+  const productIndex = new Map(demoState.products.map((product) => [product.id, product]));
+  const stats = new Map<
+    string,
+    {
+      productId: string;
+      name: string;
+      sku: string;
+      totalPurchases: number;
+      totalQty: number;
+      lastPurchasedAt: string;
+      lastUnitPrice?: number;
+      lastQty?: number;
+    }
+  >();
+
+  Object.values(demoState.saleDetails).forEach((detail) => {
+    if (detail.customer?.id !== customerId) {
+      return;
+    }
+    if (detail.status?.toLowerCase() === "cancelled") {
+      return;
+    }
+    const issuedAt = detail.issuedAt ?? new Date().toISOString();
+    detail.items.forEach((item) => {
+      if (!item.productId) {
+        return;
+      }
+      const product = productIndex.get(item.productId);
+      const current = stats.get(item.productId) ?? {
+        productId: item.productId,
+        name: product?.name ?? item.productName ?? item.productId,
+        sku: product?.sku ?? "",
+        totalPurchases: 0,
+        totalQty: 0,
+        lastPurchasedAt: issuedAt,
+        lastUnitPrice: undefined as number | undefined,
+        lastQty: undefined as number | undefined,
+      };
+
+      const qty = Number(item.qty) || 0;
+      current.totalPurchases += 1;
+      current.totalQty += qty;
+
+      const currentTime = new Date(current.lastPurchasedAt).getTime();
+      const issuedTime = new Date(issuedAt).getTime();
+      if (!current.lastPurchasedAt || Number.isNaN(currentTime) || issuedTime >= currentTime) {
+        current.lastPurchasedAt = issuedAt;
+        current.lastUnitPrice = Number(item.unitPrice) || (product?.currentPrice ? Number(product.currentPrice) : undefined);
+        current.lastQty = qty > 0 ? qty : current.lastQty;
+        current.name = product?.name ?? item.productName ?? current.name;
+        current.sku = product?.sku ?? current.sku;
+      }
+
+      stats.set(item.productId, current);
+    });
+  });
+
+  return Array.from(stats.values())
+    .sort((a, b) => {
+      if (b.totalPurchases !== a.totalPurchases) {
+        return b.totalPurchases - a.totalPurchases;
+      }
+      const timeA = new Date(a.lastPurchasedAt).getTime();
+      const timeB = new Date(b.lastPurchasedAt).getTime();
+      return timeB - timeA;
+    })
+    .slice(0, normalizedLimit)
+    .map((entry) => ({
+      productId: entry.productId,
+      name: entry.name,
+      sku: entry.sku,
+      lastPurchasedAt: entry.lastPurchasedAt,
+      totalPurchases: entry.totalPurchases,
+      avgQty: entry.totalPurchases > 0 ? entry.totalQty / entry.totalPurchases : undefined,
+      lastUnitPrice: entry.lastUnitPrice,
+      lastQty: entry.lastQty,
+    }));
+}
+
 function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): DocumentsGroupedResponse {
   const size = params.size && params.size > 0 ? params.size : 10;
   const salesPage = params.salesPage ?? 0;
@@ -1832,6 +1917,17 @@ export type SalesPeriodSummary = {
   total: number;
   net: number;
   count: number;
+};
+
+export type FrequentProduct = {
+  productId: string;
+  name: string;
+  sku: string;
+  lastPurchasedAt: string;
+  totalPurchases: number;
+  avgQty?: number;
+  lastUnitPrice?: number;
+  lastQty?: number;
 };
 
 export type ListDocumentsParams = {
@@ -2477,6 +2573,24 @@ export function getSalesSummaryByPeriod(period: SalesPeriod): Promise<SalesPerio
       return data;
     },
     () => fallbackGetSalesSummary(period),
+  );
+}
+
+export function getFrequentProducts(customerId: string): Promise<FrequentProduct[]> {
+  if (!customerId) {
+    return Promise.resolve([]);
+  }
+
+  return withOfflineFallback(
+    "getFrequentProducts",
+    async () => {
+      const { data } = await api.get<FrequentProduct[]>(
+        `/v1/customers/${customerId}/frequent-products`,
+        { params: { limit: 20 } },
+      );
+      return data;
+    },
+    () => fallbackGetFrequentProducts(customerId, 20),
   );
 }
 
