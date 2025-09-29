@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+
       react: path.resolve(__dirname, 'node_modules/react'),
       'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime.js'),
       'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime.js'),
@@ -15,6 +16,20 @@ export default defineConfig({
       'react-dom/test-utils': path.resolve(__dirname, 'node_modules/react-dom/test-utils.js'),
     },
     dedupe: ['react', 'react-dom'],
+
+      react: path.resolve(__dirname, "../node_modules/react"),
+      "react-dom": path.resolve(__dirname, "../node_modules/react-dom"),
+      "react/jsx-runtime": path.resolve(
+        __dirname,
+        "../node_modules/react/jsx-runtime.js",
+      ),
+      "react/jsx-dev-runtime": path.resolve(
+        __dirname,
+        "../node_modules/react/jsx-dev-runtime.js",
+      ),
+    },
+    dedupe: ["react", "react-dom"],
+
   },
   server: {
     port: 5173,
@@ -40,6 +55,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
-    setupFiles: './src/setupTests.ts'
+    setupFiles: './src/setupTests.ts',
+    server: {
+      deps: {
+        inline: true,
+      },
+    },
   }
 })
