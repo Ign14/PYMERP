@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelSale,
@@ -15,7 +14,6 @@ import {
   DocumentSummary,
   DocumentFile,
   downloadDocument,
-  getDocumentDetailUrl,
   getDocumentPreview,
   updateSale,
 } from "../services/client";
@@ -26,11 +24,10 @@ import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../constants/sales";
 import SalesDashboardOverview from "../components/sales/SalesDashboardOverview";
+import SaleDocumentsModal from "../components/sales/SaleDocumentsModal";
 import DocumentsSummaryCard from "../components/documents/DocumentsSummaryCard";
-import { useDocuments } from "../hooks/useDocuments";
 
 const PAGE_SIZE = 10;
-const DOCUMENTS_PAGE_SIZE = 6;
 const TREND_DEFAULT_DAYS = 14;
 const STATUS_OPTIONS = [
   { value: "", label: "Todos" },
@@ -78,6 +75,19 @@ function formatAdjustments(discount?: number | null, tax?: number | null): strin
     parts.push(`+ ${formatCurrency(tax)}`);
   }
   return parts.length > 0 ? parts.join(" / ") : "—";
+}
+
+function getSaleDocumentNumber(sale: SaleSummary): string {
+  if (sale.documentNumber && sale.documentNumber.trim()) {
+    return sale.documentNumber.trim();
+  }
+  if (sale.docNumber && sale.docNumber.trim()) {
+    return sale.docNumber.trim();
+  }
+  if (sale.series && (sale.folio ?? "") !== "") {
+    return `${sale.series}-${sale.folio}`;
+  }
+  return sale.id;
 }
 
 function sanitizeFileSegment(segment: string): string {
@@ -168,11 +178,8 @@ async function openFileInPrintWindow(file: DocumentFile, title: string) {
   setTimeout(cleanup, 60_000);
 }
 
-type DocumentAction = "open" | "preview" | "print" | "download";
-
 export default function SalesPage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("emitida");
@@ -181,13 +188,7 @@ export default function SalesPage() {
   const [searchInput, setSearchInput] = useState("");
   const [receiptDocument, setReceiptDocument] = useState<DocumentSummary | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
-  const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
-  const [documentsSalesPage, setDocumentsSalesPage] = useState(0);
-  const [previewDocument, setPreviewDocument] = useState<DocumentSummary | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [documentActionError, setDocumentActionError] = useState<string | null>(null);
-  const documentsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
-  const documentsPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
+  const [saleDocumentsModalOpen, setSaleDocumentsModalOpen] = useState(false);
   const documentsTriggerRef = useRef<HTMLAnchorElement | null>(null);
   const receiptPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
   const receiptCloseButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -199,17 +200,12 @@ export default function SalesPage() {
   }, [statusFilter, docTypeFilter, paymentFilter, debouncedSearch]);
 
   useEffect(() => {
-    if (documentsModalOpen) {
-      setDocumentsSalesPage(0);
-      return;
+    if (!saleDocumentsModalOpen) {
+      requestAnimationFrame(() => {
+        documentsTriggerRef.current?.focus();
+      });
     }
-    setPreviewDocument(null);
-    setPreviewUrl(null);
-    setDocumentActionError(null);
-    requestAnimationFrame(() => {
-      documentsTriggerRef.current?.focus();
-    });
-  }, [documentsModalOpen]);
+  }, [saleDocumentsModalOpen]);
 
   const salesQuery = useQuery({
     queryKey: [
@@ -246,69 +242,6 @@ export default function SalesPage() {
     queryKey: ["sales", "metrics", "summary", "month"],
     queryFn: () => getSalesSummaryByPeriod("month"),
   });
-
-  const documentsQuery = useDocuments("SALE", {
-    page: documentsSalesPage,
-    size: DOCUMENTS_PAGE_SIZE,
-    enabled: documentsModalOpen,
-    keepPrevious: true,
-  });
-
-  const previewQuery = useQuery<DocumentFile, Error>({
-    queryKey: ["document-preview", previewDocument?.id],
-    queryFn: () => {
-      if (!previewDocument) {
-        throw new Error("Documento no seleccionado");
-      }
-      return getDocumentPreview(previewDocument.id);
-    },
-    enabled: Boolean(previewDocument),
-    gcTime: 0,
-    staleTime: 0,
-  });
-
-  useEffect(() => {
-    if (!previewQuery.data) {
-      return;
-    }
-    const url = URL.createObjectURL(previewQuery.data.blob);
-    setPreviewUrl(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [previewQuery.data]);
-
-  useEffect(() => {
-    if (!previewDocument) {
-      setPreviewUrl(null);
-      return;
-    }
-    setPreviewUrl(null);
-  }, [previewDocument?.id]);
-
-  const firstDocument = useMemo(() => {
-    if (!documentsQuery.data) {
-      return null;
-    }
-    const salesDocs = documentsQuery.data.content ?? [];
-    if (salesDocs.length > 0) {
-      return { id: salesDocs[0].id, direction: "sales" as const };
-    }
-    return null;
-  }, [documentsQuery.data]);
-
-  useEffect(() => {
-    if (!documentsModalOpen) {
-      return;
-    }
-    if (!firstDocument) {
-      return;
-    }
-    const element = documentsPrimaryActionRef.current;
-    if (element) {
-      element.focus();
-    }
-  }, [documentsModalOpen, firstDocument]);
 
   const saleDetailQuery = useQuery<SaleDetail, Error>({
     queryKey: ["sale-detail", receiptDocument?.id],
@@ -353,59 +286,6 @@ export default function SalesPage() {
     mutationFn: ({ id, payload }: { id: string; payload: SaleUpdatePayload }) => updateSale(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales"] }),
   });
-
-  const documentActionMutation = useMutation({
-    mutationFn: async ({
-      document,
-      action,
-    }: {
-      document: DocumentSummary;
-      action: Exclude<DocumentAction, "preview">;
-    }) => {
-      switch (action) {
-        case "open": {
-          const url = getDocumentDetailUrl(document.id);
-          const opened = window.open(url, "_blank", "noopener,noreferrer");
-          if (!opened) {
-            throw new Error(
-              "No se pudo abrir la pestaña del documento. Revisa el bloqueador de ventanas emergentes.",
-            );
-          }
-          opened.focus();
-          return;
-        }
-        case "download": {
-          const file = await downloadDocument(document.id);
-          const filename = buildDocumentFilename(document, file);
-          triggerBrowserDownload(file, filename);
-          return;
-        }
-        case "print": {
-          const file =
-            previewDocument && previewDocument.id === document.id && previewQuery.data
-              ? previewQuery.data
-              : await getDocumentPreview(document.id);
-          await openFileInPrintWindow(file, formatDocumentLabel(document));
-          return;
-        }
-        default: {
-          const exhaustiveCheck: never = action;
-          throw new Error(`Acción no soportada: ${exhaustiveCheck}`);
-        }
-      }
-    },
-    onMutate: () => {
-      setDocumentActionError(null);
-    },
-    onError: (error: unknown) => {
-      setDocumentActionError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo ejecutar la acción. Intenta nuevamente.",
-      );
-    },
-  });
-
   const receiptPrintMutation = useMutation({
     mutationFn: async (document: DocumentSummary) => {
       const file = await getDocumentPreview(document.id);
@@ -468,7 +348,7 @@ export default function SalesPage() {
       id: sale.id,
       direction: "sales",
       type: sale.docType ?? "Documento",
-      number: sale.id,
+      number: getSaleDocumentNumber(sale),
       issuedAt: sale.issuedAt,
       total: sale.total,
       status: sale.status,
@@ -485,26 +365,11 @@ export default function SalesPage() {
   };
 
   const handleOpenDocumentsModal = () => {
-    setDocumentsModalOpen(true);
-    setDocumentActionError(null);
+    setSaleDocumentsModalOpen(true);
   };
 
   const handleCloseDocumentsModal = () => {
-    setDocumentsModalOpen(false);
-  };
-
-  const handleClosePreview = () => {
-    setPreviewDocument(null);
-    setPreviewUrl(null);
-  };
-
-  const handleDocumentAction = (document: DocumentSummary, action: DocumentAction) => {
-    if (action === "preview") {
-      setDocumentActionError(null);
-      setPreviewDocument(document);
-      return;
-    }
-    documentActionMutation.mutate({ document, action });
+    setSaleDocumentsModalOpen(false);
   };
 
   const handleSaleCreated = (sale: SaleRes) => {
@@ -534,6 +399,7 @@ export default function SalesPage() {
           customerId: sale.customerId ?? undefined,
           customerName: sale.customerName ?? undefined,
           docType: sale.docType,
+          docNumber: sale.docNumber ?? sale.documentNumber ?? sale.id,
           paymentMethod: sale.paymentMethod,
           status: sale.status,
           net: sale.net,
@@ -559,6 +425,14 @@ export default function SalesPage() {
       header: "Documento",
       accessorKey: "docType",
       cell: (info) => info.getValue<string>() ?? "Factura",
+    },
+    {
+      header: "Número de documento",
+      accessorFn: (row) => getSaleDocumentNumber(row),
+      cell: (info) => {
+        const value = info.getValue<string>() ?? "-";
+        return <span className="mono">{value}</span>;
+      },
     },
     {
       header: "Cliente",
@@ -642,19 +516,6 @@ export default function SalesPage() {
   const salesToday = summaryTodayQuery.data;
   const salesWeek = summaryWeekQuery.data;
   const salesMonth = summaryMonthQuery.data;
-  const documentsData = documentsQuery.data;
-  const salesDocumentsPage = documentsData;
-  const salesDocuments = salesDocumentsPage?.content ?? [];
-  const isDocumentsRefreshing =
-    documentsModalOpen && documentsQuery.isFetching && !documentsQuery.isLoading;
-  const isPreviewLoading = previewQuery.isFetching;
-  const documentsActionsDisabled =
-    documentsQuery.isFetching || documentActionMutation.isPending || isPreviewLoading;
-  const previewFile = previewQuery.data;
-  const previewMimeType = previewFile?.mimeType?.toLowerCase() ?? "";
-  const previewIsPdf = previewMimeType.includes("pdf");
-  const previewLabel = previewDocument ? formatDocumentLabel(previewDocument) : "";
-
   return (
     <div className="page-section">
       <PageHeader
@@ -747,9 +608,8 @@ export default function SalesPage() {
           type="SALE"
           viewAllTo="/app/sales?type=SALE"
           emptyMessage="No hay documentos de ventas."
-          onViewAllClick={(event) => {
+          onViewAllClick={() => {
             handleOpenDocumentsModal();
-            navigate("/app/sales?type=SALE");
           }}
           viewAllRef={documentsTriggerRef}
         />
@@ -796,201 +656,7 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <Modal
-        open={documentsModalOpen}
-        onClose={handleCloseDocumentsModal}
-        title="Documentos"
-        initialFocusRef={documentsCloseButtonRef}
-        className="modal--wide"
-      >
-        {documentsQuery.isLoading && <p>Cargando documentos...</p>}
-        {documentsQuery.isError && (
-          <p className="error">
-            {documentsQuery.error?.message ?? "No se pudieron obtener los documentos."}
-          </p>
-        )}
-        {isDocumentsRefreshing && !documentsQuery.isLoading && !documentsQuery.isError && (
-          <p className="muted" role="status">Actualizando documentos...</p>
-        )}
-        {documentActionError && (
-          <p className="error" role="alert">{documentActionError}</p>
-        )}
-        {!documentsQuery.isLoading && !documentsQuery.isError && (
-          <div className="documents-modal__sections">
-            <section className="documents-modal__section">
-              <h4>Ventas</h4>
-              {salesDocuments.length === 0 ? (
-                <p className="documents-modal__empty">No hay documentos de ventas.</p>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Tipo</th>
-                        <th>Número</th>
-                        <th>Fecha</th>
-                        <th>Total</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {salesDocuments.map((document) => (
-                        <tr key={document.id}>
-                          <td>{document.type}</td>
-                          <td>
-                            <span
-                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--number"
-                              title={document.number ?? "-"}
-                            >
-                              {document.number ?? "-"}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--date"
-                              title={
-                                document.issuedAt
-                                  ? new Date(document.issuedAt).toLocaleDateString()
-                                  : "-"
-                              }
-                            >
-                              {document.issuedAt
-                                ? new Date(document.issuedAt).toLocaleDateString()
-                                : "-"}
-                            </span>
-                          </td>
-                          <td>{formatCurrency(document.total)}</td>
-                          <td>{document.status}</td>
-                          <td>
-                            <div className="table-actions">
-                              <button
-                                className="btn"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "open")}
-                                disabled={documentsActionsDisabled}
-                                ref={
-                                  firstDocument &&
-                                  firstDocument.direction === "sales" &&
-                                  firstDocument.id === document.id
-                                    ? documentsPrimaryActionRef
-                                    : undefined
-                                }
-                                aria-label={`Abrir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Abrir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "preview")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Ver ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Ver
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "print")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Imprimir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Imprimir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "download")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Descargar ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Descargar
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="pagination">
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={(salesDocumentsPage?.number ?? 0) === 0 || documentsActionsDisabled}
-                  onClick={() =>
-                    setDocumentsSalesPage((prev) => Math.max(0, prev - 1))
-                  }
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Página {(salesDocumentsPage?.number ?? 0) + 1} de {salesDocumentsPage?.totalPages ?? 1}
-                </span>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={
-                    documentsActionsDisabled ||
-                    ((salesDocumentsPage?.number ?? 0) + 1 >= (salesDocumentsPage?.totalPages ?? 1))
-                  }
-                  onClick={() => setDocumentsSalesPage((prev) => prev + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </section>
-          </div>
-        )}
-        {previewDocument && (
-          <section className="documents-modal__preview" aria-live="polite">
-            <div className="documents-modal__preview-header">
-              <div>
-                <h4>Vista previa</h4>
-                <p className="documents-modal__preview-meta">{previewLabel}</p>
-              </div>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={handleClosePreview}
-                disabled={isPreviewLoading}
-              >
-                Cerrar vista previa
-              </button>
-            </div>
-            {isPreviewLoading ? (
-              <p>Obteniendo vista previa...</p>
-            ) : previewQuery.isError ? (
-              <p className="error">
-                No se pudo cargar la vista previa: {previewQuery.error?.message ?? "Intenta nuevamente."}
-              </p>
-            ) : previewUrl ? (
-              <iframe
-                key={previewDocument.id}
-                className="documents-modal__preview-frame"
-                src={previewUrl}
-                title={`Vista previa de ${previewLabel}`}
-              />
-            ) : (
-              <p className="documents-modal__empty">
-                Este documento no tiene contenido disponible para previsualizar.
-              </p>
-            )}
-          </section>
-        )}
-        <div className="documents-modal__footer">
-          <button
-            ref={documentsCloseButtonRef}
-            className="btn ghost"
-            type="button"
-            onClick={handleCloseDocumentsModal}
-          >
-            Cerrar
-          </button>
-        </div>
-      </Modal>
+      <SaleDocumentsModal isOpen={saleDocumentsModalOpen} onClose={handleCloseDocumentsModal} />
 
       <SalesCreateDialog
         open={dialogOpen}
