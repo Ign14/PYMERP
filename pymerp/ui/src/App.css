@@ -1715,6 +1715,68 @@ button.card:focus-visible {
   }
 }
 
+.sale-documents-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sale-documents-modal__table .table-wrapper {
+  max-height: clamp(240px, 50vh, 420px);
+  overflow-y: auto;
+}
+
+.sale-documents-modal__grid th,
+.sale-documents-modal__grid td {
+  white-space: nowrap;
+}
+
+.sale-documents-modal__grid td {
+  vertical-align: middle;
+}
+
+.sale-documents-modal__cell {
+  display: inline-flex;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sale-documents-modal__pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sale-documents-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.sale-documents-modal__error {
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sale-documents-modal__status-column {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .sale-documents-modal__status-column {
+    display: table-cell;
+  }
+}
+
 .document-detail {
   display: flex;
   flex-direction: column;

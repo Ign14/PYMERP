@@ -334,6 +334,7 @@ const demoState: DemoState = {
       id: "sal-demo-001",
       customerId: "cus-demo-001",
       customerName: "Cafetería Plaza",
+      docNumber: "F-1200",
       docType: "Factura",
       paymentMethod: "transferencia",
       status: "emitida",
@@ -346,6 +347,7 @@ const demoState: DemoState = {
       id: "sal-demo-002",
       customerId: "cus-demo-004",
       customerName: "Coffeelab Boutique",
+      docNumber: "B-2301",
       docType: "Boleta",
       paymentMethod: "tarjeta",
       status: "emitida",
@@ -358,6 +360,7 @@ const demoState: DemoState = {
       id: "sal-demo-003",
       customerId: "cus-demo-002",
       customerName: "MiniMarket Central",
+      docNumber: "F-4502",
       docType: "Factura",
       paymentMethod: "credito",
       status: "cancelled",
@@ -372,6 +375,7 @@ const demoState: DemoState = {
       id: "sal-demo-001",
       issuedAt: iso(daysAgo(2)),
       docType: "Factura",
+      docNumber: "F-1200",
       paymentMethod: "transferencia",
       status: "emitida",
       customer: { id: "cus-demo-001", name: "Cafetería Plaza" },
@@ -403,6 +407,7 @@ const demoState: DemoState = {
       id: "sal-demo-002",
       issuedAt: iso(daysAgo(4)),
       docType: "Boleta",
+      docNumber: "B-2301",
       paymentMethod: "tarjeta",
       status: "emitida",
       customer: { id: "cus-demo-004", name: "Coffeelab Boutique" },
@@ -433,6 +438,7 @@ const demoState: DemoState = {
       id: "sal-demo-003",
       issuedAt: iso(daysAgo(9)),
       docType: "Factura",
+      docNumber: "F-4502",
       paymentMethod: "credito",
       status: "cancelled",
       customer: { id: "cus-demo-002", name: "MiniMarket Central" },
@@ -1049,10 +1055,13 @@ function fallbackCreateSale(payload: SalePayload): SaleRes {
   const total = payload.items.reduce((acc, item) => acc + item.qty * item.unitPrice - (item.discount ?? 0), 0);
   const vat = Math.round(total * 0.19);
   const net = total - vat;
+  const docPrefix = (payload.docType || "DOC").slice(0, 3).toUpperCase();
+  const docNumber = `${docPrefix}-${id.slice(-4).toUpperCase()}`;
   const summary: SaleSummary = {
     id,
     customerId: payload.customerId,
     customerName: demoState.customers.find((customer) => customer.id === payload.customerId)?.name,
+    docNumber,
     docType: payload.docType,
     paymentMethod: payload.paymentMethod ?? "transferencia",
     status: "emitida",
@@ -1090,6 +1099,7 @@ function fallbackCreateSale(payload: SalePayload): SaleRes {
     issuedAt: summary.issuedAt,
     docType: summary.docType ?? "Factura",
     paymentMethod: summary.paymentMethod ?? "transferencia",
+    docNumber: summary.docNumber,
   };
 }
 
@@ -1105,6 +1115,7 @@ function fallbackUpdateSale(id: string, payload: SaleUpdatePayload): SaleRes {
     demoState.saleDetails[id] = {
       ...detail,
       docType: updated.docType ?? detail.docType,
+      docNumber: updated.docNumber ?? detail.docNumber,
       paymentMethod: updated.paymentMethod ?? detail.paymentMethod,
       status: updated.status ?? detail.status,
       thermalTicket: generateSaleThermalTicket({ ...detail, ...updated }),
@@ -1121,6 +1132,7 @@ function fallbackUpdateSale(id: string, payload: SaleUpdatePayload): SaleRes {
     issuedAt: updated.issuedAt,
     docType: updated.docType ?? "Factura",
     paymentMethod: updated.paymentMethod ?? "transferencia",
+    docNumber: updated.docNumber,
   };
 }
 
@@ -1400,7 +1412,7 @@ function fallbackListDocuments(params: ListDocumentsParams): Page<DocumentSummar
       id: sale.id,
       direction: "sales" as const,
       type: sale.docType ?? "Documento",
-      number: sale.id,
+      number: resolveSaleDocumentNumber(sale),
       issuedAt: sale.issuedAt,
       total: sale.total,
       status: sale.status,
@@ -1421,6 +1433,49 @@ function fallbackListDocuments(params: ListDocumentsParams): Page<DocumentSummar
 
   const source = type === "PURCHASE" ? purchaseDocuments : salesDocuments;
   return paginate(source, page, size);
+}
+
+function resolveSaleDocumentNumber(sale: SaleSummary): string {
+  if (sale.documentNumber && sale.documentNumber.trim()) {
+    return sale.documentNumber;
+  }
+  if (sale.docNumber && sale.docNumber.trim()) {
+    return sale.docNumber;
+  }
+  if (sale.series && (sale.folio ?? "") !== "") {
+    return `${sale.series}-${sale.folio}`;
+  }
+  return sale.id;
+}
+
+function fallbackListSaleDocuments(params: ListSaleDocumentsParams = {}): Page<SaleDocument> {
+  const size = params.size && params.size > 0 ? params.size : 10;
+  const page = params.page ?? 0;
+  const sortParam = params.sort?.toLowerCase() ?? "date,desc";
+
+  const sorted = [...demoState.sales].sort((a, b) => {
+    const left = a.issuedAt ?? "";
+    const right = b.issuedAt ?? "";
+    if (sortParam === "date,asc") {
+      return left.localeCompare(right);
+    }
+    return right.localeCompare(left);
+  });
+
+  const mapped: SaleDocument[] = sorted.map((sale) => ({
+    id: sale.id,
+    documentNumber: resolveSaleDocumentNumber(sale),
+    docNumber: sale.docNumber,
+    series: sale.series,
+    folio: sale.folio,
+    date: sale.issuedAt,
+    customerName: sale.customerName ?? sale.customerId ?? "—",
+    total: sale.total,
+    status: sale.status,
+    docType: sale.docType,
+  }));
+
+  return paginate(mapped, page, size);
 }
 
 function fallbackGetDocumentPreview(id: string): DocumentFile {
@@ -1823,6 +1878,8 @@ export type SaleRes = {
   issuedAt: string;
   docType: string;
   paymentMethod: string;
+  docNumber?: string;
+  documentNumber?: string;
 };
 
 export type SaleSummary = {
@@ -1836,6 +1893,10 @@ export type SaleSummary = {
   vat: number;
   total: number;
   issuedAt: string;
+  docNumber?: string;
+  documentNumber?: string;
+  series?: string;
+  folio?: string | number;
 };
 
 export type SaleDetailLine = {
@@ -1852,6 +1913,10 @@ export type SaleDetail = {
   id: string;
   issuedAt: string;
   docType: string;
+  docNumber?: string;
+  documentNumber?: string;
+  series?: string;
+  folio?: string | number;
   paymentMethod: string;
   status: string;
   customer?: { id: string; name: string } | null;
@@ -1947,6 +2012,25 @@ export type DocumentSummary = {
   issuedAt?: string;
   total: number;
   status: string;
+};
+
+export type SaleDocument = {
+  id: string;
+  documentNumber?: string;
+  docNumber?: string;
+  series?: string;
+  folio?: string | number;
+  date: string;
+  customerName: string;
+  total: number;
+  status?: string;
+  docType?: string;
+};
+
+export type ListSaleDocumentsParams = {
+  page?: number;
+  size?: number;
+  sort?: string;
 };
 
 export type PurchaseItemPayload = {
@@ -2589,6 +2673,28 @@ export function getFrequentProducts(customerId: string): Promise<FrequentProduct
       return data;
     },
     () => fallbackGetFrequentProducts(customerId, 20),
+  );
+}
+
+export function listSaleDocuments(
+  params: ListSaleDocumentsParams = {},
+): Promise<Page<SaleDocument>> {
+  const { page = 0, size = 10, sort = "date,DESC" } = params;
+
+  return withOfflineFallback(
+    "listSaleDocuments",
+    async () => {
+      const { data } = await api.get<Page<SaleDocument>>("/v1/documents", {
+        params: {
+          type: "SALE",
+          page,
+          size,
+          sort,
+        },
+      });
+      return data;
+    },
+    () => fallbackListSaleDocuments({ page, size, sort }),
   );
 }
 
