@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelSale,
@@ -181,7 +180,6 @@ async function openFileInPrintWindow(file: DocumentFile, title: string) {
 
 export default function SalesPage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("emitida");
@@ -610,9 +608,8 @@ export default function SalesPage() {
           type="SALE"
           viewAllTo="/app/sales?type=SALE"
           emptyMessage="No hay documentos de ventas."
-          onViewAllClick={(event) => {
+          onViewAllClick={() => {
             handleOpenDocumentsModal();
-            navigate("/app/sales?type=SALE");
           }}
           viewAllRef={documentsTriggerRef}
         />
