@@ -11,6 +11,7 @@ import {
 } from "../services/client";
 import PageHeader from "../components/layout/PageHeader";
 import PurchaseCreateDialog from "../components/dialogs/PurchaseCreateDialog";
+import DocumentsSummaryCard from "../components/documents/DocumentsSummaryCard";
 import {
   ColumnDef,
   flexRender,
@@ -228,6 +229,13 @@ export default function PurchasesPage() {
           <span className="stat-trend">Ultimas 2 semanas</span>
         </div>
       </section>
+
+      <DocumentsSummaryCard
+        title="Órdenes de compra"
+        type="PURCHASE"
+        viewAllTo="/app/purchases?type=PURCHASE"
+        emptyMessage="No hay órdenes de compra."
+      />
 
       <div className="card">
         <h3>Tendencia de compras</h3>

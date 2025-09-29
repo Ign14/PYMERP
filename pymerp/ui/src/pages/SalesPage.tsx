@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelSale,
@@ -11,10 +12,7 @@ import {
   SaleUpdatePayload,
   SalesPeriodSummary,
   getSalesSummaryByPeriod,
-  getSalesWindowMetrics,
-  listDocumentsGrouped,
   DocumentSummary,
-  DocumentsGroupedResponse,
   DocumentFile,
   downloadDocument,
   getDocumentDetailUrl,
@@ -28,6 +26,8 @@ import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../constants/sales";
 import SalesDashboardOverview from "../components/sales/SalesDashboardOverview";
+import DocumentsSummaryCard from "../components/documents/DocumentsSummaryCard";
+import { useDocuments } from "../hooks/useDocuments";
 
 const PAGE_SIZE = 10;
 const DOCUMENTS_PAGE_SIZE = 6;
@@ -172,6 +172,7 @@ type DocumentAction = "open" | "preview" | "print" | "download";
 
 export default function SalesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("emitida");
@@ -182,13 +183,12 @@ export default function SalesPage() {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [documentsSalesPage, setDocumentsSalesPage] = useState(0);
-  const [documentsPurchasesPage, setDocumentsPurchasesPage] = useState(0);
   const [previewDocument, setPreviewDocument] = useState<DocumentSummary | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [documentActionError, setDocumentActionError] = useState<string | null>(null);
   const documentsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentsPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
-  const documentsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const documentsTriggerRef = useRef<HTMLAnchorElement | null>(null);
   const receiptPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
   const receiptCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -201,7 +201,6 @@ export default function SalesPage() {
   useEffect(() => {
     if (documentsModalOpen) {
       setDocumentsSalesPage(0);
-      setDocumentsPurchasesPage(0);
       return;
     }
     setPreviewDocument(null);
@@ -233,11 +232,6 @@ export default function SalesPage() {
     placeholderData: keepPreviousData,
   });
 
-  const windowMetricsQuery = useQuery({
-    queryKey: ["sales", "metrics", "window", TREND_DEFAULT_DAYS],
-    queryFn: () => getSalesWindowMetrics(`${TREND_DEFAULT_DAYS}d`),
-  });
-
   const summaryTodayQuery = useQuery<SalesPeriodSummary, Error>({
     queryKey: ["sales", "metrics", "summary", "today"],
     queryFn: () => getSalesSummaryByPeriod("today"),
@@ -253,22 +247,11 @@ export default function SalesPage() {
     queryFn: () => getSalesSummaryByPeriod("month"),
   });
 
-  const documentsQuery = useQuery<DocumentsGroupedResponse, Error>({
-    queryKey: [
-      "documents",
-      "grouped",
-      documentsSalesPage,
-      documentsPurchasesPage,
-      DOCUMENTS_PAGE_SIZE,
-    ],
-    queryFn: () =>
-      listDocumentsGrouped({
-        salesPage: documentsSalesPage,
-        purchasesPage: documentsPurchasesPage,
-        size: DOCUMENTS_PAGE_SIZE,
-      }),
+  const documentsQuery = useDocuments("SALE", {
+    page: documentsSalesPage,
+    size: DOCUMENTS_PAGE_SIZE,
     enabled: documentsModalOpen,
-    placeholderData: keepPreviousData,
+    keepPrevious: true,
   });
 
   const previewQuery = useQuery<DocumentFile, Error>({
@@ -307,13 +290,9 @@ export default function SalesPage() {
     if (!documentsQuery.data) {
       return null;
     }
-    const salesDocs = documentsQuery.data.sales?.content ?? [];
+    const salesDocs = documentsQuery.data.content ?? [];
     if (salesDocs.length > 0) {
       return { id: salesDocs[0].id, direction: "sales" as const };
-    }
-    const purchaseDocs = documentsQuery.data.purchases?.content ?? [];
-    if (purchaseDocs.length > 0) {
-      return { id: purchaseDocs[0].id, direction: "purchases" as const };
     }
     return null;
   }, [documentsQuery.data]);
@@ -660,15 +639,12 @@ export default function SalesPage() {
     },
   });
 
-  const windowMetrics = windowMetricsQuery.data;
   const salesToday = summaryTodayQuery.data;
   const salesWeek = summaryWeekQuery.data;
   const salesMonth = summaryMonthQuery.data;
   const documentsData = documentsQuery.data;
-  const salesDocumentsPage = documentsData?.sales;
-  const purchaseDocumentsPage = documentsData?.purchases;
+  const salesDocumentsPage = documentsData;
   const salesDocuments = salesDocumentsPage?.content ?? [];
-  const purchaseDocuments = purchaseDocumentsPage?.content ?? [];
   const isDocumentsRefreshing =
     documentsModalOpen && documentsQuery.isFetching && !documentsQuery.isLoading;
   const isPreviewLoading = previewQuery.isFetching;
@@ -766,36 +742,17 @@ export default function SalesPage() {
               : `${formatNumber(salesMonth?.count)} documentos`}
           </span>
         </div>
-        <button
-          type="button"
-          className="card stat"
-          onClick={handleOpenDocumentsModal}
-          disabled={documentsActionsDisabled || documentsModalOpen}
-          aria-label="Ver documentos agrupados por compras y ventas"
-          ref={documentsTriggerRef}
-        >
-          <h3>Número de documentos</h3>
-          <p className="stat-value">
-            {windowMetricsQuery.isLoading
-              ? "Cargando..."
-              : windowMetricsQuery.isError
-              ? "—"
-              : formatNumber(windowMetrics?.documentCount)}
-          </p>
-          <span className="stat-trend">
-            {windowMetricsQuery.isError
-              ? "No se pudo calcular el total."
-              : documentsQuery.isError
-              ? "No se pudo cargar el listado."
-              : isDocumentsRefreshing
-              ? "Cargando documentos..."
-              : documentActionMutation.isPending
-              ? "Ejecutando acción..."
-              : isPreviewLoading
-              ? "Cargando vista previa..."
-              : "Compras y ventas recientes"}
-          </span>
-        </button>
+        <DocumentsSummaryCard
+          title="Número de documentos"
+          type="SALE"
+          viewAllTo="/app/sales?type=SALE"
+          emptyMessage="No hay documentos de ventas."
+          onViewAllClick={(event) => {
+            handleOpenDocumentsModal();
+            navigate("/app/sales?type=SALE");
+          }}
+          viewAllRef={documentsTriggerRef}
+        />
       </section>
 
       <div className="card table-card">
@@ -980,131 +937,6 @@ export default function SalesPage() {
                     ((salesDocumentsPage?.number ?? 0) + 1 >= (salesDocumentsPage?.totalPages ?? 1))
                   }
                   onClick={() => setDocumentsSalesPage((prev) => prev + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </section>
-            <section className="documents-modal__section">
-              <h4>Compras</h4>
-              {purchaseDocuments.length === 0 ? (
-                <p className="documents-modal__empty">No hay documentos de compras.</p>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Tipo</th>
-                        <th>Número</th>
-                        <th>Fecha</th>
-                        <th>Total</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {purchaseDocuments.map((document) => (
-                        <tr key={document.id}>
-                          <td>{document.type}</td>
-                          <td>
-                            <span
-                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--number"
-                              title={document.number ?? "-"}
-                            >
-                              {document.number ?? "-"}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              className="documents-modal__cell documents-modal__cell--nowrap documents-modal__cell--date"
-                              title={
-                                document.issuedAt
-                                  ? new Date(document.issuedAt).toLocaleDateString()
-                                  : "-"
-                              }
-                            >
-                              {document.issuedAt
-                                ? new Date(document.issuedAt).toLocaleDateString()
-                                : "-"}
-                            </span>
-                          </td>
-                          <td>{formatCurrency(document.total)}</td>
-                          <td>{document.status}</td>
-                          <td>
-                            <div className="table-actions">
-                              <button
-                                className="btn"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "open")}
-                                disabled={documentsActionsDisabled}
-                                ref={
-                                  firstDocument &&
-                                  firstDocument.direction === "purchases" &&
-                                  firstDocument.id === document.id
-                                    ? documentsPrimaryActionRef
-                                    : undefined
-                                }
-                                aria-label={`Abrir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Abrir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "preview")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Ver ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Ver
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "print")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Imprimir ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Imprimir
-                              </button>
-                              <button
-                                className="btn ghost"
-                                type="button"
-                                onClick={() => handleDocumentAction(document, "download")}
-                                disabled={documentsActionsDisabled}
-                                aria-label={`Descargar ${document.type} ${document.number ?? document.id}`}
-                              >
-                                Descargar
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="pagination">
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={(purchaseDocumentsPage?.number ?? 0) === 0 || documentsActionsDisabled}
-                  onClick={() =>
-                    setDocumentsPurchasesPage((prev) => Math.max(0, prev - 1))
-                  }
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Página {(purchaseDocumentsPage?.number ?? 0) + 1} de {purchaseDocumentsPage?.totalPages ?? 1}
-                </span>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={
-                    documentsActionsDisabled ||
-                    ((purchaseDocumentsPage?.number ?? 0) + 1 >= (purchaseDocumentsPage?.totalPages ?? 1))
-                  }
-                  onClick={() => setDocumentsPurchasesPage((prev) => prev + 1)}
                 >
                   Siguiente
                 </button>

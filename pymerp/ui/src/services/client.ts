@@ -1390,10 +1390,11 @@ function fallbackGetFrequentProducts(customerId: string, limit = 20): FrequentPr
     }));
 }
 
-function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): DocumentsGroupedResponse {
+function fallbackListDocuments(params: ListDocumentsParams): Page<DocumentSummary> {
   const size = params.size && params.size > 0 ? params.size : 10;
-  const salesPage = params.salesPage ?? 0;
-  const purchasesPage = params.purchasesPage ?? 0;
+  const page = params.page ?? 0;
+  const type = params.type;
+
   const salesDocuments = [...demoState.sales]
     .map((sale) => ({
       id: sale.id,
@@ -1405,6 +1406,7 @@ function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): Documen
       status: sale.status,
     }))
     .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
+
   const purchaseDocuments = [...demoState.purchases]
     .map((purchase) => ({
       id: purchase.id,
@@ -1416,10 +1418,9 @@ function fallbackListDocumentsGrouped(params: ListDocumentsParams = {}): Documen
       status: purchase.status,
     }))
     .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
-  return {
-    sales: paginate(salesDocuments, salesPage, size),
-    purchases: paginate(purchaseDocuments, purchasesPage, size),
-  };
+
+  const source = type === "PURCHASE" ? purchaseDocuments : salesDocuments;
+  return paginate(source, page, size);
 }
 
 function fallbackGetDocumentPreview(id: string): DocumentFile {
@@ -1930,10 +1931,12 @@ export type FrequentProduct = {
   lastQty?: number;
 };
 
+export type DocumentType = "SALE" | "PURCHASE";
+
 export type ListDocumentsParams = {
-  salesPage?: number;
-  purchasesPage?: number;
+  page?: number;
   size?: number;
+  type: DocumentType;
 };
 
 export type DocumentSummary = {
@@ -1944,11 +1947,6 @@ export type DocumentSummary = {
   issuedAt?: string;
   total: number;
   status: string;
-};
-
-export type DocumentsGroupedResponse = {
-  sales: Page<DocumentSummary>;
-  purchases: Page<DocumentSummary>;
 };
 
 export type PurchaseItemPayload = {
@@ -2594,21 +2592,22 @@ export function getFrequentProducts(customerId: string): Promise<FrequentProduct
   );
 }
 
-export function listDocumentsGrouped(params: ListDocumentsParams = {}): Promise<DocumentsGroupedResponse> {
+export function listDocuments(params: ListDocumentsParams): Promise<Page<DocumentSummary>> {
+  const { type, page, size } = params;
+
   return withOfflineFallback(
-    "listDocumentsGrouped",
+    `listDocuments-${type}`,
     async () => {
-      const { data } = await api.get<DocumentsGroupedResponse>("/v1/documents", {
+      const { data } = await api.get<Page<DocumentSummary>>("/v1/documents", {
         params: {
-          groupBy: "type",
-          salesPage: params.salesPage,
-          purchasesPage: params.purchasesPage,
-          size: params.size,
+          type,
+          page,
+          size,
         },
       });
       return data;
     },
-    () => fallbackListDocumentsGrouped(params),
+    () => fallbackListDocuments(params),
   );
 }
 
