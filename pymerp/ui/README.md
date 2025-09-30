@@ -42,6 +42,7 @@ El panel de ventas ahora consume los nuevos reportes del backend (`/api/v1/repor
 
 - El formato de moneda usa CLP por defecto. Si el tenant expone otra moneda, ajusta el `createCurrencyFormatter` en `src/utils/currency.ts`.
 - El backend excluye automáticamente ventas con estado `cancelled` y completa los días sin datos con cero.
+- La tarjeta "Número de documentos" ya no muestra una previsualización; al hacer clic abre el modal que carga la lista completa de documentos de venta.
 
 ## Registrar venta: productos frecuentes del cliente
 
