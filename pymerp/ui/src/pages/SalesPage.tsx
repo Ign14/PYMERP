@@ -25,7 +25,6 @@ import useDebouncedValue from "../hooks/useDebouncedValue";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../constants/sales";
 import SalesDashboardOverview from "../components/sales/SalesDashboardOverview";
 import SaleDocumentsModal from "../components/sales/SaleDocumentsModal";
-import DocumentsSummaryCard from "../components/documents/DocumentsSummaryCard";
 
 const PAGE_SIZE = 10;
 const TREND_DEFAULT_DAYS = 14;
@@ -189,7 +188,7 @@ export default function SalesPage() {
   const [receiptDocument, setReceiptDocument] = useState<DocumentSummary | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [saleDocumentsModalOpen, setSaleDocumentsModalOpen] = useState(false);
-  const documentsTriggerRef = useRef<HTMLAnchorElement | null>(null);
+  const documentsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const receiptPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
   const receiptCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -603,16 +602,33 @@ export default function SalesPage() {
               : `${formatNumber(salesMonth?.count)} documentos`}
           </span>
         </div>
-        <DocumentsSummaryCard
-          title="Número de documentos"
-          type="SALE"
-          viewAllTo="/app/sales?type=SALE"
-          emptyMessage="No hay documentos de ventas."
-          onViewAllClick={() => {
-            handleOpenDocumentsModal();
-          }}
-          viewAllRef={documentsTriggerRef}
-        />
+        <button
+          type="button"
+          className="card documents-card documents-card--action"
+          onClick={handleOpenDocumentsModal}
+          ref={documentsTriggerRef}
+          aria-describedby="sales-documents-card-description"
+        >
+          <header className="documents-card__header">
+            <div>
+              <h3>Número de documentos</h3>
+              <p className="documents-card__total">
+                {salesQuery.isLoading
+                  ? "Cargando..."
+                  : salesQuery.isError
+                  ? "—"
+                  : (salesQuery.data?.totalElements ?? 0).toLocaleString("es-CL")}
+              </p>
+              <span className="muted small">
+                {salesQuery.isError ? "No se pudo obtener el total actual." : "Total documentos"}
+              </span>
+            </div>
+          </header>
+          <span className="documents-card__action-hint">Ver documentos</span>
+          <span id="sales-documents-card-description" className="muted small">
+            Abre la lista completa en una ventana emergente.
+          </span>
+        </button>
       </section>
 
       <div className="card table-card">
