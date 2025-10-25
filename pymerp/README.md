@@ -16,6 +16,7 @@
 - Auto-refresh de tokens (JWT + refresh) y persistencia en localStorage.
 
 ## Pasos rapidos
+
 1. Levanta todo el stack (backend, frontend y dependencias) con `docker compose up --build`.
    - Backend expone `http://localhost:8081` con perfil `dev` conectado a Postgres y Redis del compose.
    - Frontend corre Vite en `http://localhost:5173` apuntando al backend interno (`http://backend:8081/api`).
