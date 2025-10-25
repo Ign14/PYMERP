@@ -1,19 +1,43 @@
 # Sistema de Gestion PyMEs - Monorepo
 
-- `backend/`: Spring Boot (Java 21, Gradle)
-- `ui/`: Vite + React 18 + TypeScript
-- `docs/windows-desktop.md`: empaquetado Tauri/Electron para Windows
-- `docker-compose.yml`: Servicios locales (Postgres, Redis, MinIO, Mailhog)
+## Estructura general del repositorio
+
+| Directorio / archivo | Descripción |
+| --- | --- |
+| `backend/` | API REST multitenant construida con Spring Boot 3 (Java 21) y Gradle; incluye migraciones Flyway, autenticación JWT/OIDC opcional, capas de dominio (ventas, compras, inventario, pricing, clientes, proveedores) y servicios de almacenamiento local/S3. |
+| `ui/` | Frontend web en Vite + React 18 + TypeScript. Usa React Query, React Router, contexto de autenticación con refresco automático de tokens y un modo offline demo para datos críticos. |
+| `app_flutter/` | Cliente Flutter orientado a escenarios móviles/offline con autenticación JWT, paginación infinita de clientes y formularios con geolocalización opcional. |
+| `desktop/` | Paquete Tauri que permite distribuir la UI web como aplicación de escritorio; guía en `docs/windows-desktop.md`. |
+| `docs/` | Documentación auxiliar (por ejemplo, empaquetado desktop en Windows). |
+| `scripts/`, `package.json` | Scripts Node para orquestar tareas comunes del workspace (ejecutar UI, lint, helpers). |
+| `docker-compose.yml` | Orquestación local con Postgres 16, Redis 7, backend, frontend, MinIO y Mailhog. |
+
+## Funcionalidades principales
+
+### Backend (Spring Boot)
+- Autenticación con JWT propios (refresh tokens) y opción OIDC mediante `OidcRoleMapper` para mapear roles/alcances.
+- Multitenencia via header `X-Company-Id`, filtros y contexto `ThreadLocal` para aislar datos por compañía.
+- Dominios cubiertos: compañías, productos, pricing, inventario con lotes FIFO, ventas, compras, clientes, proveedores y solicitudes de cuenta con captcha.
+- Integraciones: almacenamiento local/S3, generación de códigos QR, Actuator/metrics y semillas de datos demo.
+
+### Frontend web (React)
+- Shell protegido con sidebar/topbar, navegación modular (dashboard, ventas, compras, inventario, clientes, proveedores, finanzas, reportes, configuración).
+- Persistencia de sesión en `localStorage`, refresco automático de tokens y controles de acceso por módulos.
+- Formularios y tablas reactivas con React Query; landing unifica login + solicitud de cuenta con captcha y validación de RUT.
+- Modo offline simulado para compañías, inventario y métricas diarias cuando no hay red.
+
+### Cliente Flutter
+- Consume endpoints `/api/v1/customers` con paginación, búsqueda y formularios que capturan ubicación actual.
+- Reutiliza encabezados `Authorization` y `X-Company-Id`; pruebas de serialización/widgets y comandos `make run-web`/`make test`.
+
+### Paquete Desktop (Tauri)
+- Empaqueta la UI de `ui/` como ejecutable Windows (`.msi`) siguiendo los pasos de `docs/windows-desktop.md`.
+- Ideal para despliegues internos sin navegador dedicado.
 
 ## Perfiles recomendados
 - Backend `dev`: puerto 8081, autenticacion JWT (`admin@dev.local` / `Admin1234`), compañia por defecto `00000000-0000-0000-0000-000000000001`.
 - Base de datos de desarrollo incluye semilla con proveedores, clientes, productos, compras, ventas, planillas y reportes para el tenant demo.
 - Frontend `development`: Vite proxy hacia `/api`; iniciar sesion en `/login` con las credenciales anteriores.
-
-## UI Principal
-- Layout responsive con sidebar, topbar y páginas: Panel, Ventas, Compras, Inventario, Clientes, Proveedores, Finanzas, Reportes, Configuración.
-- Dashboards con KPI, tablas reactivas (`react-query`) y componentes reutilizables (`card`, `table`, `status`).
-- Auto-refresh de tokens (JWT + refresh) y persistencia en localStorage.
 
 ## Pasos rapidos
 
@@ -24,7 +48,7 @@
    - Backend: `cd backend && ./gradlew bootRun --args='--spring.profiles.active=dev'`. Si el puerto 8081 está ocupado, el backend
      buscará automáticamente un puerto libre e informará el valor en la consola.
    - Frontend: `npm install` (desde la raíz instala dependencias del workspace) y luego `npm run dev`.
-4. Build desktop (ver `docs/windows-desktop.md`): empaquetar UI con Tauri para generar instalador `.msi`.
+4. Build desktop (ver `docs/windows-desktop.md`): empaquetar UI con Tauri para generar instalador `.msi` listo para distribución interna.
 
 ## Scripts
 - Backend pruebas: `cd backend && ./gradlew test`
