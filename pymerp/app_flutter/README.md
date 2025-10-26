@@ -40,6 +40,14 @@ make test
 `
 Incluye pruebas de serialización y controladores de paginación; se añadió un widget test para validar la forma de clientes.
 
+### Generación de modelos
+
+Ejecuta el generador cuando modifiques clases Freezed/JSON serializable:
+
+```bash
+flutter pub run build_runner build --delete-conflicting-outputs
+```
+
 ### Notas
 
 * Para geolocalización en Web/Android/Windows se solicita permiso en tiempo de ejecución; si se deniega, se informa mediante SnackBar.

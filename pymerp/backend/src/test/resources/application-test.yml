@@ -17,6 +17,13 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
+billing:
+  crypto:
+    secret: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=
+  webhook:
+    secret: test-secret
+    tolerance: PT5M
+
 app:
   tenancy:
     default-company-id: 00000000-0000-0000-0000-000000000001

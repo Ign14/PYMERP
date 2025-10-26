@@ -56,7 +56,7 @@ public class SecurityConfig {
     if (oidcEnabled) {
       // resource server mode (Keycloak/Auth0) - use standard JWT converter for roles claim 'roles'
       http.authorizeHttpRequests(auth -> auth
-          .requestMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/requests/**").permitAll()
+          .requestMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
           .anyRequest().authenticated()
         )
@@ -64,7 +64,7 @@ public class SecurityConfig {
     } else {
       // default: internal JWT filter + DAO auth provider
       http.authorizeHttpRequests(auth -> auth
-          .requestMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/requests/**").permitAll()
+          .requestMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
           .anyRequest().authenticated()
         )

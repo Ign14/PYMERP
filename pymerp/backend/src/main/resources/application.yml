@@ -33,6 +33,26 @@ spring:
           starttls.enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
     default-encoding: UTF-8
 
+billing:
+  crypto:
+    secret: ${BILLING_CRYPTO_SECRET:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
+  webhook:
+    secret: ${BILLING_WEBHOOK_SECRET:change-me}
+    tolerance: PT5M
+  offline:
+    enabled: true
+    legend: "Emitido en contingencia; sujeto a validación"
+    retry:
+      maxAttempts: 5
+      backoffMs: 60000
+  pdf:
+    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8080/api/v1}
+    branding:
+      primary-color: "#1f2937"
+      accent-color: "#2563eb"
+      text-color: "#111827"
+      table-header-color: "#e5e7eb"
+
 management:
   endpoints:
     web:
@@ -62,3 +82,14 @@ app:
       enabled: true
       min-operand: 2
       max-operand: 10
+
+storage:
+  s3:
+    bucket: ${STORAGE_S3_BUCKET:change-me-bucket}
+    access-key: ${STORAGE_S3_ACCESS_KEY:CHANGEMEACCESS}
+    secret-key: ${STORAGE_S3_SECRET_KEY:CHANGEMESECRET}
+    region: ${STORAGE_S3_REGION:us-east-1}
+
+webhooks:
+  hmac:
+    secret: ${WEBHOOKS_HMAC_SECRET:CHANGE_ME_HMAC_SECRET}

@@ -1,0 +1,26 @@
+{
+  "documentType": "FACTURA",
+  "taxMode": "AFECTA",
+  "sale": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "items": [
+      {
+        "productId": "22222222-2222-2222-2222-222222222222",
+        "description": "Servicio en linea",
+        "quantity": "1",
+        "unitPrice": "150.00",
+        "discount": "0"
+      }
+    ],
+    "net": "126.05",
+    "vat": "23.95",
+    "total": "150.00",
+    "customerName": "Globex",
+    "customerTaxId": "GLOBEX123",
+    "pointOfSale": "POS-ONLINE",
+    "deviceId": "DEVICE-ONLINE"
+  },
+  "idempotencyKey": "fixture-online-001",
+  "forceOffline": false,
+  "connectivityHint": "GOOD"
+}

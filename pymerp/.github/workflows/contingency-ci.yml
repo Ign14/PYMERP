@@ -1,0 +1,74 @@
+name: Contingency CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+      - name: Run backend test suite
+        run: ./gradlew test
+      - name: Upload contingency assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: contingency-assets
+          path: |
+            backend/src/main/resources/templates/billing/*.html
+            backend/src/main/resources/db/migration/*.sql
+
+  contingency-sync-job:
+    name: Contingency Sync Job Check
+    runs-on: ubuntu-latest
+    needs: backend-tests
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+      - name: Execute ContingencySyncJob focused tests
+        env:
+          SPRING_PROFILES_ACTIVE: test-scheduler
+        run: ./gradlew test --tests "com.datakomerz.pymes.billing.job.ContingencySyncJobTest"
+
+  flutter-tests:
+    name: Flutter Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install Flutter dependencies
+        run: flutter pub get
+        working-directory: app_flutter
+      - name: Run Flutter tests
+        run: flutter test
+        working-directory: app_flutter

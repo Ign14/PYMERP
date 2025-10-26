@@ -8,10 +8,10 @@ class ApiClient {
     required String baseUrl,
     required AuthHeadersProvider headersProvider,
     required AuthRepository authRepository,
-    Dio? dio,
+    Dio? dioClient,
   })  : _headersProvider = headersProvider,
         _authRepository = authRepository,
-        dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
+        dio = dioClient ?? Dio(BaseOptions(baseUrl: baseUrl)) {
     dio.interceptors.add(QueuedInterceptorsWrapper(
       onRequest: (options, handler) async {
         final headers = await _headersProvider();

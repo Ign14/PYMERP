@@ -22,11 +22,31 @@ spring:
   mail:
     host: localhost
     port: 1025
+
+billing:
+  crypto:
+    secret: ${BILLING_CRYPTO_SECRET:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:8082/realms/pymerp
+  webhook:
+    secret: ${BILLING_WEBHOOK_SECRET:dev-webhook-secret}
+    tolerance: PT5M
+  offline:
+    enabled: true
+    legend: "Emitido en contingencia; sujeto a validación"
+    retry:
+      maxAttempts: 5
+      backoffMs: 15000
+  pdf:
+    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8080/api/v1}
+    branding:
+      primary-color: "#1f2937"
+      accent-color: "#2563eb"
+      text-color: "#111827"
+      table-header-color: "#e5e7eb"
 
 management:
   endpoints:
@@ -45,3 +65,14 @@ app:
       enabled: true
       min-operand: 2
       max-operand: 10
+
+storage:
+  s3:
+    bucket: ${STORAGE_S3_BUCKET:dev-change-me-bucket}
+    access-key: ${STORAGE_S3_ACCESS_KEY:DEVACCESSKEY}
+    secret-key: ${STORAGE_S3_SECRET_KEY:DEVSECRETKEY}
+    region: ${STORAGE_S3_REGION:us-east-1}
+
+webhooks:
+  hmac:
+    secret: ${WEBHOOKS_HMAC_SECRET:DEV_CHANGE_ME_HMAC_SECRET}

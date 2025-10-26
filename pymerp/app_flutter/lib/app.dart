@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'modules/auth/presentation/login_page.dart';
 import 'modules/customers/presentation/customers_page.dart';
+import 'modules/billing/presentation/registrar_venta_page.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -16,6 +17,7 @@ class App extends ConsumerWidget {
       routes: {
         '/login': (context) => const LoginPage(),
         '/customers': (context) => const CustomersPage(),
+        '/ventas/registrar': (context) => const RegistrarVentaPage(),
       },
     );
   }

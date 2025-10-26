@@ -1,0 +1,12 @@
+{
+  "documentId": "00000000-0000-0000-0000-000000000000",
+  "status": "ACCEPTED",
+  "provider": "demo-provider",
+  "trackId": "track-accepted",
+  "externalId": "provider-accepted",
+  "number": "F001-000123",
+  "links": {
+    "pdf": "https://provider.example/files/invoice-000123.pdf",
+    "xml": "https://provider.example/files/invoice-000123.xml"
+  }
+}

@@ -296,6 +296,8 @@ const demoState: DemoState = {
       phone: "+56 2 2345 6677",
       email: "contacto@cafeteriaplaza.cl",
       segment: "HORECA",
+      document: "76.123.456-0",
+      commune: "Providencia",
     },
     {
       id: "cus-demo-002",
@@ -304,6 +306,8 @@ const demoState: DemoState = {
       phone: "+56 45 212 3344",
       email: "compras@mmcentral.cl",
       segment: "Retail",
+      document: "77.987.654-3",
+      commune: "Temuco",
     },
     {
       id: "cus-demo-003",
@@ -312,6 +316,8 @@ const demoState: DemoState = {
       phone: "+56 41 276 0011",
       email: "abastecimiento@corsur.cl",
       segment: "Empresas",
+      document: "59.456.789-1",
+      commune: "Concepción",
     },
     {
       id: "cus-demo-004",
@@ -320,6 +326,8 @@ const demoState: DemoState = {
       phone: "+56 55 284 9988",
       email: "ventas@coffeelab.cl",
       segment: "HORECA",
+      document: "65.432.109-4",
+      commune: "Antofagasta",
     },
     {
       id: "cus-demo-005",
@@ -327,6 +335,8 @@ const demoState: DemoState = {
       address: "Av. Italia 987, Santiago",
       phone: "+56 2 2567 7789",
       email: "hola@vecinosgourmet.cl",
+      document: "79.321.654-2",
+      commune: "Providencia",
     },
   ],
   sales: [
@@ -941,7 +951,14 @@ function fallbackListCustomers(params: ListCustomersParams = {}): Page<Customer>
     if (!query) {
       return true;
     }
-    return [customer.name, customer.email, customer.phone, customer.address].some((value) => matchesQuery(value, query));
+    return [
+      customer.name,
+      customer.email,
+      customer.phone,
+      customer.address,
+      customer.document,
+      customer.commune,
+    ].some((value) => matchesQuery(value, query));
   });
   return paginate(filtered, params.page ?? 0, params.size ?? 20);
 }
@@ -956,6 +973,8 @@ function fallbackCreateCustomer(payload: CustomerPayload): Customer {
     phone: payload.phone,
     email: payload.email,
     segment: payload.segment,
+    document: payload.document ?? null,
+    commune: payload.commune ?? null,
   };
   demoState.customers = [customer, ...demoState.customers];
   return customer;
@@ -1747,6 +1766,8 @@ export type Customer = {
   phone?: string;
   email?: string;
   segment?: string;
+  document?: string | null;
+  commune?: string | null;
 };
 
 export type CompanyPayload = {
@@ -1780,6 +1801,8 @@ export type CustomerPayload = {
   phone?: string;
   email?: string;
   segment?: string;
+  document?: string | null;
+  commune?: string | null;
 };
 
 export const UNASSIGNED_SEGMENT_CODE = "__UNASSIGNED__";

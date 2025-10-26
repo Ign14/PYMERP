@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>${documentTitle}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: ${textColor};
+      margin: 0;
+      padding: 28px;
+      background: #ffffff;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    h1, h2 {
+      margin: 0;
+      color: ${primaryColor};
+      font-weight: 600;
+    }
+    h1 { font-size: 22px; }
+    h2 {
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 3px solid ${primaryColor};
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+    }
+    .logo img { max-height: 68px; }
+    .logo-placeholder {
+      width: 72px;
+      height: 72px;
+      border-radius: 12px;
+      border: 2px solid ${primaryColor};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 18px;
+      color: ${primaryColor};
+    }
+    .document-meta { text-align: right; }
+    .document-meta p { margin: 3px 0; }
+    .document-meta .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: ${accentColor};
+      color: #ffffff;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .grid { display: flex; gap: 16px; }
+    .grid .panel {
+      flex: 1;
+      border: 1px solid #d4d8dd;
+      border-radius: 10px;
+      padding: 14px 18px;
+      background: #f9fafb;
+    }
+    .panel p { margin: 4px 0; }
+    .panel strong { color: ${primaryColor}; }
+    .summary {
+      margin-top: 16px;
+      border: 1px dashed ${primaryColor};
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: #f5f6f8;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 20px;
+    }
+    .summary span {
+      display: block;
+      font-size: 12px;
+      color: #5b6470;
+    }
+    .items table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+    }
+    .items thead th {
+      background: ${tableHeaderColor};
+      color: ${primaryColor};
+      padding: 10px 12px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 2px solid ${primaryColor};
+    }
+    .items tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+    .items tbody tr:nth-child(even) td { background: #fbfcfd; }
+    .items tbody tr:last-child td { border-bottom: none; }
+    .items td.idx {
+      width: 36px;
+      text-align: center;
+      color: ${primaryColor};
+      font-weight: 600;
+    }
+    .items td.qty,
+    .items td.price,
+    .items td.discount,
+    .items td.total {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .items td.total {
+      color: ${primaryColor};
+      font-weight: 600;
+    }
+    .items tbody tr.items-empty td {
+      text-align: center;
+      color: #7b8491;
+      font-style: italic;
+    }
+    .totals {
+      margin-top: 16px;
+      margin-left: auto;
+      width: 300px;
+      border-radius: 10px;
+      background: #f1f3f6;
+      padding: 14px 18px;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .totals-row.total {
+      font-size: 15px;
+      font-weight: 700;
+      color: ${primaryColor};
+    }
+    .legend {
+      margin-top: 18px;
+      padding: 12px 16px;
+      border-left: 4px solid ${accentColor};
+      background: #eef2ff;
+      color: ${primaryColor};
+      font-size: 12px;
+    }
+    .legend:empty { display: none; }
+    .note {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-left: 4px solid #d4d8dd;
+      background: #f8fafc;
+      font-size: 12px;
+      color: #59606a;
+    }
+    .footer {
+      margin-top: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 1px solid #d4d8dd;
+      padding-top: 12px;
+    }
+    .qr { text-align: center; }
+    .qr img { width: 120px; height: 120px; }
+    .qr small {
+      display: block;
+      margin-top: 6px;
+      color: #59606a;
+      font-size: 11px;
+    }
+    .footer-note {
+      max-width: 340px;
+      font-size: 11px;
+      color: #6c7480;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">${logoHtml}</div>
+    <div class="document-meta">
+      <span class="badge">No fiscal</span>
+      <h1>${documentTitle}</h1>
+      <p><strong>${documentNumberLabel}:</strong> ${documentNumber}</p>
+      <p><strong>${secondaryNumberLabel}</strong> ${secondaryNumber}</p>
+      <p><strong>Emitido:</strong> ${issuedAt}</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Emisor</h2>
+      <p><strong>${companyName}</strong></p>
+      <p>RUT: ${companyRut}</p>
+      <p>Giro: ${companyActivity}</p>
+      <p>${companyAddress}</p>
+      <p>${companyCommune}</p>
+      <p>Fono: ${companyPhone}</p>
+      <p>Email: ${companyEmail}</p>
+    </div>
+    <div class="panel">
+      <h2>Cliente</h2>
+      <p><strong>${customerName}</strong></p>
+      <p>${customerAddress}</p>
+      <p>Fono: ${customerPhone}</p>
+      <p>Email: ${customerEmail}</p>
+      <p>Metodo de pago: ${paymentMethod}</p>
+      <p>Tipo documento venta: ${documentType}</p>
+      <p>ID venta: ${saleId}</p>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div>
+      <span>Items</span>
+      ${itemsCount}
+    </div>
+    <div>
+      <span>Numero interno</span>
+      ${documentNumber}
+    </div>
+    <div>
+      <span>URL consulta</span>
+      ${documentUrl}
+    </div>
+    <div>
+      <span>Generado</span>
+      ${generatedOn}
+    </div>
+  </div>
+
+  <div class="items">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Descripcion</th>
+          <th>Cantidad</th>
+          <th>Precio</th>
+          <th>Descuento</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="totals">
+    <div class="totals-row">
+      <span>Subtotal</span>
+      <span>${totalsSubtotal}</span>
+    </div>
+    <div class="totals-row">
+      <span>Impuesto</span>
+      <span>${totalsVat}</span>
+    </div>
+    <div class="totals-row total">
+      <span>Total</span>
+      <span>${totalsTotal}</span>
+    </div>
+  </div>
+
+  <div class="legend">${offlineLegend}</div>
+
+  <div class="note">
+    Documento de uso interno. No reemplaza la emision oficial ante el SII.
+  </div>
+
+  <div class="footer">
+    <div class="qr">
+      ${qrImage}
+      <small>Consulta el documento en linea</small>
+    </div>
+    <div class="footer-note">
+      <p>${footerNote}</p>
+    </div>
+  </div>
+</body>
+</html>

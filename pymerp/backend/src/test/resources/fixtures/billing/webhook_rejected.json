@@ -1,0 +1,11 @@
+{
+  "documentId": "00000000-0000-0000-0000-000000000000",
+  "status": "REJECTED",
+  "provider": "demo-provider",
+  "trackId": "track-rejected",
+  "externalId": "provider-rejected",
+  "errors": [
+    "Numero duplicado",
+    "Documento fuera de rango"
+  ]
+}

@@ -58,7 +58,7 @@ const _sentinel = Object();
 class CustomersNotifier extends AutoDisposeNotifier<CustomersState> {
   late final CustomersDataSource _repository;
   int _page = 0;
-  int _pageSize = 20;
+  final int _pageSize = 20;
 
   @override
   CustomersState build() {

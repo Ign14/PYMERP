@@ -11,7 +11,6 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createSale,
-  listCustomers,
   listProducts,
   Page,
   Product,
@@ -26,6 +25,7 @@ import Modal from "./Modal";
 import { FrequentProductsPanel } from "../sales/FrequentProductsPanel";
 import type { FrequentProduct } from "../../services/client";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../../constants/sales";
+import CustomerSelect from "../CustomerSelect";
 
 interface Props {
   open: boolean;
@@ -52,7 +52,8 @@ const MANUAL_TYPE_OPTIONS: { value: ManualLookupType; label: string }[] = [
 ];
 
 export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
-  const [customerId, setCustomerId] = useState<string>("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerError, setCustomerError] = useState<string | null>(null);
   const [docType, setDocType] = useState<DocumentOption["value"]>(DEFAULT_DOC_TYPE);
   const [paymentMethod, setPaymentMethod] = useState<PaymentOption["value"]>(DEFAULT_PAYMENT_METHOD);
   const [items, setItems] = useState<SaleItemPayload[]>([]);
@@ -80,13 +81,6 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
     staleTime: 30_000,
   });
 
-  const customersQuery = useQuery<Page<Customer>, Error>({
-    queryKey: ["customers", { dialog: "sales" }],
-    queryFn: () => listCustomers({ size: 200 }),
-    enabled: open,
-    staleTime: 30_000,
-  });
-
   const createMutation = useMutation({
     mutationFn: (payload: SalePayload) => createSale(payload),
     onSuccess: (sale) => {
@@ -97,7 +91,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
   });
 
   const productOptions = productsQuery.data?.content ?? [];
-  const customerOptions = customersQuery.data?.content ?? [];
+  const customerId = selectedCustomer?.id ?? "";
 
   useEffect(() => {
     if (!productOptions.length) return;
@@ -115,10 +109,21 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
   }, [productOptions]);
 
   useEffect(() => {
-    if (!customerId) {
+    if (!selectedCustomer?.id) {
       setShowFrequentProducts(false);
     }
-  }, [customerId]);
+  }, [selectedCustomer]);
+
+  const handleCustomerSelect = useCallback((customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerError(null);
+  }, []);
+
+  const handleCustomerClear = useCallback(() => {
+    setSelectedCustomer(null);
+    setCustomerError(null);
+    setShowFrequentProducts(false);
+  }, []);
 
   const addProductToSale = useCallback(
     (product: Product, quantity = 1, priceOverride?: number) => {
@@ -304,7 +309,8 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
   };
 
   const resetForm = () => {
-    setCustomerId("");
+    setSelectedCustomer(null);
+    setCustomerError(null);
     setDocType(DEFAULT_DOC_TYPE);
     setPaymentMethod(DEFAULT_PAYMENT_METHOD);
     setItems([]);
@@ -326,11 +332,15 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!customerId || items.length === 0) {
+    if (!selectedCustomer?.id) {
+      setCustomerError("Selecciona un cliente");
+      return;
+    }
+    if (items.length === 0) {
       return;
     }
     const payload: SalePayload = {
-      customerId,
+      customerId: selectedCustomer.id,
       docType,
       paymentMethod,
       items,
@@ -407,15 +417,16 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
       className="modal--wide sales-create-modal"
     >
       <form className="form-grid" onSubmit={handleSubmit}>
-        <label>
-          <span>Cliente *</span>
-          <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
-            <option value="">Selecciona cliente</option>
-            {customerOptions.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
-        </label>
+        <CustomerSelect
+          value={selectedCustomer}
+          onSelect={handleCustomerSelect}
+          onClear={handleCustomerClear}
+          label="Cliente"
+          required
+          error={customerError}
+          onErrorDismiss={() => setCustomerError(null)}
+          disabled={createMutation.isPending}
+        />
 
         <label>
           <span>Documento</span>

@@ -1,0 +1,26 @@
+{
+  "documentType": "FACTURA",
+  "taxMode": "AFECTA",
+  "sale": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "items": [
+      {
+        "productId": "11111111-1111-1111-1111-111111111111",
+        "description": "Servicio de soporte",
+        "quantity": "1",
+        "unitPrice": "119.00",
+        "discount": "0"
+      }
+    ],
+    "net": "100.00",
+    "vat": "19.00",
+    "total": "119.00",
+    "customerName": "ACME Corp",
+    "customerTaxId": "ACM123456",
+    "pointOfSale": "POS-001",
+    "deviceId": "DEVICE-001"
+  },
+  "idempotencyKey": "fixture-offline-001",
+  "forceOffline": true,
+  "connectivityHint": "OFFLINE"
+}

@@ -3,6 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'customer.freezed.dart';
 part 'customer.g.dart';
 
+// ignore_for_file: invalid_annotation_target
+
 double? _toDouble(Object? value) {
   if (value == null) return null;
   if (value is num) return value.toDouble();
@@ -12,9 +14,9 @@ double? _toDouble(Object? value) {
 
 Object? _doubleToJson(double? value) => value;
 
-@JsonSerializable(includeIfNull: false)
 @freezed
-class Customer with _ {
+class Customer with _$Customer {
+  @JsonSerializable(includeIfNull: false)
   const factory Customer({
     required String id,
     required String name,
@@ -26,5 +28,5 @@ class Customer with _ {
     DateTime? updatedAt,
   }) = _Customer;
 
-  factory Customer.fromJson(Map<String, dynamic> json) => _(json);
+  factory Customer.fromJson(Map<String, dynamic> json) => _$CustomerFromJson(json);
 }
