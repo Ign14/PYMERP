@@ -1,6 +1,6 @@
 import "./App.css";
 
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Suspense, lazy, useMemo } from "react";
 import { useAuth } from "./context/AuthContext";
 import LayoutShell, { NAV_ITEMS } from "./layout/LayoutShell";
@@ -55,6 +55,7 @@ function RoutesShell() {
       <Routes>
         <Route element={<LandingLayout />}>
           <Route index element={<LandingBackground />} />
+          <Route path="login" element={<LandingBackground />} />
           <Route
             path="app"
             element={isAuthenticated ? <LayoutShell /> : <Navigate to="/" replace />}
@@ -82,8 +83,16 @@ export default function App() {
 }
 
 function LandingLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isLoginRoute = location.pathname === "/login";
+  const handleLoginClose = () => navigate("/", { replace: true });
+
   return (
-    <LandingExperience>
+    <LandingExperience
+      forceLoginOnMount={isLoginRoute}
+      onLoginClose={isLoginRoute ? handleLoginClose : undefined}
+    >
       <Outlet />
     </LandingExperience>
   );

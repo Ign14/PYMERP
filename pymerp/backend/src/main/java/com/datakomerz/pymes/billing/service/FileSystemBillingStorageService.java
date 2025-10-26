@@ -3,6 +3,8 @@ package com.datakomerz.pymes.billing.service;
 import com.company.billing.persistence.DocumentFileKind;
 import com.company.billing.persistence.DocumentFileVersion;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -12,6 +14,8 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -54,6 +58,49 @@ public class FileSystemBillingStorageService implements BillingStorageService {
     String checksum = computeChecksum(content);
     String storageKey = root.relativize(targetFile).toString().replace('\\', '/');
     return new StoredFile(storageKey, checksum);
+  }
+
+  @Override
+  public byte[] read(String storageKey) throws IOException {
+    Resource resource = loadAsResource(storageKey);
+    try (var input = resource.getInputStream()) {
+      return input.readAllBytes();
+    }
+  }
+
+  @Override
+  public Resource loadAsResource(String storageKey) throws IOException {
+    if (storageKey == null || storageKey.isBlank()) {
+      throw new IllegalArgumentException("storageKey is required");
+    }
+    if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
+      try {
+        return new UrlResource(URI.create(storageKey));
+      } catch (IllegalArgumentException ex) {
+        throw new IOException("Invalid external storageKey: " + storageKey, ex);
+      }
+    }
+    Path path = resolveLocalPath(storageKey);
+    try {
+      Resource resource = new UrlResource(path.toUri());
+      if (resource.exists() && resource.isReadable()) {
+        return resource;
+      }
+      throw new IOException("Stored file not readable: " + storageKey);
+    } catch (MalformedURLException ex) {
+      throw new IOException("Invalid path for storageKey: " + storageKey, ex);
+    }
+  }
+
+  private Path resolveLocalPath(String storageKey) throws IOException {
+    Path path = root.resolve(storageKey).normalize();
+    if (!path.startsWith(root)) {
+      throw new IOException("storageKey outside of storage root");
+    }
+    if (!Files.exists(path)) {
+      throw new IOException("Stored file not found: " + storageKey);
+    }
+    return path;
   }
 
   private String sanitizeFilename(String filename, DocumentFileVersion version) {

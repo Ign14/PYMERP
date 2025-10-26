@@ -174,6 +174,7 @@ public class ContingencySyncJob {
         document.getDocumentType(),
         null,
         document.getTaxMode(),
+        document.getSiiDocumentType(),
         deviceId,
         pointOfSale,
         payloadNode);
@@ -188,6 +189,7 @@ public class ContingencySyncJob {
     document.setProvider(result.provider());
     document.setTrackId(result.trackId());
     document.setNumber(result.number());
+    document.setFinalFolio(result.number());
     document.setErrorDetail(null);
     document.setLastSyncAt(attemptTime);
 

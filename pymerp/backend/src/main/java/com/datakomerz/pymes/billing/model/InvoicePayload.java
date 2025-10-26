@@ -2,6 +2,7 @@ package com.datakomerz.pymes.billing.model;
 
 import com.company.billing.persistence.FiscalDocumentType;
 import com.company.billing.persistence.NonFiscalDocumentType;
+import com.company.billing.persistence.SiiDocumentType;
 import com.company.billing.persistence.TaxMode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.UUID;
@@ -11,6 +12,7 @@ public record InvoicePayload(
     FiscalDocumentType fiscalDocumentType,
     NonFiscalDocumentType nonFiscalDocumentType,
     TaxMode taxMode,
+    SiiDocumentType siiDocumentType,
     String deviceId,
     String pointOfSale,
     ObjectNode rawPayload

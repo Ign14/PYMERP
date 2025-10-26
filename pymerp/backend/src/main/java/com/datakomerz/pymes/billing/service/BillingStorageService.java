@@ -4,6 +4,7 @@ import com.company.billing.persistence.DocumentFileKind;
 import com.company.billing.persistence.DocumentFileVersion;
 import java.io.IOException;
 import java.util.UUID;
+import org.springframework.core.io.Resource;
 
 public interface BillingStorageService {
 
@@ -13,6 +14,10 @@ public interface BillingStorageService {
                    byte[] content,
                    String filename,
                    String contentType) throws IOException;
+
+  byte[] read(String storageKey) throws IOException;
+
+  Resource loadAsResource(String storageKey) throws IOException;
 
   record StoredFile(String storageKey, String checksum) {
   }

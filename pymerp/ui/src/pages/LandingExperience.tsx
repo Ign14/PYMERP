@@ -17,6 +17,8 @@ type PanelState = "none" | "login" | "request" | "success";
 
 type LandingExperienceProps = {
   children: ReactNode;
+  forceLoginOnMount?: boolean;
+  onLoginClose?: () => void;
 };
 
 type RequestFormState = {
@@ -53,7 +55,7 @@ function createChallenge(): CaptchaChallenge {
   return { a, b };
 }
 
-export default function LandingExperience({ children }: LandingExperienceProps) {
+export default function LandingExperience({ children, forceLoginOnMount = false, onLoginClose }: LandingExperienceProps) {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -73,7 +75,8 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
   const loginEmailRef = useRef<HTMLInputElement | null>(null);
   const loginPasswordRef = useRef<HTMLInputElement | null>(null);
   const requestRutRef = useRef<HTMLInputElement | null>(null);
-
+  const previousPanelRef = useRef<PanelState>("none");
+  const hasOpenedByForceRef = useRef(false);
   const loginMutation = useMutation<void, unknown, LoginPayload>({
     mutationFn: (payload) => login(payload),
     onSuccess: () => {
@@ -142,6 +145,24 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
   }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!forceLoginOnMount) {
+      hasOpenedByForceRef.current = false;
+      return;
+    }
+    if (!isAuthenticated && !hasOpenedByForceRef.current) {
+      setOverlayVisible(true);
+      setPanel("login");
+      hasOpenedByForceRef.current = true;
+    }
+  }, [forceLoginOnMount, isAuthenticated]);
+
+  useEffect(() => {
+    if (forceLoginOnMount && isAuthenticated) {
+      navigate("/app", { replace: true });
+    }
+  }, [forceLoginOnMount, isAuthenticated, navigate]);
+
+  useEffect(() => {
     if (panel === "login") {
       const target = loginEmailRef.current ?? loginPasswordRef.current;
       target?.focus();
@@ -204,7 +225,7 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
     if (isAuthenticated) {
       setOverlayVisible(false);
     } else {
-      setPanel("login");
+      navigate("/login");
     }
   };
 
@@ -290,6 +311,13 @@ export default function LandingExperience({ children }: LandingExperienceProps) 
       setOverlayVisible(false);
     }
   };
+
+  useEffect(() => {
+    if (!isAuthenticated && previousPanelRef.current === "login" && panel === "none") {
+      onLoginClose?.();
+    }
+    previousPanelRef.current = panel;
+  }, [panel, onLoginClose, isAuthenticated]);
 
   return (
     <>

@@ -1,56 +1,38 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="es">
 <head>
   <meta charset="utf-8"/>
   <title>${documentTitle}</title>
   <style>
-    :root {
-      color-scheme: light;
-    }
-    * {
-      box-sizing: border-box;
-    }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
     body {
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      color: ${textColor};
       margin: 0;
-      padding: 28px;
+      padding: 32px;
       background: #ffffff;
+      color: ${textColor};
       font-size: 13px;
       line-height: 1.45;
     }
-    h1, h2, h3 {
-      margin: 0;
-      font-weight: 600;
+    h1, h2, h3, h4 {
       color: ${primaryColor};
+      margin: 0;
     }
-    h1 {
-      font-size: 22px;
-    }
-    h2 {
-      font-size: 15px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    a {
-      color: ${accentColor};
-      text-decoration: none;
-    }
+    h1 { font-size: 22px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
+    a { color: ${accentColor}; text-decoration: none; }
     .header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       border-bottom: 3px solid ${primaryColor};
       padding-bottom: 18px;
-      margin-bottom: 24px;
+      margin-bottom: 18px;
     }
-    .logo img {
-      max-height: 68px;
-    }
+    .logo img { max-height: 70px; }
     .logo-placeholder {
-      width: 72px;
-      height: 72px;
+      width: 72px; height: 72px;
       border-radius: 12px;
       border: 2px solid ${primaryColor};
       display: flex;
@@ -60,236 +42,174 @@
       font-size: 18px;
       color: ${primaryColor};
     }
-    .document-meta {
-      text-align: right;
-    }
-    .document-meta p {
-      margin: 3px 0;
-    }
-    .document-meta .badge {
+    .company, .document-meta { font-size: 12px; }
+    .company strong, .document-meta strong { display: block; color: ${primaryColor}; }
+    .tag {
       display: inline-block;
-      padding: 4px 10px;
+      padding: 6px 12px;
       border-radius: 999px;
       background: ${accentColor};
       color: #ffffff;
       font-weight: 600;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     .grid {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
+      margin-bottom: 20px;
     }
-    .grid .panel {
-      flex: 1;
-      border: 1px solid #d4d8dd;
+    .card {
+      border: 1px solid #d3d7dd;
       border-radius: 10px;
-      padding: 14px 18px;
+      padding: 16px;
       background: #f9fafb;
     }
-    .panel p {
-      margin: 4px 0;
-    }
-    .panel strong {
-      color: ${primaryColor};
-    }
-    .summary {
-      margin-top: 16px;
-      border: 1px dashed ${primaryColor};
-      border-radius: 10px;
-      padding: 12px 16px;
-      background: #f5f6f8;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px 20px;
-    }
-    .summary span {
-      display: block;
-      font-size: 12px;
-      color: #5b6470;
-    }
-    .items table {
+    .card p { margin: 4px 0; }
+    .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+    table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 24px;
+      margin-top: 20px;
     }
-    .items thead th {
+    thead th {
       background: ${tableHeaderColor};
       color: ${primaryColor};
-      padding: 10px 12px;
       font-size: 12px;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      border-bottom: 2px solid ${primaryColor};
-    }
-    .items tbody td {
+      letter-spacing: 0.06em;
       padding: 10px 12px;
+    }
+    tbody td {
       border-bottom: 1px solid #e5e7eb;
+      padding: 10px 12px;
       vertical-align: top;
     }
-    .items tbody tr:nth-child(even) td {
-      background: #fbfcfd;
-    }
-    .items tbody tr:last-child td {
-      border-bottom: none;
-    }
-    .items td.idx {
-      width: 36px;
-      text-align: center;
-      color: ${primaryColor};
-      font-weight: 600;
-    }
-    .items td.qty,
-    .items td.price,
-    .items td.discount,
-    .items td.total {
-      text-align: right;
-      white-space: nowrap;
-    }
-    .items td.total {
-      color: ${primaryColor};
-      font-weight: 600;
-    }
-    .items tbody tr.items-empty td {
-      text-align: center;
-      color: #7b8491;
-      font-style: italic;
-    }
+    tbody tr:nth-child(even) { background: #f7fafc; }
+    tbody tr:last-child td { border-bottom: none; }
+    .idx { width: 5%; text-align: center; }
+    .qty, .price, .discount, .total { text-align: right; white-space: nowrap; }
+    .desc span.sku { display: block; font-size: 11px; color: #6b7280; }
     .totals {
-      margin-top: 16px;
+      margin-top: 18px;
+      display: grid;
+      gap: 8px;
+      max-width: 320px;
       margin-left: auto;
-      width: 300px;
-      border-radius: 10px;
-      background: #f1f3f6;
-      padding: 14px 18px;
     }
     .totals-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 6px;
-      font-size: 13px;
+      border-bottom: 1px dashed #d3d7dd;
+      padding-bottom: 6px;
     }
     .totals-row.total {
-      font-size: 15px;
+      border-bottom: none;
       font-weight: 700;
       color: ${primaryColor};
+      font-size: 14px;
     }
     .legend {
-      margin-top: 20px;
-      padding: 12px 16px;
+      margin-top: 18px;
+      padding: 12px;
       border-left: 4px solid ${accentColor};
       background: #eef2ff;
-      color: ${primaryColor};
       font-size: 12px;
     }
     .footer {
       margin-top: 28px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
-      border-top: 1px solid #d4d8dd;
-      padding-top: 12px;
-    }
-    .qr {
-      text-align: center;
+      gap: 24px;
+      align-items: flex-start;
     }
     .qr img {
-      width: 120px;
-      height: 120px;
-    }
-    .qr small {
-      display: block;
-      margin-top: 6px;
-      color: #59606a;
-      font-size: 11px;
+      width: 140px;
+      height: 140px;
+      border: 4px solid #f4f5f7;
+      border-radius: 12px;
     }
     .footer-note {
-      max-width: 340px;
-      font-size: 11px;
-      color: #6c7480;
-      text-align: right;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .section-title {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 6px;
     }
   </style>
 </head>
 <body>
-  <div class="header">
+  <header class="header">
     <div class="logo">${logoHtml}</div>
-    <div class="document-meta">
-      <span class="badge">Contingencia</span>
-      <h1>${documentTitle}</h1>
-      <p><strong>${documentNumberLabel}:</strong> ${documentNumber}</p>
-      <p><strong>${secondaryNumberLabel}</strong> ${secondaryNumber}</p>
-      <p><strong>Emitido:</strong> ${issuedAt}</p>
-      <p><strong>Modo:</strong> ${taxMode}</p>
-    </div>
-  </div>
-
-  <div class="grid">
-    <div class="panel">
-      <h2>Emisor</h2>
-      <p><strong>${companyName}</strong></p>
+    <div class="company">
+      <strong>${companyName}</strong>
       <p>RUT: ${companyRut}</p>
       <p>Giro: ${companyActivity}</p>
-      <p>${companyAddress}</p>
-      <p>${companyCommune}</p>
+      <p>${companyAddress}, ${companyCommune}</p>
       <p>Fono: ${companyPhone}</p>
-      <p>Email: ${companyEmail}</p>
+      <p>Correo: ${companyEmail}</p>
     </div>
-    <div class="panel">
-      <h2>Cliente</h2>
+    <div class="document-meta">
+      <div class="tag">SII ${siiCode}</div>
+      <h1>${documentTitle}</h1>
+      <p><strong>${documentNumberLabel}:</strong> ${documentNumber}</p>
+      <p><strong>${secondaryNumberLabel}:</strong> ${secondaryNumber}</p>
+      <p><strong>Folio definitivo:</strong> ${documentFolio}</p>
+      <p><strong>Res. SII:</strong> ${resolutionNumber} ${resolutionDate}</p>
+      <p><strong>Condición:</strong> ${taxModeLabel}</p>
+      <p><strong>Emitido:</strong> ${issuedAt}</p>
+      <p><strong>Forma de pago:</strong> ${paymentMethod}</p>
+    </div>
+  </header>
+
+  <section class="grid">
+    <div class="card">
+      <div class="section-title">Receptor</div>
       <p><strong>${customerName}</strong></p>
       <p>${customerAddress}</p>
-      <p>Fono: ${customerPhone}</p>
-      <p>Email: ${customerEmail}</p>
-      <p>Metodo de pago: ${paymentMethod}</p>
-      <p>Tipo documento venta: ${documentType}</p>
-      <p>ID venta: ${saleId}</p>
+      <p>${customerPhone}</p>
+      <p>${customerEmail}</p>
     </div>
-  </div>
+    <div class="card">
+      <div class="section-title">Documento</div>
+      <p><strong>Folio SII:</strong> ${documentFolio}</p>
+      <p><strong>Folio provisional:</strong> ${documentProvisional}</p>
+      <p><strong>Venta:</strong> ${saleId}</p>
+      <p><strong>Artículos:</strong> ${itemsCount}</p>
+    </div>
+  </section>
 
-  <div class="summary">
-    <div>
-      <span>Items</span>
-      ${itemsCount}
-    </div>
-    <div>
-      <span>Numero provisional</span>
-      ${documentNumber}
-    </div>
-    <div>
-      <span>Numero interno</span>
-      ${secondaryNumber}
-    </div>
-    <div>
-      <span>URL consulta</span>
-      ${documentUrl}
-    </div>
-  </div>
-
-  <div class="items">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Descripcion</th>
-          <th>Cantidad</th>
-          <th>Precio</th>
-          <th>Descuento</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsRows}
-      </tbody>
-    </table>
-  </div>
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Descripción</th>
+      <th>Cantidad</th>
+      <th>Precio</th>
+      <th>Descuento</th>
+      <th>Total</th>
+    </tr>
+    </thead>
+    <tbody>
+    ${itemsRows}
+    </tbody>
+  </table>
 
   <div class="totals">
     <div class="totals-row">
-      <span>Subtotal</span>
+      <span>Subtotal afecto</span>
       <span>${totalsSubtotal}</span>
     </div>
     <div class="totals-row">
-      <span>Impuesto</span>
+      <span>Monto exento</span>
+      <span>${totalsExempt}</span>
+    </div>
+    <div class="totals-row">
+      <span>IVA</span>
       <span>${totalsVat}</span>
     </div>
     <div class="totals-row total">
@@ -298,16 +218,18 @@
     </div>
   </div>
 
-  <div class="legend">${offlineLegend}</div>
+  <div class="legend">
+    ${offlineLegend}
+  </div>
 
   <div class="footer">
     <div class="qr">
       ${qrImage}
-      <small>Escanea para ver el documento</small>
+      <p>Escanee para validar: <br/><a href="${documentUrl}">${documentUrl}</a></p>
     </div>
     <div class="footer-note">
-      <p>Generado: ${generatedOn}</p>
-      <p>${footerNote}</p>
+      <p>Documento emitido en contingencia conforme a la resolución del Servicio de Impuestos Internos.</p>
+      <p>Generado el ${generatedOn}. ${footerNote}</p>
     </div>
   </div>
 </body>

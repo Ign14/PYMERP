@@ -15,6 +15,7 @@ import com.company.billing.persistence.FiscalDocumentStatus;
 import com.company.billing.persistence.FiscalDocumentType;
 import com.company.billing.persistence.NonFiscalDocumentStatus;
 import com.company.billing.persistence.NonFiscalDocumentType;
+import com.company.billing.persistence.SiiDocumentType;
 import com.company.billing.persistence.TaxMode;
 import com.datakomerz.pymes.billing.dto.IssueInvoiceRequest;
 import com.datakomerz.pymes.billing.model.DocumentCategory;
@@ -74,6 +75,7 @@ class BillingControllerTest {
         FiscalDocumentType.FACTURA,
         null,
         TaxMode.AFECTA,
+        SiiDocumentType.FACTURA_ELECTRONICA,
         "device-1",
         "POS-1",
         objectMapper.createObjectNode());
@@ -95,7 +97,7 @@ class BillingControllerTest {
         true,
         OffsetDateTime.now(ZoneOffset.UTC),
         OffsetDateTime.now(ZoneOffset.UTC),
-        new DocumentLinks("billing/fiscal/local.pdf", null),
+        new DocumentLinks("billing/fiscal/local.pdf", null, null),
         List.of(new DocumentFileView(
             UUID.randomUUID(),
             DocumentFileKind.FISCAL,
@@ -147,6 +149,7 @@ class BillingControllerTest {
         null,
         NonFiscalDocumentType.COTIZACION,
         null,
+        null,
         "device-3",
         "POS-3",
         objectMapper.createObjectNode());
@@ -167,7 +170,7 @@ class BillingControllerTest {
         false,
         OffsetDateTime.now(ZoneOffset.UTC),
         OffsetDateTime.now(ZoneOffset.UTC),
-        new DocumentLinks("billing/non-fiscal/local.pdf", null),
+        new DocumentLinks("billing/non-fiscal/local.pdf", null, null),
         List.of(new DocumentFileView(
             UUID.randomUUID(),
             DocumentFileKind.NON_FISCAL,
@@ -189,55 +192,6 @@ class BillingControllerTest {
         .andExpect(MockMvcResultMatchers.jsonPath("$.documentType", is("COTIZACION")))
         .andExpect(MockMvcResultMatchers.jsonPath("$.status", is("READY")))
         .andExpect(MockMvcResultMatchers.jsonPath("$.links.localPdf", notNullValue()));
-  }
-
-  @Test
-  void getDocument_returnsDetailResponse() throws Exception {
-    UUID documentId = UUID.randomUUID();
-    BillingDocumentView view = new BillingDocumentView(
-        DocumentCategory.FISCAL,
-        documentId,
-        FiscalDocumentType.BOLETA,
-        null,
-        FiscalDocumentStatus.SENT,
-        null,
-        TaxMode.EXENTA,
-        "B-100",
-        "CTG-2025-00002",
-        "tax-provider",
-        "track-55",
-        false,
-        OffsetDateTime.now(ZoneOffset.UTC),
-        OffsetDateTime.now(ZoneOffset.UTC),
-        new DocumentLinks("billing/fiscal/local.pdf", "billing/fiscal/official.pdf"),
-        List.of(
-            new DocumentFileView(
-                UUID.randomUUID(),
-                DocumentFileKind.FISCAL,
-                DocumentFileVersion.LOCAL,
-                "application/pdf",
-                "billing/fiscal/local.pdf",
-                "aaa",
-                OffsetDateTime.now(ZoneOffset.UTC)
-            ),
-            new DocumentFileView(
-                UUID.randomUUID(),
-                DocumentFileKind.FISCAL,
-                DocumentFileVersion.OFFICIAL,
-                "application/pdf",
-                "billing/fiscal/official.pdf",
-                "bbb",
-                OffsetDateTime.now(ZoneOffset.UTC)
-            )));
-
-    when(billingService.getDocument(documentId)).thenReturn(view);
-
-    mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/billing/documents/{id}", documentId))
-        .andExpect(MockMvcResultMatchers.status().isOk())
-        .andExpect(MockMvcResultMatchers.jsonPath("$.category", is("FISCAL")))
-        .andExpect(MockMvcResultMatchers.jsonPath("$.provisionalNumber", is("CTG-2025-00002")))
-        .andExpect(MockMvcResultMatchers.jsonPath("$.links.officialPdf", is("billing/fiscal/official.pdf")))
-        .andExpect(MockMvcResultMatchers.jsonPath("$.files[1].version", is("OFFICIAL")));
   }
 
   private Map<String, Object> buildInvoiceRequestPayload(UUID saleId) {

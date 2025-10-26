@@ -78,6 +78,14 @@ export type DocumentFile = {
   mimeType: string;
 };
 
+export type DocumentFileVersion = "LOCAL" | "OFFICIAL";
+
+export type DocumentLinkSet = {
+  localPdf?: string | null;
+  officialPdf?: string | null;
+  officialXml?: string | null;
+};
+
 function createDocumentFileFromResponse(
   response: AxiosResponse<Blob>,
   fallbackName: string,
@@ -108,6 +116,35 @@ function createFallbackDocumentFile(id: string, action: "preview" | "download"):
     blob,
     filename: `${action}-documento-${id}.html`,
     mimeType: "text/html",
+  };
+}
+
+const OFFLINE_DOCUMENT_SCHEME = "offline://document";
+
+function createOfflineDocumentLink(id: string, version: DocumentFileVersion): string {
+  return `${OFFLINE_DOCUMENT_SCHEME}/${version}/${encodeURIComponent(id)}`;
+}
+
+function parseOfflineDocumentLink(link: string): { id: string; version: DocumentFileVersion } | null {
+  if (typeof link !== "string" || !link.startsWith(OFFLINE_DOCUMENT_SCHEME)) {
+    return null;
+  }
+  const parts = link.split("/");
+  if (parts.length < 4) {
+    return null;
+  }
+  const version = parts[2] as DocumentFileVersion;
+  const id = decodeURIComponent(parts.slice(3).join("/"));
+  if ((version !== "LOCAL" && version !== "OFFICIAL") || !id) {
+    return null;
+  }
+  return { id, version };
+}
+
+function createOfflineDocumentLinks(id: string): DocumentLinkSet {
+  return {
+    localPdf: createOfflineDocumentLink(id, "LOCAL"),
+    officialPdf: createOfflineDocumentLink(id, "OFFICIAL"),
   };
 }
 
@@ -1435,6 +1472,7 @@ function fallbackListDocuments(params: ListDocumentsParams): Page<DocumentSummar
       issuedAt: sale.issuedAt,
       total: sale.total,
       status: sale.status,
+      links: createOfflineDocumentLinks(sale.id),
     }))
     .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
 
@@ -1447,6 +1485,7 @@ function fallbackListDocuments(params: ListDocumentsParams): Page<DocumentSummar
       issuedAt: purchase.issuedAt,
       total: purchase.total,
       status: purchase.status,
+      links: createOfflineDocumentLinks(purchase.id),
     }))
     .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
 
@@ -1488,10 +1527,11 @@ function fallbackListSaleDocuments(params: ListSaleDocumentsParams = {}): Page<S
     series: sale.series,
     folio: sale.folio,
     date: sale.issuedAt,
-    customerName: sale.customerName ?? sale.customerId ?? "—",
+    customerName: sale.customerName ?? sale.customerId ?? "",
     total: sale.total,
     status: sale.status,
     docType: sale.docType,
+    links: createOfflineDocumentLinks(sale.id),
   }));
 
   return paginate(mapped, page, size);
@@ -1501,8 +1541,51 @@ function fallbackGetDocumentPreview(id: string): DocumentFile {
   return createFallbackDocumentFile(id, "preview");
 }
 
-function fallbackDownloadDocument(id: string): DocumentFile {
-  return createFallbackDocumentFile(id, "download");
+
+function fallbackGetBillingDocument(id: string): BillingDocumentDetail {
+  const sale = demoState.sales.find((entry) => entry.id === id);
+  if (sale) {
+    return {
+      id,
+      category: "FISCAL",
+      fiscalDocumentType: sale.docType ?? null,
+      nonFiscalDocumentType: null,
+      status: sale.status ?? null,
+      taxMode: (sale as Record<string, unknown>).taxMode as string | null ?? null,
+      number: resolveSaleDocumentNumber(sale),
+      provisionalNumber: (sale as Record<string, unknown>).provisionalNumber as string | null ?? null,
+      provider: "OFFLINE",
+      trackId: (sale as Record<string, unknown>).trackId as string | null ?? null,
+      offline: true,
+      createdAt: sale.issuedAt ?? iso(new Date()),
+      updatedAt: sale.issuedAt ?? iso(new Date()),
+      links: createOfflineDocumentLinks(id),
+      files: [],
+    };
+  }
+  return {
+    id,
+    category: "NON_FISCAL",
+    fiscalDocumentType: null,
+    nonFiscalDocumentType: null,
+    status: null,
+    taxMode: null,
+    number: null,
+    provisionalNumber: null,
+    provider: "OFFLINE",
+    trackId: null,
+    offline: true,
+    createdAt: iso(new Date()),
+    updatedAt: iso(new Date()),
+    links: createOfflineDocumentLinks(id),
+    files: [],
+  };
+}
+
+function fallbackDownloadDocument(id: string, version: DocumentFileVersion = "OFFICIAL"): DocumentFile {
+  const action = version === "LOCAL" ? "preview" : "download";
+  const reference = `${id}-${version.toLowerCase()}`;
+  return createFallbackDocumentFile(reference, action);
 }
 
 function fallbackListPurchases(params: ListPurchasesParams = {}): Page<PurchaseSummary> {
@@ -2035,6 +2118,33 @@ export type DocumentSummary = {
   issuedAt?: string;
   total: number;
   status: string;
+  links?: DocumentLinkSet;
+};
+
+export type BillingDocumentDetail = {
+  id: string;
+  category: "FISCAL" | "NON_FISCAL";
+  fiscalDocumentType?: string | null;
+  nonFiscalDocumentType?: string | null;
+  status?: string | null;
+  taxMode?: string | null;
+  number?: string | null;
+  provisionalNumber?: string | null;
+  provider?: string | null;
+  trackId?: string | null;
+  offline: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  links: DocumentLinkSet;
+  files: Array<{
+    id: string;
+    kind: string;
+    version: DocumentFileVersion;
+    contentType: string;
+    storageKey: string;
+    checksum?: string | null;
+    createdAt?: string;
+  }>;
 };
 
 export type SaleDocument = {
@@ -2048,6 +2158,7 @@ export type SaleDocument = {
   total: number;
   status?: string;
   docType?: string;
+  links?: DocumentLinkSet;
 };
 
 export type ListSaleDocumentsParams = {
@@ -2751,19 +2862,57 @@ export function getDocumentPreview(id: string): Promise<DocumentFile> {
   );
 }
 
-export function downloadDocument(id: string): Promise<DocumentFile> {
+export function downloadDocumentByLink(
+  link: string,
+  options: { fallbackName?: string; offlineId?: string; version?: DocumentFileVersion } = {},
+): Promise<DocumentFile> {
+  const { fallbackName = "document.pdf", offlineId, version = "OFFICIAL" } = options;
   return withOfflineFallback(
     "downloadDocument",
     async () => {
-      const response = await api.get<Blob>(`/v1/documents/${id}/download`, { responseType: "blob" });
-      return createDocumentFileFromResponse(response, `${id}.pdf`);
+      const response = await api.get<Blob>(link, { responseType: "blob" });
+      return createDocumentFileFromResponse(response, fallbackName);
     },
-    () => fallbackDownloadDocument(id),
+    () => {
+      const parsed = parseOfflineDocumentLink(link);
+      const target = parsed ?? (offlineId ? { id: offlineId, version } : null);
+      if (!target) {
+        return createFallbackDocumentFile(fallbackName.replace(/\.pdf$/i, ""), "download");
+      }
+      return fallbackDownloadDocument(target.id, target.version);
+    },
+  );
+}
+
+export function downloadDocument(id: string, version: DocumentFileVersion = "OFFICIAL"): Promise<DocumentFile> {
+  const url = `/v1/billing/documents/${id}/files/${version}`;
+  const fallbackName = `${id}-${version.toLowerCase()}.pdf`;
+  return downloadDocumentByLink(url, { fallbackName, offlineId: id, version });
+}
+
+
+export function getBillingDocument(id: string): Promise<BillingDocumentDetail> {
+  return withOfflineFallback(
+    "getBillingDocument",
+    async () => {
+      const { data } = await api.get<BillingDocumentDetail>(`/v1/billing/documents/${id}`);
+      return data;
+    },
+    () => fallbackGetBillingDocument(id),
   );
 }
 
 export function getDocumentDetailUrl(id: string): string {
-  return api.getUri({ url: `/v1/documents/${id}` });
+  return api.getUri({ url: `/v1/billing/documents/${id}` });
+}
+
+}
+
+}
+
+
+}
+
 }
 
 export function listSalesDaily(days = 14): Promise<SalesDailyPoint[]> {
@@ -2900,6 +3049,16 @@ export function createInventoryAdjustment(payload: InventoryAdjustmentPayload): 
 }
 
 export default api;
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -63,6 +64,8 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
       DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withLocale(LOCALE);
   private static final DateTimeFormatter PDF_DOC_DATE_FORMAT =
       DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withLocale(LOCALE);
+  private static final DateTimeFormatter DATE_ONLY_FORMATTER =
+      DateTimeFormatter.ofPattern("dd/MM/yyyy").withLocale(LOCALE);
 
   private final SaleItemRepository saleItemRepository;
   private final ProductRepository productRepository;
@@ -74,6 +77,8 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
   private final String offlineLegend;
   private final String contingencyTemplate;
   private final String nonFiscalTemplate;
+  private final String quotationTemplate;
+  private final String deliveryTemplate;
   private final Clock clock;
   private final AtomicBoolean logoLoaded = new AtomicBoolean(false);
   private volatile String cachedLogoDataUrl;
@@ -97,6 +102,8 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     this.clock = providedClock != null ? providedClock : Clock.systemDefaultZone();
     this.contingencyTemplate = loadTemplate("classpath:templates/billing/fiscal-contingency.html");
     this.nonFiscalTemplate = loadTemplate("classpath:templates/billing/non-fiscal.html");
+    this.quotationTemplate = loadTemplate("classpath:templates/billing/non-fiscal-quotation.html");
+    this.deliveryTemplate = loadTemplate("classpath:templates/billing/non-fiscal-delivery.html");
   }
 
   @Override
@@ -125,10 +132,17 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     variables.put("documentTitle", "Contingencia " + document.getDocumentType().name());
     variables.put("documentNumberLabel", "Numero provisional");
     variables.put("documentNumber", safeText(document.getProvisionalNumber()));
-    variables.put("secondaryNumberLabel", "Numero interno");
-    variables.put("secondaryNumber", document.getId() != null ? document.getId().toString() : "");
+    variables.put("secondaryNumberLabel", "Folio definitivo");
+    variables.put("secondaryNumber", safeText(Optional.ofNullable(document.getFinalFolio()).orElse("PENDIENTE")));
     variables.put("offlineLegend", htmlEscape(offlineLegend));
     variables.put("taxMode", document.getTaxMode() != null ? htmlEscape(document.getTaxMode().name()) : "");
+    variables.put("siiCode", document.getSiiDocumentType() != null ? Integer.toString(document.getSiiDocumentType().code()) : "");
+    variables.put("documentFolio", safeText(Optional.ofNullable(document.getFinalFolio()).orElse("-")));
+    variables.put("documentProvisional", safeText(document.getProvisionalNumber()));
+    variables.put("resolutionNumber", safeText(document.getResolutionNumber()));
+    variables.put("resolutionDate", formatDate(document.getResolutionDate()));
+    variables.put("totalsExempt", formatMoney(calculateExemptTotal(sale)));
+    variables.put("taxModeLabel", document.getTaxMode() != null ? htmlEscape(document.getTaxMode().name()) : "");
 
     byte[] pdfBytes = renderPdf(placeholderHelper.replacePlaceholders(contingencyTemplate, variables::get));
     String filename = "contingencia-" + sanitizeFilename(document.getProvisionalNumber(), document.getId()) + ".pdf";
@@ -166,7 +180,12 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     variables.put("offlineLegend", "");
     variables.put("taxMode", "");
 
-    byte[] pdfBytes = renderPdf(placeholderHelper.replacePlaceholders(nonFiscalTemplate, variables::get));
+    String template = switch (document.getDocumentType()) {
+      case COTIZACION -> quotationTemplate;
+      case COMPROBANTE_ENTREGA -> deliveryTemplate;
+    };
+    String resolvedTemplate = template != null ? template : nonFiscalTemplate;
+    byte[] pdfBytes = renderPdf(placeholderHelper.replacePlaceholders(resolvedTemplate, variables::get));
     String filename = document.getDocumentType().name().toLowerCase(Locale.ROOT)
         + "-" + sanitizeFilename(document.getNumber(), document.getId()) + ".pdf";
     return new RenderedInvoice(pdfBytes, filename, "application/pdf");
@@ -208,6 +227,7 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     values.put("totalsSubtotal", formatMoney(sale.getNet()));
     values.put("totalsVat", formatMoney(sale.getVat()));
     values.put("totalsTotal", formatMoney(sale.getTotal()));
+    values.put("totalsExempt", formatMoney(BigDecimal.ZERO));
     values.put("itemsCount", Integer.toString(items.size()));
 
     values.put("qrImage", buildQrImgTag(qrUrl));
@@ -429,6 +449,21 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     content = content.replaceAll("(?s)<pdf:Producer>[^<]+</pdf:Producer>",
         "<pdf:Producer>" + producer + "</pdf:Producer>");
     return content.getBytes(StandardCharsets.ISO_8859_1);
+  }
+
+  private String formatDate(LocalDate date) {
+    return date != null ? DATE_ONLY_FORMATTER.format(date) : "";
+  }
+
+  private BigDecimal calculateExemptTotal(Sale sale) {
+    BigDecimal total = defaultZero(sale.getTotal());
+    BigDecimal net = defaultZero(sale.getNet());
+    BigDecimal vat = defaultZero(sale.getVat());
+    BigDecimal exempt = total.subtract(net).subtract(vat);
+    if (exempt.compareTo(BigDecimal.ZERO) < 0) {
+      return BigDecimal.ZERO;
+    }
+    return exempt;
   }
 
   private String formatDateTime(OffsetDateTime saleIssuedAt, OffsetDateTime fallback) {

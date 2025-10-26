@@ -1,179 +1,174 @@
 # Arquitectura de Software - Sistema de Gestión PyMEs
 
-## 1. Resumen del monorepo
-- Repositorio unificado con tres clientes principales:
-  - **Backend** en Spring Boot 3 / Java 21 dentro de `backend/` (Gradle, Checkstyle y Spotless).
-  - **Frontend web** en React 18 + Vite + TypeScript en `ui/` con React Query, React Router y Tailwind opcional.
-  - **Cliente Flutter** experimental (`app_flutter/`) orientado a escenarios offline/web.
-- Packaging adicional mediante Tauri en `desktop/` para distribuir la UI como app de escritorio (ver `docs/windows-desktop.md`).
-- Scripts de la raíz (`package.json`, `scripts/run-ui.js`) permiten ejecutar la UI desde el workspace npm; Makefiles simplifican tareas recurrentes.
-- `docker-compose.yml` orquesta Postgres, Redis, backend, frontend, MinIO y Mailhog para un entorno local completo.
+## 1. Visión general
+- Monorepo centrado en PyMEs que agrupa backend, frontend web, cliente Flutter y empaquetado desktop en un único workspace.
+- Arquitectura multicliente con API Spring Boot 3 que expone dominios de ventas, compras, inventario, pricing, clientes y proveedores.
+- Capas de presentación basadas en React 18 (Vite) y Flutter con capacidades offline y reutilización del mismo backend.
+- Infraestructura local reproducible con `docker compose` (Postgres, Redis, MinIO, Mailhog) y scripts Gradle/NPM para desarrollo y QA.
 
-## 2. Backend (Spring Boot)
-### 2.1 Capas y configuración
-- Proyecto Java 21 con Gradle y Spring Boot 3.3.3, dependencias para web, seguridad, OAuth2/OIDC, JPA, Redis, mail, Flyway, OpenAPI y SDK S3. 【F:pymerp/backend/build.gradle†L1-L74】
-- Configuración tipada vía `AppProperties` expone CORS, multitenencia (`app.tenancy.default-company-id`), JWT/refresh tokens, captcha y banderas OIDC. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/config/AppProperties.java†L9-L103】
-- `application-dev.properties` conecta con Postgres y Redis, habilita Actuator, define secreto JWT, captcha simple y parámetros OIDC opcionales. 【F:pymerp/backend/src/main/resources/application-dev.properties†L1-L40】
+## 2. Estructura del monorepo
+| Ruta | Descripción |
+| --- | --- |
+| `backend/` | API REST en Spring Boot 3 (Java 21, Gradle) con módulos DDD, seguridad JWT/OIDC, migraciones Flyway y pruebas automatizadas. |
+| `ui/` | Frontend web en Vite + React 18 + TypeScript con React Query, React Router y modo offline controlado. |
+| `app_flutter/` | Cliente Flutter orientado a escenarios móviles/offline con autenticación JWT y sincronización progresiva. |
+| `desktop/` | Proyecto Tauri que empaqueta la build de `ui/` como instalador de escritorio Windows. |
+| `docs/` | Documentación complementaria (por ejemplo `docs/windows-desktop.md`). |
+| `scripts/`, `package.json`, `Makefile` | Scripts Node y targets Make para orquestar tareas (build, lint, ejecutar clientes). |
+| `docker-compose.yml` | Stack local con Postgres 16, Redis 7, backend, frontend, MinIO y Mailhog. |
 
-### 2.2 Multitenencia
-- `CompanyContextFilter` exige el header `X-Company-Id` en toda ruta `/api/**`, valida UUID y almacena el tenant en un contexto `ThreadLocal`, liberándolo al terminar la petición. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/core/tenancy/CompanyContextFilter.java†L1-L65】
-- Repositorios y servicios reciben el `companyId` desde `CompanyContext.require()` para aislar datos por inquilino.
+## 3. Vista lógica de alto nivel
+```text
+                    Usuarios
+                       |
+        +--------------+-----------------------------+
+        |                                            |
+ React 18 (ui/) & Tauri (desktop/)          Flutter (app_flutter/)
+        |                                            |
+        +---------------------+----------------------+
+                              |
+                 Spring Boot API (backend/)
+                              |
+     +------------+-----------+---------------------+
+     |            |                                 |
+Postgres 16   Redis 7                      Almacenamiento local
+(Flyway, JPA) (cache y locks)      (imágenes, QR) → MinIO/S3*
+                              |
+                        Servicios auxiliares
+             (Mailhog SMTP, captcha, métricas Actuator)
+                              |
+                 IdP OIDC opcional (Keycloak/Auth0)
+```
+\* MinIO/S3 está disponible como futuro backend de objetos; hoy se usa `LocalStorageService`.
 
-### 2.3 Seguridad
-- Seguridad por defecto con JWT internos y refresh tokens (stateless) usando `JwtAuthenticationFilter` y un `DaoAuthenticationProvider`. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/config/SecurityConfig.java†L39-L79】
-- Alternativa OIDC: al habilitar `app.security.jwt.oidc-enabled`, se activa `oauth2ResourceServer().jwt()` y se mapean roles/alcances con `OidcRoleMapper` para admitir `realm_access.roles`, `resource_access` y `scope`. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/config/SecurityConfig.java†L48-L75】【F:pymerp/backend/src/main/java/com/datakomerz/pymes/security/OidcRoleMapper.java†L1-L67】
-- CORS configurable, sesiones deshabilitadas, endpoints públicos limitados a `/actuator/**`, `/api/v1/auth/**` y `/api/v1/requests/**`.
-- Flujo de solicitud de cuenta protegido con captcha aritmético (`SimpleCaptchaValidationService`) y notificación por correo (`AccountRequestNotifier`). 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/requests/application/AccountRequestService.java†L18-L62】【F:pymerp/backend/src/main/java/com/datakomerz/pymes/requests/application/AccountRequestNotifier.java†L1-L55】
+## 4. Backend (Spring Boot)
 
-### 2.4 Persistencia e infraestructura
-- Postgres 16 como base de datos principal; migraciones Flyway (`backend/src/main/resources/db`).
-- Redis 7 disponible para cache/eventos y deshabilitado en health local cuando no está presente. 【F:pymerp/backend/src/main/resources/application-dev.properties†L13-L25】
-- Servicio de archivos `StorageService` con implementación local (`LocalStorageService`) para imágenes y QR de productos, configurable vía `app.storage.*`. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/storage/LocalStorageService.java†L1-L108】【F:pymerp/backend/src/main/java/com/datakomerz/pymes/storage/StorageProperties.java†L1-L33】
-- SDK AWS S3 incluido para futura integración con MinIO/S3.
-- Actuator expone health/metrics; ZXing genera códigos QR.
+### 4.1 Stack base
+- Java 21 + Spring Boot 3.3.x administrado con Gradle (`backend/build.gradle`) incorporando starters web, security, OAuth2 resource server, data JPA, Redis, mail, Flyway y OpenAPI.
+- Configuración externa tipada mediante `AppProperties` (`backend/src/main/java/com/datakomerz/pymes/config/AppProperties.java`) para multitenencia, JWT/refresh tokens, captcha y toggles OIDC.
+- Perfiles `application-dev.properties` y `application-test.properties` (`backend/src/main/resources/`) definen conexiones a Postgres/Redis, credenciales demo, URLs de MinIO y parámetros SMTP.
 
-### 2.5 Dominios implementados
-- **Autenticación (`auth`)**: login, refresh, emisión de módulos habilitados y expiraciones; soporte para proveedor dev.
-- **Compañías (`company`)**: CRUD extendido con campos de razón social, contacto y pie de boleta; migraciones Flyway aplican nuevas columnas.【F:pymerp/README.md†L24-L33】
-- **Productos (`products`)**: búsqueda por nombre/SKU/código de barras, creación/edición multipart con validaciones de imagen (PNG/JPEG/WebP ≤1 MB), activación/desactivación, alertas de inventario, generación/descarga de QR y consulta de lotes. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/products/ProductController.java†L40-L170】
-- **Pricing (`pricing`)**: historial de precios por producto, registro de cambios y consulta del último precio vigente. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/pricing/PricingService.java†L19-L70】
-- **Inventario (`inventory`)**: lotes FIFO, movimientos, alertas de stock, ajustes manuales (incremento/decremento), configuración de umbral y resumen de valor/alertas/productos. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/inventory/InventoryController.java†L1-L53】【F:pymerp/backend/src/main/java/com/datakomerz/pymes/inventory/InventoryService.java†L19-L128】
-- **Ventas (`sales`)**: creación/actualización/cancelación, métricas diarias, detalle completo y listado paginado con filtros por estado, documento, método de pago y rango de fechas; integra consumo/reverso de stock. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/sales/api/SalesController.java†L1-L97】【F:pymerp/backend/src/main/java/com/datakomerz/pymes/inventory/InventoryService.java†L30-L83】
-- **Compras (`purchases`)**: alta/edición/cancelación, listado paginado con filtros y métricas diarias para paneles analíticos. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/purchases/PurchaseController.java†L1-L77】
-- **Clientes (`customers`)**: CRUD completo, segmentación, conteo por segmentos y paginación con filtros por texto/segmento. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/customers/api/CustomerController.java†L1-L86】
-- **Proveedores (`suppliers`)**: gestión de proveedor y contactos asociados al tenant. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/suppliers/SupplierController.java†L1-L70】
-- **Solicitudes de cuenta (`requests`)**: endpoint público `/api/v1/requests` que persiste solicitudes, valida RUT, confirma contraseñas y envía notificaciones. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/requests/api/AccountRequestController.java†L1-L26】【F:pymerp/backend/src/main/java/com/datakomerz/pymes/requests/application/AccountRequestService.java†L33-L62】
+### 4.2 Organización por capas
+- Controladores REST viven en `com.datakomerz.pymes.<dominio>.api` o directamente en el paquete del dominio (`ProductController`, `SalesController`, etc.) cuidando DTOs y validaciones.
+- Servicios de aplicación (`…/<dominio>/application` o `…/<dominio>/<Dominio>Service`) encapsulan reglas de negocio, coordinan transacciones y delegan en repositorios.
+- Capa de dominio modelada con entidades JPA, agregados y repositorios (Spring Data) en `com.datakomerz.pymes.<dominio>.domain`.
+- Adaptadores de infraestructura (`core/tenancy`, `storage`, `config`) resuelven preocupaciones transversales (contexto de compañía, almacenamiento de archivos, captcha, notificaciones).
 
-### 2.6 Calidad y pruebas
-- `./gradlew test` ejecuta pruebas JUnit5 con soporte de Spring Security; Checkstyle/Spotless aplican reglas sobre capas de aplicación. 【F:pymerp/backend/build.gradle†L76-L101】
-- `./gradlew flywayMigrate` disponible para preparar la base de datos antes de ejecutar servicios. 【F:pymerp/README.md†L24-L31】
+### 4.3 Multitenencia
+- `CompanyContextFilter` (`backend/src/main/java/com/datakomerz/pymes/core/tenancy/CompanyContextFilter.java`) exige el header `X-Company-Id`, valida UUID y almacena el tenant en un `ThreadLocal`.
+- `CompanyContext.require()` se emplea desde repositorios y servicios para asegurar aislamiento por compañía.
+- Seeder y perfiles dev crean una compañía demo `00000000-0000-0000-0000-000000000001` utilizada por clientes durante desarrollo.
 
-## 3. API REST v1 (principales rutas)
-- `/api/v1/auth/**`: autenticación (login, refresh). 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/auth/api/AuthController.java†L16-L46】
-- `/api/v1/companies`: mantenimiento de compañías. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/company/CompanyController.java†L21-L51】
-- `/api/v1/products`: catálogo, imágenes, QR, stock y ajustes de estado/inventario. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/products/ProductController.java†L40-L170】
-- `/api/v1/pricing`: historial de precios y registro de cambios. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/pricing/PricingController.java†L21-L49】
-- `/api/v1/inventory`: alertas, resumen, configuración y ajustes manuales. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/inventory/InventoryController.java†L1-L53】
-- `/api/v1/sales`: CRUD, métricas y detalle de ventas. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/sales/api/SalesController.java†L1-L97】
-- `/api/v1/purchases`: gestión y métricas de compras. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/purchases/PurchaseController.java†L1-L77】
-- `/api/v1/customers`: CRUD, segmentos y resumen de clientes. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/customers/api/CustomerController.java†L33-L86】
-- `/api/v1/suppliers`: proveedores y contactos. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/suppliers/SupplierController.java†L19-L61】
-- `/api/v1/requests`: solicitudes de cuenta + captcha (público). 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/requests/api/AccountRequestController.java†L18-L26】
-- `/api/v1/health`: health check extendido. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/api/HealthController.java†L1-L10】
+### 4.4 Seguridad y autenticación
+- Flujo por defecto con JWT internos: autenticación en `/api/v1/auth/login`, emisión de refresh tokens y `JwtAuthenticationFilter` para proteger rutas (`backend/src/main/java/com/datakomerz/pymes/config/SecurityConfig.java`).
+- Toggle OIDC (`app.security.jwt.oidc-enabled`) habilita `oauth2ResourceServer().jwt()` y delega la validación de tokens a un IdP externo; `OidcRoleMapper` (`backend/src/main/java/com/datakomerz/pymes/security/OidcRoleMapper.java`) mapea claims (`realm_access`, `resource_access`, `scope`) a authorities.
+- `AccountRequestService` y `AccountRequestNotifier` gestionan solicitudes de cuenta públicas con captcha aritmético y envío de email (`backend/src/main/java/com/datakomerz/pymes/requests/application`).
+- CORS configurable vía `AppProperties`, sesiones deshabilitadas y endpoints públicos acotados a `/actuator/**`, `/api/v1/auth/**` y `/api/v1/requests/**`.
 
-## 4. Frontend web (Vite + React)
-- `App.tsx` define un shell protegido con React Router, LayoutShell y navegación por módulos (`dashboard`, `sales`, `purchases`, `inventory`, `customers`, `suppliers`, `finances`, `reports`, `settings`). 【F:pymerp/ui/src/App.tsx†L6-L64】
-- `AuthContext` persiste la sesión JWT/refresh en `localStorage`, programa refrescos automáticos, limpia sesión expirada y propaga `modules` para el control de accesos por vista. 【F:pymerp/ui/src/context/AuthContext.tsx†L1-L96】
-- `services/client.ts` centraliza Axios, añade encabezados `Authorization` y `X-Company-Id`, y ofrece **modo offline**: ante fallos de red genera datos demo para compañías, inventario, ventas/compras diarias y documentos. 【F:pymerp/ui/src/services/client.ts†L1-L111】【F:pymerp/ui/src/services/client.ts†L520-L611】
-- La experiencia de landing combina login y solicitud de cuenta con captcha local, validación de RUT y manejo de cool-down por múltiples fallos. 【F:pymerp/ui/src/pages/LandingExperience.tsx†L1-L120】
-- React Query maneja cache de peticiones, loaders y mutaciones (login, account request, módulos). Las pruebas usan Vitest + Testing Library (`npm run test`). 【F:pymerp/ui/package.json†L6-L34】
+### 4.5 Persistencia e integraciones
+- Postgres 16 como base principal; migraciones Flyway en `backend/src/main/resources/db` para versionar esquema y seeds.
+- Redis 7 como cache auxiliar y soporte para locks/eventos (se deshabilita automáticamente cuando no está disponible en local).
+- `StorageService` y `LocalStorageService` (`backend/src/main/java/com/datakomerz/pymes/storage/`) manejan archivos e imágenes; existe configuración para apuntar a MinIO/S3.
+- Librerías complementarias: ZXing para códigos QR, JavaMailSender para notificaciones y actuator/metrics para observabilidad.
 
-## 5. Clientes adicionales
-- **Flutter (`app_flutter/`)**: consume endpoints de clientes (`/v1/customers`) con paginación infinita, formularios con lat/lng opcional, botón "Usar ubicación actual", cabeceras `Authorization`/`X-Company-Id` y pruebas de serialización/widgets. Falta sincronización offline y edición avanzada. 【F:pymerp/app_flutter/README.md†L1-L37】
-- **Desktop (`desktop/`)**: base Tauri para empaquetar la UI, documentado en `docs/windows-desktop.md`.
+### 4.6 Dominios implementados
+- **Autenticación (`auth`)**: login, refresh, módulos habilitados por usuario, expiraciones controladas (`backend/src/main/java/com/datakomerz/pymes/auth/api/AuthController.java`).
+- **Compañías (`company`)**: CRUD extendido con datos legales, contacto y pie de boleta (`backend/src/main/java/com/datakomerz/pymes/company/CompanyController.java`).
+- **Productos (`products`)**: búsqueda por nombre/SKU/código de barras, carga de imágenes multipart, estados y generación de QR (`backend/src/main/java/com/datakomerz/pymes/products/ProductController.java`).
+- **Inventario (`inventory`)**: lotes FIFO, alertas, ajustes manuales y métricas (`backend/src/main/java/com/datakomerz/pymes/inventory`).
+- **Ventas (`sales`)** y **Compras (`purchases`)**: CRUD con métricas diarias, filtros avanzados y conciliación de stock (`backend/src/main/java/com/datakomerz/pymes/sales/api/SalesController.java`, `backend/src/main/java/com/datakomerz/pymes/purchases/PurchaseController.java`).
+- **Pricing (`pricing`)**: historial de precios y auditoría de cambios (`backend/src/main/java/com/datakomerz/pymes/pricing`).
+- **Clientes (`customers`)** y **Proveedores (`suppliers`)**: segmentación, conteos y filtros (`backend/src/main/java/com/datakomerz/pymes/customers/api`, `backend/src/main/java/com/datakomerz/pymes/suppliers`).
+- **Solicitudes de cuenta (`requests`)**: endpoint público con validación de RUT, captcha y notificación (`backend/src/main/java/com/datakomerz/pymes/requests/api/AccountRequestController.java`).
 
-## 6. Infraestructura local
-- `docker-compose.yml` levanta backend Gradle, Postgres 16, Redis 7, frontend Vite, MinIO y Mailhog; variables de entorno inyectan credenciales demo y compañía por defecto. 【F:pymerp/docker-compose.yml†L1-L79】
-- Scripts recomendados: `docker compose up --build`, `cd backend && ./gradlew bootRun --args='--spring.profiles.active=dev'`, `npm run dev` para frontend o `make run-web` en Flutter. 【F:pymerp/README.md†L15-L23】【F:pymerp/app_flutter/README.md†L1-L17】
+### 4.7 Calidad y pruebas
+- `./gradlew test` ejecuta suites JUnit 5 con soporte Spring Security; se incluyen pruebas de integración por dominio.
+- Checkstyle y Spotless aplican reglas de estilo, y Flyway asegura consistencia de schema antes de subir ambientes (`backend/build.gradle`).
+- Gradle tasks adicionales: `bootRun` con perfil `dev`, `flywayMigrate`, `spotlessApply`.
 
-## 7. Roadmap sugerido (actualizado)
-1. Completar integración con MinIO/S3 para servir imágenes y documentos desde almacenamiento objeto (hoy opera modo local).
-2. Automatizar pipelines de pruebas (Gradle + Vitest) y quality gates (Checkstyle/Spotless) en CI.
-3. Expandir el motor offline (web y Flutter) con sincronización bidireccional y colas de reintento.
-4. Implementar reportes avanzados (ventas, compras, inventario) con filtros dinámicos y descargas.
-5. Incorporar gestión avanzada de usuarios/roles vía IdP OIDC y panel administrativo.
+## 5. API REST v1 (rutas principales)
+| Ruta | Uso principal | Implementación |
+| --- | --- | --- |
+| `/api/v1/auth/**` | Login y refresh tokens | `backend/src/main/java/com/datakomerz/pymes/auth/api/AuthController.java` |
+| `/api/v1/companies` | Gestión de compañías | `backend/src/main/java/com/datakomerz/pymes/company/CompanyController.java` |
+| `/api/v1/products` | Catálogo, imágenes, QR, lotes | `backend/src/main/java/com/datakomerz/pymes/products/ProductController.java` |
+| `/api/v1/pricing` | Historial y mutaciones de precios | `backend/src/main/java/com/datakomerz/pymes/pricing/PricingController.java` |
+| `/api/v1/inventory` | Alertas y ajustes de inventario | `backend/src/main/java/com/datakomerz/pymes/inventory/InventoryController.java` |
+| `/api/v1/sales` | CRUD de ventas y métricas | `backend/src/main/java/com/datakomerz/pymes/sales/api/SalesController.java` |
+| `/api/v1/purchases` | Compras y métricas | `backend/src/main/java/com/datakomerz/pymes/purchases/PurchaseController.java` |
+| `/api/v1/customers` | Clientes, segmentos y resumen | `backend/src/main/java/com/datakomerz/pymes/customers/api/CustomerController.java` |
+| `/api/v1/suppliers` | Proveedores y contactos | `backend/src/main/java/com/datakomerz/pymes/suppliers/SupplierController.java` |
+| `/api/v1/requests` | Solicitudes de cuenta públicas | `backend/src/main/java/com/datakomerz/pymes/requests/api/AccountRequestController.java` |
+| `/api/v1/health` | Health check extendido | `backend/src/main/java/com/datakomerz/pymes/api/HealthController.java` |
 
-## 8. Integración OIDC (Keycloak / Auth0) — guía rápida
+## 6. Frontend web (Vite + React)
 
-Esta sección describe cómo integrar un proveedor OIDC (por ejemplo Keycloak o Auth0) como Identity Provider centralizado para PyMEs.
+### 6.1 Stack y estructura
+- Vite + React 18 + TypeScript (`ui/`) con alias organizados por módulos (`features`, `components`, `pages`, `context`).
+- `App.tsx` define el shell autenticado, layout lateral y routing por módulos (`ui/src/App.tsx`).
+- Los formularios usan React Hook Form y componentes reutilizables, mientras que tablas y listados se apoyan en TanStack Table.
 
-Objetivo
-- Permitir que en entornos de producción la API valide tokens emitidos por un IdP (OIDC). En desarrollo la aplicación mantiene el flujo local de JWT/refresh tokens por defecto.
+### 6.2 Estado, datos y modo offline
+- `AuthContext` (`ui/src/context/AuthContext.tsx`) persiste tokens en `localStorage`, programa refresh automático y propaga `modules` para control de acceso.
+- `services/client.ts` centraliza el cliente HTTP (Axios), añade encabezados `Authorization` / `X-Company-Id` y expone un modo offline que genera datos demo cuando falla la red (`ui/src/services/client.ts`).
+- React Query gestiona cache, revalidaciones y loaders; mutaciones cubren login, solicitudes de cuenta, módulos y entidades de negocio.
 
-Requisitos
-- Tener un servidor OIDC disponible (Keycloak en contenedor, Auth0 tenant, etc.).
-- Configurar un cliente (application) en el IdP cuyo `client_id` y `jwk-set-uri` o `issuer` estén accesibles.
+### 6.3 Pruebas, build y linting
+- Vitest + Testing Library (`ui/package.json`) para pruebas unitarias/componentes (`npm run test`).
+- `npm run dev` levanta Vite con proxy a `/api`; `npm run build` produce artefactos listos para Tauri o deploy estático.
+- Roadmap: activar ESLint + Prettier compartidos en el workspace y agregar pruebas e2e (Playwright/Cypress).
 
-Resumen de la solución en la aplicación
-- El backend soporta dos modos (toggle):
-        - Modo local (por defecto): uso de la implementación interna de JWT + refresh tokens (dev friendly).
-        - Modo OIDC: activar `app.security.jwt.oidc-enabled=true` y proveer la URL de JWK/Issuer para que Spring Security valide los JWT del proveedor.
+## 7. Clientes adicionales
+- **Flutter (`app_flutter/`)**: consume `/api/v1/customers` con paginación infinita, formularios que integran geolocalización y manejo de `Authorization`/`X-Company-Id` en `lib/data/remote`. Incluye scripts `make run-web` / `make test` y pruebas de serialización/widgets.
+- **Desktop (`desktop/`)**: proyecto Tauri que empaqueta la build de `ui/` en instaladores `.msi`. La guía `docs/windows-desktop.md` detalla requisitos, firma y distribución interna.
 
-Archivos relevantes
-- `backend/src/main/resources/application-dev.properties` — propiedad toggle: `app.security.jwt.oidc-enabled` y ejemplo `spring.security.oauth2.resourceserver.jwt.jwk-set-uri`.
-- `backend/src/main/java/com/datakomerz/pymes/config/SecurityConfig.java` — configuración condicional que habilita `oauth2ResourceServer().jwt()` cuando `app.security.jwt.oidc-enabled=true`.
-- `backend/src/main/java/com/datakomerz/pymes/config/AppProperties.java` — binder que contiene `oidcEnabled` (boolean) y opciones de captcha.
-- `backend/src/main/java/com/datakomerz/pymes/security/OidcRoleMapper.java` — normaliza claims de roles (`realm_access.roles`, `resource_access`, `roles`) y scopes (`scope`).
+## 8. Infraestructura y DevOps
+- `docker-compose.yml` levanta Postgres 16, Redis 7, backend (perfil `dev`), frontend (Vite), MinIO y Mailhog; variables `.env` controlan credenciales demo y rutas de archivos.
+- Scripts recomendados: `docker compose up --build`, `cd backend && ./gradlew bootRun --args='--spring.profiles.active=dev'`, `npm run dev`, `make run-web`.
+- Observabilidad: Actuator expone `/actuator/health`, `/actuator/metrics` y `/actuator/env`; logs estructurados se emiten a consola con niveles configurables vía `application-*.properties`.
+- Lineamientos CI/CD: Gradle + Vitest tests, Checkstyle/Spotless como quality gates y verificación de migraciones Flyway antes de despliegues.
 
-Configuración recomendada en Keycloak (pasos resumidos)
-1. Crear un Realm (si no existe) y un Client, por ejemplo `pymerp-backend`.
-2. Tipo de cliente: `confidential` (si la API necesita usar client secret para token introspection) o `public` si sólo se usa redirección desde frontend.
-3. En Settings del client: establecer `Valid Redirect URIs` para la UI, y guardar `Client ID` / `Client secret` si aplica.
-4. Crear Roles (realm roles) y asignarlos a usuarios o groups.
-5. Crear un Mapper (Client Scope) para exponer roles en el claim `realm_access.roles` o un claim personalizado `roles` (según preferencia).
+## 9. Integración OIDC (Keycloak / Auth0)
 
-Ejemplo de `application-dev.properties` (fragmento)
+### 9.1 Objetivo y modo de ejecución
+- Permitir que entornos de staging/producción validen tokens emitidos por un IdP OIDC; en `dev` se mantiene el flujo JWT interno.
+- Toggle clave: `app.security.jwt.oidc-enabled=true` en las propiedades del backend, más `spring.security.oauth2.resourceserver.jwt.jwk-set-uri` o `issuer-uri`.
 
+### 9.2 Pasos en el IdP
+1. Crear un Realm/tenant y un Client (p. ej. `pymerp-backend`).
+2. Definir URIs válidas de redirect (para la UI) y obtener `client_id` / `client_secret` si aplica.
+3. Crear roles (realm roles o client roles) y asignarlos a usuarios/grupos.
+4. Agregar un mapper que exponga los roles en `realm_access.roles`, `resource_access.<client>.roles` o un claim `roles`.
+
+### 9.3 Configuración de la aplicación
 ```properties
-# Activar el modo OIDC (false = modo local)
+# backend/src/main/resources/application-dev.properties
 app.security.jwt.oidc-enabled=true
+spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://<host>/realms/<realm>/protocol/openid-connect/certs
 
-# URL JWKS del proveedor OIDC (p. ej. Keycloak):
-spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://<keycloak-host>/auth/realms/<realm>/protocol/openid-connect/certs
-
-# (Opcional) si usas spring OAuth2 client para flows en el frontend:
+# (Opcional) si se usa el cliente OAuth2 de Spring para flujos web:
 spring.security.oauth2.client.registration.keycloak.client-id=pymerp-frontend
 spring.security.oauth2.client.registration.keycloak.client-secret=<secret>
-spring.security.oauth2.client.provider.keycloak.issuer-uri=https://<keycloak-host>/auth/realms/<realm>
+spring.security.oauth2.client.provider.keycloak.issuer-uri=https://<host>/realms/<realm>
 ```
 
-Mapeo de claims -> roles
-- Spring Security no asume de forma automática dónde están tus roles en el JWT. En Keycloak los roles suelen llegar dentro de `realm_access.roles` o `resource_access.<client>.roles`.
-- Implementación recomendada: `OidcRoleMapper.mapRolesFromClaims` extrae roles/alcances y los transforma a GrantedAuthorities con prefijo `ROLE_` o `SCOPE_`. 【F:pymerp/backend/src/main/java/com/datakomerz/pymes/security/OidcRoleMapper.java†L1-L67】
+- `SecurityConfig` habilita automáticamente `oauth2ResourceServer().jwt()` cuando el toggle está activo (`backend/src/main/java/com/datakomerz/pymes/config/SecurityConfig.java`).
+- `OidcRoleMapper` transforma claims en authorities `ROLE_*` / `SCOPE_*`, garantizando compatibilidad con Keycloak y Auth0 (`backend/src/main/java/com/datakomerz/pymes/security/OidcRoleMapper.java`).
 
-Ejemplo (snippet Java para documentación)
-
-```java
-// Ejemplo ilustrativo - ya existe lógica condicional en SecurityConfig.java
-JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-        Collection<GrantedAuthority> authorities = new ArrayList<>();
-        Object realmAccess = jwt.getClaim("realm_access");
-        if (realmAccess instanceof Map) {
-                Object roles = ((Map) realmAccess).get("roles");
-                if (roles instanceof Collection) {
-                        for (Object r : (Collection) roles) {
-                                authorities.add(new SimpleGrantedAuthority("ROLE_" + r.toString().toUpperCase()));
-                        }
-                }
-        }
-        return authorities;
-});
-
-http.oauth2ResourceServer().jwt().jwtAuthenticationConverter(converter);
-```
-
-Pruebas y verificación
-1. Obtener un access token válido del IdP (Keycloak Admin Console → Users → Login as user, o usar el endpoint `/protocol/openid-connect/token` con password grant / client credentials según la configuración).
-2. Llamar a la API protegida incluyendo el header `Authorization: Bearer <ACCESS_TOKEN>` y `X-Company-Id: <UUID-compania>` (el backend sigue exigiendo `company_id` vía header para tenancy).
-
-Ejemplo curl (usar token real):
-
+### 9.4 Validación y pruebas
+1. Obtener un access token válido (Keycloak Admin Console → Users → Impersonate / Auth0 Test tab / `password` grant).
+2. Invocar la API con encabezados `Authorization: Bearer <TOKEN>` y `X-Company-Id: <UUID-compania>`.
 ```bash
 curl -X GET "http://localhost:8081/api/v1/products" \
-        -H "Authorization: Bearer <ACCESS_TOKEN>" \
-        -H "X-Company-Id: 00000000-0000-0000-0000-000000000001"
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "X-Company-Id: 00000000-0000-0000-0000-000000000001"
 ```
+3. Si `app.security.jwt.oidc-enabled=false`, el backend vuelve al flujo interno (`admin@dev.local` / `Admin1234`).
 
-Fallback y desarrollo
-- Si `app.security.jwt.oidc-enabled=false`, la aplicación mantiene el flujo interno de autenticación (endpoints `/api/v1/auth/**`) y el dev user `admin@dev.local / Admin1234` sigue disponible.
-- Recomendación: activar OIDC en entornos staging/producción y mantener el modo local sólo en `dev` para facilitar pruebas.
+## 10. Roadmap sugerido
+1. Completar integración con MinIO/S3 para servir imágenes y documentos desde almacenamiento de objetos.
+2. Automatizar pipelines de pruebas (Gradle + Vitest) y quality gates (Checkstyle, Spotless) en CI/CD.
+3. Expandir el modo offline (web y Flutter) con sincronización bidireccional y colas de reintento.
+4. Implementar reportes analíticos avanzados (ventas, compras, inventario) con filtros dinámicos y exportaciones.
+5. Incorporar gestión avanzada de usuarios/roles administrables desde el IdP y la UI (provisionamiento SCIM, auditoría).
 
-Consideraciones adicionales
-- Si el IdP devuelve `email_verified` y `companyId` en claims, la aplicación puede mapearlos para validar tenancy. De lo contrario el frontend debe enviar `X-Company-Id` en cada petición.
-- Para SSO en la UI + backend: configurar un client OIDC para la UI y usar el flujo Authorization Code + PKCE; el backend validará el JWT en cada petición.
-
-Siguientes pasos sugeridos
-1. Probar manualmente: crear un realm Keycloak local y un client `pymerp-backend`, habilitar `app.security.jwt.oidc-enabled=true` y probar con un token.
-2. Implementar tests e2e que obtengan tokens de un Keycloak de pruebas y validen rutas protegidas.
-3. Documentar en detalle el mapeo de roles para cada proveedor (Keycloak / Auth0) si se requiere comportamiento avanzado.

@@ -9,6 +9,7 @@ import com.company.billing.persistence.DocumentFileVersion;
 import com.company.billing.persistence.FiscalDocument;
 import com.company.billing.persistence.FiscalDocumentRepository;
 import com.company.billing.persistence.FiscalDocumentStatus;
+import com.company.billing.persistence.SiiDocumentType;
 import com.company.billing.persistence.NonFiscalDocumentType;
 import com.datakomerz.pymes.billing.model.InvoicePayload;
 import com.datakomerz.pymes.billing.provider.BillingProvider;
@@ -178,6 +179,7 @@ class BillingServiceTest {
         null,
         NonFiscalDocumentType.COTIZACION,
         null,
+        null,
         "device-2",
         "POS-2",
         newPayloadNode("non-fiscal"));
@@ -231,6 +233,7 @@ class BillingServiceTest {
   static class InMemoryBillingStorageService implements BillingStorageService {
 
     private int counter = 0;
+    private final java.util.Map<String, byte[]> files = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     public StoredFile store(UUID documentId,
@@ -243,7 +246,28 @@ class BillingServiceTest {
       String storageKey = "memory/" + kind.name().toLowerCase() + "/" + documentId + "/"
           + version.name().toLowerCase() + "-" + counter + ".pdf";
       String checksum = Integer.toHexString(Arrays.hashCode(content));
+      files.put(storageKey, content);
       return new StoredFile(storageKey, checksum);
+    }
+
+    @Override
+    public byte[] read(String storageKey) {
+      byte[] content = files.get(storageKey);
+      if (content == null) {
+        throw new IllegalArgumentException("Unknown storage key " + storageKey);
+      }
+      return content;
+    }
+
+    @Override
+    public org.springframework.core.io.Resource loadAsResource(String storageKey) {
+      byte[] content = read(storageKey);
+      return new org.springframework.core.io.ByteArrayResource(content) {
+        @Override
+        public String getFilename() {
+          return storageKey.substring(storageKey.lastIndexOf('/') + 1);
+        }
+      };
     }
   }
 

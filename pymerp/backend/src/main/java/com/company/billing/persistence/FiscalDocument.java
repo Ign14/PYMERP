@@ -13,6 +13,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
@@ -40,6 +41,10 @@ public class FiscalDocument {
   @Column(name = "tax_mode", nullable = false, length = 16)
   private TaxMode taxMode;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "sii_type", length = 40)
+  private SiiDocumentType siiDocumentType;
+
   @NotNull
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 24)
@@ -64,6 +69,20 @@ public class FiscalDocument {
   @Size(max = 80)
   @Column(name = "track_id", length = 80)
   private String trackId;
+
+  @Size(max = 30)
+  @Column(name = "final_folio", length = 30)
+  private String finalFolio;
+
+  @Size(max = 20)
+  @Column(name = "resolution_number", length = 20)
+  private String resolutionNumber;
+
+  @Column(name = "resolution_date")
+  private LocalDate resolutionDate;
+
+  @Column(name = "references_json", columnDefinition = "text")
+  private String referencesJson;
 
   @Size(max = 60)
   @Column(length = 60)
@@ -129,6 +148,14 @@ public class FiscalDocument {
     this.taxMode = taxMode;
   }
 
+  public SiiDocumentType getSiiDocumentType() {
+    return siiDocumentType;
+  }
+
+  public void setSiiDocumentType(SiiDocumentType siiDocumentType) {
+    this.siiDocumentType = siiDocumentType;
+  }
+
   public FiscalDocumentStatus getStatus() {
     return status;
   }
@@ -175,6 +202,38 @@ public class FiscalDocument {
 
   public void setTrackId(String trackId) {
     this.trackId = trackId;
+  }
+
+  public String getFinalFolio() {
+    return finalFolio;
+  }
+
+  public void setFinalFolio(String finalFolio) {
+    this.finalFolio = finalFolio;
+  }
+
+  public String getResolutionNumber() {
+    return resolutionNumber;
+  }
+
+  public void setResolutionNumber(String resolutionNumber) {
+    this.resolutionNumber = resolutionNumber;
+  }
+
+  public LocalDate getResolutionDate() {
+    return resolutionDate;
+  }
+
+  public void setResolutionDate(LocalDate resolutionDate) {
+    this.resolutionDate = resolutionDate;
+  }
+
+  public String getReferencesJson() {
+    return referencesJson;
+  }
+
+  public void setReferencesJson(String referencesJson) {
+    this.referencesJson = referencesJson;
   }
 
   public String getProvider() {

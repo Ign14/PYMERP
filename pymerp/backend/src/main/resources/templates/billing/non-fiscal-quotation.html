@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>${documentTitle}</title>
+  <style>
+    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; margin: 0; padding: 32px; color: ${textColor}; background: #ffffff; font-size: 13px; line-height: 1.45; }
+    h1, h2 { margin: 0; color: ${primaryColor}; }
+    h1 { font-size: 22px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid ${primaryColor}; padding-bottom: 16px; margin-bottom: 20px; }
+    .logo img { max-height: 70px; }
+    .logo-placeholder { width: 72px; height: 72px; border-radius: 12px; border: 2px solid ${primaryColor}; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; color: ${primaryColor}; }
+    .company, .meta { font-size: 12px; }
+    .company strong { display: block; margin-bottom: 6px; }
+    .meta { text-align: right; }
+    .meta p { margin: 4px 0; }
+    .card { border: 1px solid #d3d7dd; border-radius: 10px; padding: 16px; background: #f9fafb; margin-bottom: 18px; }
+    .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    thead th { background: ${tableHeaderColor}; color: ${primaryColor}; text-transform: uppercase; font-size: 12px; padding: 10px 12px; letter-spacing: 0.05em; }
+    tbody td { border-bottom: 1px solid #e5e7eb; padding: 10px 12px; }
+    tbody tr:nth-child(even) { background: #f7fafc; }
+    .idx { width: 6%; text-align: center; }
+    .qty, .price, .discount, .total { text-align: right; white-space: nowrap; }
+    .totals { max-width: 320px; margin-left: auto; margin-top: 18px; display: grid; gap: 8px; }
+    .totals-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #d3d7dd; padding-bottom: 6px; }
+    .totals-row.total { border-bottom: none; font-weight: 700; color: ${primaryColor}; font-size: 14px; }
+    .footer { margin-top: 26px; font-size: 12px; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">${logoHtml}</div>
+    <div class="company">
+      <strong>${companyName}</strong>
+      <p>RUT: ${companyRut}</p>
+      <p>Giro: ${companyActivity}</p>
+      <p>${companyAddress}, ${companyCommune}</p>
+      <p>Fono: ${companyPhone}</p>
+      <p>Correo: ${companyEmail}</p>
+    </div>
+    <div class="meta">
+      <h1>${documentTitle}</h1>
+      <p><strong>${documentNumberLabel}:</strong> ${documentNumber}</p>
+      <p><strong>Fecha:</strong> ${issuedAt}</p>
+      <p><strong>Cliente:</strong> ${customerName}</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="section-title">Datos del cliente</div>
+    <p>${customerName}</p>
+    <p>${customerAddress}</p>
+    <p>${customerPhone}</p>
+    <p>${customerEmail}</p>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Descripción</th>
+      <th>Cantidad</th>
+      <th>Precio</th>
+      <th>Descuento</th>
+      <th>Total</th>
+    </tr>
+    </thead>
+    <tbody>
+    ${itemsRows}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-row"><span>Subtotal</span><span>${totalsSubtotal}</span></div>
+    <div class="totals-row"><span>IVA</span><span>${totalsVat}</span></div>
+    <div class="totals-row total"><span>Total</span><span>${totalsTotal}</span></div>
+  </div>
+
+  <div class="footer">
+    <p>Esta cotización es válida por 15 días corridos desde su emisión. Para confirmar, comuníquese con ${companyEmail}.</p>
+    <p>Generado el ${generatedOn}. ${footerNote}</p>
+  </div>
+</body>
+</html>

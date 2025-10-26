@@ -1,5 +1,6 @@
 package com.datakomerz.pymes.billing.service;
 
+import com.company.billing.persistence.SiiDocumentType;
 import com.datakomerz.pymes.billing.dto.IssueInvoiceRequest;
 import com.datakomerz.pymes.billing.dto.NonFiscalDocumentRequest;
 import com.datakomerz.pymes.billing.model.InvoicePayload;
@@ -18,11 +19,13 @@ public class InvoicePayloadFactory {
 
   public InvoicePayload fromInvoiceRequest(IssueInvoiceRequest request) {
     ObjectNode payload = objectMapper.valueToTree(request);
+    SiiDocumentType siiType = SiiDocumentType.from(request.documentType(), request.taxMode());
     return new InvoicePayload(
         request.sale().id(),
         request.documentType(),
         null,
         request.taxMode(),
+        siiType,
         request.sale().deviceId(),
         request.sale().pointOfSale(),
         payload);
@@ -34,6 +37,7 @@ public class InvoicePayloadFactory {
         request.sale().id(),
         null,
         request.documentType(),
+        null,
         null,
         request.sale().deviceId(),
         request.sale().pointOfSale(),

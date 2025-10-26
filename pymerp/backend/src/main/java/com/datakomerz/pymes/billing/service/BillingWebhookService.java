@@ -91,6 +91,7 @@ public class BillingWebhookService {
     String definitiveNumber = firstNonBlank(request.number(), request.externalId());
     if (definitiveNumber != null) {
       document.setNumber(definitiveNumber);
+      document.setFinalFolio(definitiveNumber);
     }
 
     if (document.getProvisionalNumber() != null) {

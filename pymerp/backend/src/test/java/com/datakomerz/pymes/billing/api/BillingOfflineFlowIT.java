@@ -372,8 +372,29 @@ class BillingOfflineFlowIT {
             + (filename != null && filename.toLowerCase().endsWith(".xml") ? ".xml" : ".pdf");
         String checksum = Integer.toHexString(Arrays.hashCode(content));
         stored.computeIfAbsent(documentId, id -> new ArrayList<>())
-            .add(new StoredRecord(kind, version, storageKey, checksum, contentType));
+            .add(new StoredRecord(kind, version, storageKey, checksum, contentType, content));
         return new StoredFile(storageKey, checksum);
+      }
+
+      @Override
+      public byte[] read(String storageKey) {
+        return stored.values().stream()
+            .flatMap(List::stream)
+            .filter(record -> record.storageKey().equals(storageKey))
+            .findFirst()
+            .map(StoredRecord::content)
+            .orElseThrow(() -> new IllegalArgumentException("No stored file for key " + storageKey));
+      }
+
+      @Override
+      public org.springframework.core.io.Resource loadAsResource(String storageKey) {
+        byte[] data = read(storageKey);
+        return new org.springframework.core.io.ByteArrayResource(data) {
+          @Override
+          public String getFilename() {
+            return storageKey.substring(storageKey.lastIndexOf('/') + 1);
+          }
+        };
       }
 
       List<StoredRecord> storedFor(UUID documentId) {
@@ -389,7 +410,8 @@ class BillingOfflineFlowIT {
                           DocumentFileVersion version,
                           String storageKey,
                           String checksum,
-                          String contentType) {
+                          String contentType,
+                          byte[] content) {
       }
     }
 

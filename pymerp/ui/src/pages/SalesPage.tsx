@@ -13,7 +13,8 @@ import {
   getSalesSummaryByPeriod,
   DocumentSummary,
   DocumentFile,
-  downloadDocument,
+  downloadDocumentByLink,
+  getBillingDocument,
   getDocumentPreview,
   updateSale,
 } from "../services/client";

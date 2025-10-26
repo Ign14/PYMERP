@@ -1,0 +1,150 @@
+getDocumentDetailUrl(id: string): string {
+  return api.getUri({ url: `/v1/billing/documents/${id}` });
+}` });
+}
+
+export function listSalesDaily(days = 14): Promise<SalesDailyPoint[]> {
+  return withOfflineFallback(
+    "listSalesDaily",
+    async () => {
+      const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/metrics/daily", { params: { days } });
+      return data;
+    },
+    () => fallbackListSalesDaily(days),
+  );
+}
+
+export function createSale(payload: SalePayload): Promise<SaleRes> {
+  return withOfflineFallback(
+    "createSale",
+    async () => {
+      const { data } = await api.post<SaleRes>("/v1/sales", payload);
+      return data;
+    },
+    () => fallbackCreateSale(payload),
+  );
+}
+
+export function listPurchases(params: ListPurchasesParams = {}): Promise<Page<PurchaseSummary>> {
+  return withOfflineFallback(
+    "listPurchases",
+    async () => {
+      const { data } = await api.get<Page<PurchaseSummary>>("/v1/purchases", { params });
+      return data;
+    },
+    () => fallbackListPurchases(params),
+  );
+}
+
+export function updatePurchase(id: string, payload: PurchaseUpdatePayload): Promise<PurchaseSummary> {
+  return withOfflineFallback(
+    "updatePurchase",
+    async () => {
+      const { data } = await api.put<PurchaseSummary>(`/v1/purchases/${id}`, payload);
+      return data;
+    },
+    () => fallbackUpdatePurchase(id, payload),
+  );
+}
+
+export function cancelPurchase(id: string): Promise<PurchaseSummary> {
+  return withOfflineFallback(
+    "cancelPurchase",
+    async () => {
+      const { data } = await api.post<PurchaseSummary>(`/v1/purchases/${id}/cancel`, {});
+      return data;
+    },
+    () => fallbackCancelPurchase(id),
+  );
+}
+
+export function listPurchaseDaily(days = 14): Promise<PurchaseDailyPoint[]> {
+  return withOfflineFallback(
+    "listPurchaseDaily",
+    async () => {
+      const { data } = await api.get<PurchaseDailyPoint[]>("/v1/purchases/metrics/daily", { params: { days } });
+      return data;
+    },
+    () => fallbackListPurchaseDaily(days),
+  );
+}
+
+export function createPurchase(payload: PurchasePayload): Promise<{ id: string }> {
+  return withOfflineFallback(
+    "createPurchase",
+    async () => {
+      const { data } = await api.post<{ id: string }>("/v1/purchases", payload);
+      return data;
+    },
+    () => fallbackCreatePurchase(payload),
+  );
+}
+
+export function listInventoryAlerts(threshold?: number): Promise<InventoryAlert[]> {
+  return withOfflineFallback(
+    "listInventoryAlerts",
+    async () => {
+      const params = typeof threshold === "number" ? { threshold } : {};
+      const { data } = await api.get<InventoryAlert[]>("/v1/inventory/alerts", { params });
+      return data;
+    },
+    () => fallbackListInventoryAlerts(threshold),
+  );
+}
+
+export function getInventorySummary(): Promise<InventorySummary> {
+  return withOfflineFallback(
+    "getInventorySummary",
+    async () => {
+      const { data } = await api.get<InventorySummary>("/v1/inventory/summary");
+      return data;
+    },
+    () => fallbackGetInventorySummary(),
+  );
+}
+
+export function getInventorySettings(): Promise<InventorySettings> {
+  return withOfflineFallback(
+    "getInventorySettings",
+    async () => {
+      const { data } = await api.get<InventorySettings>("/v1/inventory/settings");
+      return data;
+    },
+    () => fallbackGetInventorySettings(),
+  );
+}
+
+export function updateInventorySettings(payload: { lowStockThreshold: number }): Promise<InventorySettings> {
+  return withOfflineFallback(
+    "updateInventorySettings",
+    async () => {
+      const { data } = await api.put<InventorySettings>("/v1/inventory/settings", payload);
+      return data;
+    },
+    () => fallbackUpdateInventorySettings(payload),
+  );
+}
+
+export function createInventoryAdjustment(payload: InventoryAdjustmentPayload): Promise<InventoryAdjustmentResponse> {
+  return withOfflineFallback(
+    "createInventoryAdjustment",
+    async () => {
+      const { data } = await api.post<InventoryAdjustmentResponse>("/v1/inventory/adjustments", payload);
+      return data;
+    },
+    () => fallbackCreateInventoryAdjustment(payload),
+  );
+}
+
+export default api;
+
+
+
+
+
+
+
+
+
+
+

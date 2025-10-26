@@ -13,6 +13,7 @@ import com.company.billing.persistence.FiscalDocumentStatus;
 import com.company.billing.persistence.NonFiscalDocument;
 import com.company.billing.persistence.NonFiscalDocumentRepository;
 import com.company.billing.persistence.NonFiscalDocumentStatus;
+import com.company.billing.persistence.SiiDocumentType;
 import com.company.billing.persistence.TaxMode;
 import com.datakomerz.pymes.billing.model.DocumentCategory;
 import com.datakomerz.pymes.billing.model.InvoicePayload;
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,6 +101,13 @@ public class BillingService {
     document.setSale(sale);
     document.setDocumentType(payload.fiscalDocumentType());
     document.setTaxMode(Optional.ofNullable(payload.taxMode()).orElse(TaxMode.AFECTA));
+    document.setSiiDocumentType(resolveSiiDocumentType(payload));
+    if (document.getResolutionNumber() == null) {
+      document.setResolutionNumber("0");
+    }
+    if (document.getResolutionDate() == null) {
+      document.setResolutionDate(LocalDate.now(clock));
+    }
     document.setStatus(FiscalDocumentStatus.PENDING);
     document.setOffline(false);
     document.setProvisionalNumber(generateProvisionalNumber(sale.getCompanyId()));
@@ -145,6 +154,7 @@ public class BillingService {
     document.setProvider(providerResult.provider());
     document.setTrackId(providerResult.trackId());
     document.setNumber(providerResult.number());
+    document.setFinalFolio(providerResult.number());
     fiscalDocumentRepository.save(document);
 
     List<DocumentFile> files = new ArrayList<>();
@@ -309,6 +319,16 @@ public class BillingService {
     return trimmed;
   }
 
+  private SiiDocumentType resolveSiiDocumentType(InvoicePayload payload) {
+    if (payload.siiDocumentType() != null) {
+      return payload.siiDocumentType();
+    }
+    if (payload.fiscalDocumentType() == null) {
+      return null;
+    }
+    return SiiDocumentType.from(payload.fiscalDocumentType(), payload.taxMode());
+  }
+
   private String generateProvisionalNumber(UUID companyId) {
     int year = Year.now(clock).getValue();
     String prefix = "CTG-" + year + "-";
@@ -406,10 +426,17 @@ public class BillingService {
         .orElse(null);
     String official = files.stream()
         .filter(file -> file.getVersion() == DocumentFileVersion.OFFICIAL)
+        .filter(file -> file.getContentType() != null && file.getContentType().toLowerCase().contains("pdf"))
         .findFirst()
         .map(DocumentFile::getStorageKey)
         .orElse(null);
-    return new DocumentLinks(local, official);
+    String xml = files.stream()
+        .filter(file -> file.getVersion() == DocumentFileVersion.OFFICIAL)
+        .filter(file -> "application/xml".equalsIgnoreCase(file.getContentType()))
+        .findFirst()
+        .map(DocumentFile::getStorageKey)
+        .orElse(null);
+    return new DocumentLinks(local, official, xml);
   }
 
   private DocumentFileView toDocumentFileView(DocumentFile file) {

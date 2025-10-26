@@ -31,7 +31,7 @@ public record BillingDocumentView(
     List<DocumentFileView> files
 ) {
 
-  public record DocumentLinks(String localPdf, String officialPdf) {
+  public record DocumentLinks(String localPdf, String officialPdf, String officialXml) {
   }
 
   public record DocumentFileView(
