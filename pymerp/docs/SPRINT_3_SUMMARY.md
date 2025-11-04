@@ -293,17 +293,26 @@ public List<Customer> list() {
 
 ---
 
-## 🚀 Próximos Pasos (Sprint 4)
+## 🚀 Próximos Pasos
 
-### Tarea 3.4: Tests de Autorización (3h)
-- [ ] CustomerControllerAuthTest (5 tests)
-- [ ] ProductControllerAuthTest (5 tests)
-- [ ] SalesControllerAuthTest (5 tests)
-- [ ] PurchaseControllerAuthTest (5 tests)
-- [ ] SupplierControllerAuthTest (4 tests)
-- [ ] InventoryControllerAuthTest (3 tests)
-- [ ] BillingControllerAuthTest (3 tests)
-- **Total**: 30 tests usando `@WithMockUser(roles="ROLE")`
+### ✅ Tarea 3.4: Tests de Autorización (COMPLETADA - 4h)
+
+**Implementados 27 tests** en 7 controladores validando reglas RBAC:
+- ✅ CustomerControllerAuthTest (6 tests) - Commit 1493673
+- ✅ ProductControllerAuthTest (5 tests)
+- ✅ SalesControllerAuthTest (5 tests)
+- ✅ PurchaseControllerAuthTest (5 tests)
+- ✅ SupplierControllerAuthTest (3 tests)
+- ✅ InventoryControllerAuthTest (2 tests)
+- ✅ BillingControllerAuthTest (2 tests)
+
+**Ver detalles completos**: `docs/SPRINT_3_TESTS_GUIDE.md`
+
+**Pendiente** (4h adicionales): 
+- Tests para 9 controladores restantes (LocationController, ServiceController, etc.)
+- Cobertura actual: 44% (7/16 controladores)
+
+---
 
 ### Tarea 3.5: Documentación Final (1h)
 - [ ] Actualizar README_dev.md con sección RBAC
