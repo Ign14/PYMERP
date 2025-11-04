@@ -1,70 +1,82 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { listPurchases } from "../../services/client";
-import { createCurrencyFormatter } from "../../utils/currency";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listPurchases } from '../../services/client'
+import { createCurrencyFormatter } from '../../utils/currency'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts'
 
 type PurchasesPaymentMethodAnalysisProps = {
-  startDate: string;
-  endDate: string;
-  statusFilter?: string;
-};
+  startDate: string
+  endDate: string
+  statusFilter?: string
+}
 
 export default function PurchasesPaymentMethodAnalysis({
   startDate,
   endDate,
   statusFilter,
 }: PurchasesPaymentMethodAnalysisProps) {
-  const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
-  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(), [])
+  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0)
 
   const purchasesQuery = useQuery({
-    queryKey: ["purchases-payment", startDate, endDate, statusFilter],
+    queryKey: ['purchases-payment', startDate, endDate, statusFilter],
     queryFn: async () => {
       const result = await listPurchases({
         page: 0,
         size: 10000,
         status: statusFilter || undefined,
-        from: new Date(startDate + "T00:00:00").toISOString(),
-        to: new Date(endDate + "T23:59:59").toISOString(),
-      });
-      return result.content ?? [];
+        from: new Date(startDate + 'T00:00:00').toISOString(),
+        to: new Date(endDate + 'T23:59:59').toISOString(),
+      })
+      return result.content ?? []
     },
-  });
+  })
 
-  const purchases = purchasesQuery.data ?? [];
+  const purchases = purchasesQuery.data ?? []
 
   const paymentData = useMemo(() => {
-    const methods = ["Efectivo", "30 días", "60 días", "90 días", "Otro"];
-    const methodMap = new Map<string, { total: number; count: number }>();
+    const methods = ['Efectivo', '30 días', '60 días', '90 días', 'Otro']
+    const methodMap = new Map<string, { total: number; count: number }>()
 
-    methods.forEach((m) => methodMap.set(m, { total: 0, count: 0 }));
+    methods.forEach(m => methodMap.set(m, { total: 0, count: 0 }))
 
-    purchases.forEach((p) => {
+    purchases.forEach(p => {
       // Simular métodos de pago basados en datos demo
       // En producción esto vendría de un campo real como `paymentTerms` o `paymentMethod`
-      const randomMethod = methods[Math.floor(Math.random() * methods.length)];
-      const existing = methodMap.get(randomMethod)!;
+      const randomMethod = methods[Math.floor(Math.random() * methods.length)]
+      const existing = methodMap.get(randomMethod)!
 
       methodMap.set(randomMethod, {
         total: existing.total + (p.total ?? 0),
         count: existing.count + 1,
-      });
-    });
+      })
+    })
 
-    const chartData = methods.map((method) => {
-      const data = methodMap.get(method)!;
+    const chartData = methods.map(method => {
+      const data = methodMap.get(method)!
       return {
         name: method,
         monto: data.total,
         ordenes: data.count,
-      };
-    });
+      }
+    })
 
-    return { chartData, methodMap };
-  }, [purchases]);
+    return { chartData, methodMap }
+  }, [purchases])
 
-  const totalAmount = Array.from(paymentData.methodMap.values()).reduce((sum, m) => sum + m.total, 0);
+  const totalAmount = Array.from(paymentData.methodMap.values()).reduce(
+    (sum, m) => sum + m.total,
+    0
+  )
 
   if (purchasesQuery.isLoading) {
     return (
@@ -72,7 +84,7 @@ export default function PurchasesPaymentMethodAnalysis({
         <h3 className="text-neutral-100 mb-4">Análisis de Términos de Pago</h3>
         <div className="animate-pulse bg-neutral-800 rounded-lg h-80"></div>
       </div>
-    );
+    )
   }
 
   if (purchasesQuery.isError) {
@@ -83,7 +95,7 @@ export default function PurchasesPaymentMethodAnalysis({
           <p className="text-red-400">Error al cargar datos de pagos</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -102,23 +114,23 @@ export default function PurchasesPaymentMethodAnalysis({
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={paymentData.chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#404040" />
-                <XAxis dataKey="name" stroke="#a3a3a3" style={{ fontSize: "0.75rem" }} />
-                <YAxis stroke="#a3a3a3" style={{ fontSize: "0.75rem" }} />
+                <XAxis dataKey="name" stroke="#a3a3a3" style={{ fontSize: '0.75rem' }} />
+                <YAxis stroke="#a3a3a3" style={{ fontSize: '0.75rem' }} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "#171717",
-                    border: "1px solid #404040",
-                    borderRadius: "0.5rem",
-                    color: "#f5f5f5",
+                    backgroundColor: '#171717',
+                    border: '1px solid #404040',
+                    borderRadius: '0.5rem',
+                    color: '#f5f5f5',
                   }}
                   formatter={(value: number, name: string) => [
-                    name === "monto" ? formatCurrency(value) : value,
-                    name === "monto" ? "Monto" : "Órdenes",
+                    name === 'monto' ? formatCurrency(value) : value,
+                    name === 'monto' ? 'Monto' : 'Órdenes',
                   ]}
                 />
                 <Legend
-                  wrapperStyle={{ color: "#a3a3a3", fontSize: "0.875rem" }}
-                  formatter={(value: string) => (value === "monto" ? "Monto" : "Órdenes")}
+                  wrapperStyle={{ color: '#a3a3a3', fontSize: '0.875rem' }}
+                  formatter={(value: string) => (value === 'monto' ? 'Monto' : 'Órdenes')}
                 />
                 <Bar dataKey="monto" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                 <Bar dataKey="ordenes" fill="#10b981" radius={[8, 8, 0, 0]} />
@@ -129,10 +141,13 @@ export default function PurchasesPaymentMethodAnalysis({
           {/* Detalle por método */}
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {paymentData.chartData.map((method, index) => {
-              const percentage = totalAmount > 0 ? (method.monto / totalAmount) * 100 : 0;
+              const percentage = totalAmount > 0 ? (method.monto / totalAmount) * 100 : 0
 
               return (
-                <div key={index} className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
+                <div
+                  key={index}
+                  className="bg-neutral-800 border border-neutral-700 rounded-lg p-3"
+                >
                   <h4 className="text-neutral-300 text-sm font-medium mb-2">{method.name}</h4>
                   <p className="text-neutral-100 font-semibold text-lg mb-1">
                     {formatCurrency(method.monto)}
@@ -142,19 +157,19 @@ export default function PurchasesPaymentMethodAnalysis({
                     <span>{percentage.toFixed(1)}%</span>
                   </div>
                 </div>
-              );
+              )
             })}
           </div>
 
           {/* Insight */}
           <div className="bg-blue-950 border border-blue-800 rounded-lg p-4">
             <p className="text-blue-400 text-sm">
-              💡 <strong>Insight:</strong> La distribución de términos de pago permite optimizar el flujo de
-              caja y negociar mejores condiciones con proveedores.
+              💡 <strong>Insight:</strong> La distribución de términos de pago permite optimizar el
+              flujo de caja y negociar mejores condiciones con proveedores.
             </p>
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }

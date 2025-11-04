@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSupplierRiskAnalysis, SupplierRiskAnalysis as RiskAnalysisType } from "../services/client";
+import { useQuery } from '@tanstack/react-query'
+import {
+  getSupplierRiskAnalysis,
+  SupplierRiskAnalysis as RiskAnalysisType,
+} from '../services/client'
 
 export default function SupplierRiskAnalysis() {
   const riskQuery = useQuery<RiskAnalysisType, Error>({
-    queryKey: ["supplier-risk-analysis"],
+    queryKey: ['supplier-risk-analysis'],
     queryFn: () => getSupplierRiskAnalysis(),
     refetchOnWindowFocus: false,
-  });
+  })
 
   if (riskQuery.isLoading) {
     return (
@@ -14,19 +17,21 @@ export default function SupplierRiskAnalysis() {
         <h2 className="text-lg font-semibold text-neutral-100">⚠️ Análisis de Riesgo ABC</h2>
         <p className="text-neutral-400 mt-4">Cargando análisis de riesgo...</p>
       </div>
-    );
+    )
   }
 
   if (riskQuery.isError) {
     return (
       <div className="card-content">
         <h2 className="text-lg font-semibold text-neutral-100">⚠️ Análisis de Riesgo ABC</h2>
-        <p className="text-red-400 mt-4">{riskQuery.error?.message ?? "Error al cargar análisis"}</p>
+        <p className="text-red-400 mt-4">
+          {riskQuery.error?.message ?? 'Error al cargar análisis'}
+        </p>
       </div>
-    );
+    )
   }
 
-  const analysis = riskQuery.data;
+  const analysis = riskQuery.data
 
   if (!analysis) {
     return (
@@ -34,77 +39,85 @@ export default function SupplierRiskAnalysis() {
         <h2 className="text-lg font-semibold text-neutral-100">⚠️ Análisis de Riesgo ABC</h2>
         <p className="text-neutral-400 mt-4">No hay datos disponibles</p>
       </div>
-    );
+    )
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
-  const totalSuppliers = 
-    analysis.categoryA.length + 
-    analysis.categoryB.length + 
-    analysis.categoryC.length;
+  const totalSuppliers =
+    analysis.categoryA.length + analysis.categoryB.length + analysis.categoryC.length
 
-  const getCategoryInfo = (category: "A" | "B" | "C") => {
+  const getCategoryInfo = (category: 'A' | 'B' | 'C') => {
     const configs = {
       A: {
-        label: "Categoría A - Críticos",
-        description: "Top 80% del volumen",
-        color: "text-red-400",
-        bgColor: "bg-red-950/50",
-        borderColor: "border-red-800",
-        icon: "🔴",
+        label: 'Categoría A - Críticos',
+        description: 'Top 80% del volumen',
+        color: 'text-red-400',
+        bgColor: 'bg-red-950/50',
+        borderColor: 'border-red-800',
+        icon: '🔴',
         suppliers: analysis.categoryA,
       },
       B: {
-        label: "Categoría B - Importantes",
-        description: "15% del volumen",
-        color: "text-yellow-400",
-        bgColor: "bg-yellow-950/50",
-        borderColor: "border-yellow-800",
-        icon: "🟡",
+        label: 'Categoría B - Importantes',
+        description: '15% del volumen',
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-950/50',
+        borderColor: 'border-yellow-800',
+        icon: '🟡',
         suppliers: analysis.categoryB,
       },
       C: {
-        label: "Categoría C - Ocasionales",
-        description: "5% del volumen",
-        color: "text-neutral-400",
-        bgColor: "bg-neutral-800/50",
-        borderColor: "border-neutral-700",
-        icon: "⚪",
+        label: 'Categoría C - Ocasionales',
+        description: '5% del volumen',
+        color: 'text-neutral-400',
+        bgColor: 'bg-neutral-800/50',
+        borderColor: 'border-neutral-700',
+        icon: '⚪',
         suppliers: analysis.categoryC,
       },
-    };
-    return configs[category];
-  };
+    }
+    return configs[category]
+  }
 
-  const isHighConcentration = analysis.concentrationIndex > 0.25;
-  const concentrationLevel = 
-    analysis.concentrationIndex > 0.4 ? "Muy Alto" :
-    analysis.concentrationIndex > 0.25 ? "Alto" :
-    analysis.concentrationIndex > 0.15 ? "Moderado" : "Bajo";
+  const isHighConcentration = analysis.concentrationIndex > 0.25
+  const concentrationLevel =
+    analysis.concentrationIndex > 0.4
+      ? 'Muy Alto'
+      : analysis.concentrationIndex > 0.25
+        ? 'Alto'
+        : analysis.concentrationIndex > 0.15
+          ? 'Moderado'
+          : 'Bajo'
 
-  const concentrationColor = 
-    analysis.concentrationIndex > 0.4 ? "text-red-400" :
-    analysis.concentrationIndex > 0.25 ? "text-orange-400" :
-    analysis.concentrationIndex > 0.15 ? "text-yellow-400" : "text-green-400";
+  const concentrationColor =
+    analysis.concentrationIndex > 0.4
+      ? 'text-red-400'
+      : analysis.concentrationIndex > 0.25
+        ? 'text-orange-400'
+        : analysis.concentrationIndex > 0.15
+          ? 'text-yellow-400'
+          : 'text-green-400'
 
   return (
     <div className="card-content">
       <h2 className="text-lg font-semibold text-neutral-100 mb-4">⚠️ Análisis de Riesgo ABC</h2>
 
       {/* Resumen de concentración */}
-      <div className={`p-3 rounded border mb-4 ${
-        isHighConcentration 
-          ? "bg-orange-950/30 border-orange-800/50" 
-          : "bg-neutral-900/50 border-neutral-800"
-      }`}>
+      <div
+        className={`p-3 rounded border mb-4 ${
+          isHighConcentration
+            ? 'bg-orange-950/30 border-orange-800/50'
+            : 'bg-neutral-900/50 border-neutral-800'
+        }`}
+      >
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-neutral-400">Índice de Concentración (Herfindahl)</span>
           <span className={`text-lg font-bold ${concentrationColor}`}>
@@ -113,14 +126,13 @@ export default function SupplierRiskAnalysis() {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-neutral-500">Nivel de riesgo:</span>
-          <span className={`text-sm font-medium ${concentrationColor}`}>
-            {concentrationLevel}
-          </span>
+          <span className={`text-sm font-medium ${concentrationColor}`}>{concentrationLevel}</span>
         </div>
         {isHighConcentration && (
           <div className="mt-2 pt-2 border-t border-orange-800/30">
             <p className="text-xs text-orange-300">
-              ⚠️ Alta concentración detectada. Considere diversificar proveedores para reducir riesgo.
+              ⚠️ Alta concentración detectada. Considere diversificar proveedores para reducir
+              riesgo.
             </p>
           </div>
         )}
@@ -148,12 +160,12 @@ export default function SupplierRiskAnalysis() {
 
       {/* Categorías ABC */}
       <div className="space-y-3">
-        {(["A", "B", "C"] as const).map((category) => {
-          const info = getCategoryInfo(category);
-          const percentage = info.suppliers.reduce((sum, s) => sum + s.percentage, 0);
-          
+        {(['A', 'B', 'C'] as const).map(category => {
+          const info = getCategoryInfo(category)
+          const percentage = info.suppliers.reduce((sum, s) => sum + s.percentage, 0)
+
           return (
-            <div 
+            <div
               key={category}
               className={`p-3 rounded border ${info.bgColor} ${info.borderColor}`}
             >
@@ -161,19 +173,13 @@ export default function SupplierRiskAnalysis() {
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{info.icon}</span>
                   <div>
-                    <div className={`text-sm font-semibold ${info.color}`}>
-                      {info.label}
-                    </div>
+                    <div className={`text-sm font-semibold ${info.color}`}>{info.label}</div>
                     <div className="text-xs text-neutral-500">{info.description}</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className={`text-lg font-bold ${info.color}`}>
-                    {info.suppliers.length}
-                  </div>
-                  <div className="text-xs text-neutral-500">
-                    {percentage.toFixed(1)}%
-                  </div>
+                  <div className={`text-lg font-bold ${info.color}`}>{info.suppliers.length}</div>
+                  <div className="text-xs text-neutral-500">{percentage.toFixed(1)}%</div>
                 </div>
               </div>
 
@@ -183,8 +189,8 @@ export default function SupplierRiskAnalysis() {
                     Top proveedores en esta categoría:
                   </div>
                   <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {info.suppliers.slice(0, 5).map((supplier) => (
-                      <div 
+                    {info.suppliers.slice(0, 5).map(supplier => (
+                      <div
                         key={supplier.supplierId}
                         className="flex items-center justify-between text-xs py-1 px-2 rounded bg-black/20"
                       >
@@ -203,14 +209,15 @@ export default function SupplierRiskAnalysis() {
                     ))}
                     {info.suppliers.length > 5 && (
                       <div className="text-xs text-neutral-500 text-center pt-1">
-                        +{info.suppliers.length - 5} proveedor{info.suppliers.length - 5 !== 1 ? "es" : ""} más
+                        +{info.suppliers.length - 5} proveedor
+                        {info.suppliers.length - 5 !== 1 ? 'es' : ''} más
                       </div>
                     )}
                   </div>
                 </div>
               )}
             </div>
-          );
+          )
         })}
       </div>
 
@@ -221,13 +228,25 @@ export default function SupplierRiskAnalysis() {
             ℹ️ ¿Qué significa el análisis ABC?
           </summary>
           <div className="mt-2 space-y-1 pl-4">
-            <p>• <strong>Categoría A (Críticos):</strong> Proveedores que representan el 80% del volumen de compras. Requieren gestión prioritaria.</p>
-            <p>• <strong>Categoría B (Importantes):</strong> Proveedores que representan el 15% del volumen. Gestión regular.</p>
-            <p>• <strong>Categoría C (Ocasionales):</strong> Proveedores que representan el 5% del volumen. Gestión simplificada.</p>
-            <p className="mt-2">• <strong>Índice de Concentración:</strong> Mide qué tan dependiente es la empresa de pocos proveedores. &gt;25% indica alta concentración de riesgo.</p>
+            <p>
+              • <strong>Categoría A (Críticos):</strong> Proveedores que representan el 80% del
+              volumen de compras. Requieren gestión prioritaria.
+            </p>
+            <p>
+              • <strong>Categoría B (Importantes):</strong> Proveedores que representan el 15% del
+              volumen. Gestión regular.
+            </p>
+            <p>
+              • <strong>Categoría C (Ocasionales):</strong> Proveedores que representan el 5% del
+              volumen. Gestión simplificada.
+            </p>
+            <p className="mt-2">
+              • <strong>Índice de Concentración:</strong> Mide qué tan dependiente es la empresa de
+              pocos proveedores. &gt;25% indica alta concentración de riesgo.
+            </p>
           </div>
         </details>
       </div>
     </div>
-  );
+  )
 }

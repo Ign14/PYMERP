@@ -27,7 +27,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Arial,
+    sans-serif;
 }
 
 /* Layout Shell */
@@ -94,7 +101,9 @@ body {
   padding: 10px 12px;
   color: var(--muted);
   text-decoration: none;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .nav-item:hover {
@@ -125,7 +134,7 @@ body {
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
   padding: 20px 28px;
-  background: linear-gradient(90deg, rgba(21,21,21,0.95), rgba(9,9,9,0.85));
+  background: linear-gradient(90deg, rgba(21, 21, 21, 0.95), rgba(9, 9, 9, 0.85));
   gap: 16px;
 }
 
@@ -190,7 +199,7 @@ body {
 }
 
 .skeleton::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
@@ -259,7 +268,7 @@ button.card:focus-visible {
   border-radius: 12px;
 }
 
-.table { 
+.table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.92rem;
@@ -320,7 +329,7 @@ button.card:focus-visible {
   font-size: 0.88rem;
 }
 
-.date-filter input[type="date"] {
+.date-filter input[type='date'] {
   background: var(--panel-alt);
   color: var(--text);
   border: 1px solid var(--border);
@@ -897,7 +906,7 @@ button.card:focus-visible {
 }
 
 .documents-card__action-hint::after {
-  content: "→";
+  content: '→';
   font-size: 1rem;
 }
 
@@ -1027,7 +1036,10 @@ button.card:focus-visible {
   background: var(--panel-alt);
   color: inherit;
   cursor: pointer;
-  transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition:
+    border 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .segment-chip:hover {
@@ -1125,7 +1137,10 @@ button.card:focus-visible {
   border-radius: 12px;
   background: var(--panel-alt);
   cursor: pointer;
-  transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition:
+    border 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .list-row:hover {
@@ -1220,18 +1235,18 @@ button.card:focus-visible {
   color: var(--success);
 }
 
-.status[role="status"],
+.status[role='status'],
 .status.pendiente,
-.status[aria-label="Pendiente"] {
+.status[aria-label='Pendiente'] {
   color: var(--warning);
 }
 
-.status[aria-label="Renegociar"],
+.status[aria-label='Renegociar'],
 .status.renegociar {
   color: var(--error);
 }
 
-.status[aria-label="En tránsito"],
+.status[aria-label='En tránsito'],
 .status.en-transito {
   color: var(--accent);
 }
@@ -1244,7 +1259,9 @@ button.card:focus-visible {
   border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  transition: transform 0.15s ease, filter 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
 }
 
 .btn:hover:not(:disabled) {
@@ -1390,8 +1407,7 @@ button.card:focus-visible {
 .landing-placeholder {
   min-height: 100vh;
   background: radial-gradient(circle at top, rgba(30, 64, 175, 0.2), transparent 55%),
-    radial-gradient(circle at bottom, rgba(2, 132, 199, 0.15), transparent 60%),
-    var(--bg);
+    radial-gradient(circle at bottom, rgba(2, 132, 199, 0.15), transparent 60%), var(--bg);
 }
 
 .landing-overlay {
@@ -1523,7 +1539,9 @@ button.card:focus-visible {
   padding: 12px 14px;
   color: var(--text);
   font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .landing-label input:focus {
@@ -1541,7 +1559,9 @@ button.card:focus-visible {
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .landing-button:disabled {
@@ -2163,7 +2183,9 @@ button.card:focus-visible {
   border-radius: 12px;
   padding: 12px;
   background: var(--panel-alt);
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .frequent-product-row:hover,
@@ -2261,7 +2283,10 @@ button.card:focus-visible {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel-alt);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .customer-select__combobox:focus-within {
@@ -2301,7 +2326,9 @@ button.card:focus-visible {
   line-height: 1;
   padding: 4px;
   border-radius: 999px;
-  transition: color 0.2s ease, background 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
 }
 
 .customer-select__clear:hover,
@@ -2325,7 +2352,10 @@ button.card:focus-visible {
   border-radius: 10px;
   padding: 6px 12px;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
   white-space: nowrap;
 }
 
@@ -2381,7 +2411,10 @@ button.card:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .customer-select__option:hover,
@@ -2665,7 +2698,7 @@ button.card:focus-visible {
   cursor: pointer;
 }
 
-.checkbox-label input[type="checkbox"] {
+.checkbox-label input[type='checkbox'] {
   width: auto;
   cursor: pointer;
 }
@@ -2975,5 +3008,3 @@ button.card:focus-visible {
   border: 1px solid rgba(34, 197, 94, 0.3);
   color: rgb(34, 197, 94);
 }
-
-

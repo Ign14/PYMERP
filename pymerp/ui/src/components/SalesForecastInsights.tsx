@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSalesProductForecast } from "../services/client";
+import { useQuery } from '@tanstack/react-query'
+import { getSalesProductForecast } from '../services/client'
 
 export default function SalesForecastInsights() {
   const { data: forecastData = [], isLoading } = useQuery({
-    queryKey: ["salesProductForecast"],
+    queryKey: ['salesProductForecast'],
     queryFn: () => getSalesProductForecast(),
     refetchInterval: 5 * 60 * 1000,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -17,23 +17,23 @@ export default function SalesForecastInsights() {
           <div className="h-32 bg-neutral-800 rounded"></div>
         </div>
       </div>
-    );
+    )
   }
 
   // Análisis de insights
-  const increasingTrend = forecastData.filter(item => item.trend === "increasing");
-  const decreasingTrend = forecastData.filter(item => item.trend === "decreasing");
-  const lowConfidence = forecastData.filter(item => item.confidence < 60);
+  const increasingTrend = forecastData.filter(item => item.trend === 'increasing')
+  const decreasingTrend = forecastData.filter(item => item.trend === 'decreasing')
+  const lowConfidence = forecastData.filter(item => item.confidence < 60)
   const highVolume = forecastData.filter(item => {
-    const avgDemand = forecastData.reduce((sum, p) => sum + p.forecastedDemand, 0) / forecastData.length;
-    return item.forecastedDemand > avgDemand * 2;
-  });
+    const avgDemand =
+      forecastData.reduce((sum, p) => sum + p.forecastedDemand, 0) / forecastData.length
+    return item.forecastedDemand > avgDemand * 2
+  })
 
-  const totalHistorical = forecastData.reduce((sum, item) => sum + item.historicalAverage, 0);
-  const totalForecasted = forecastData.reduce((sum, item) => sum + item.forecastedDemand, 0);
-  const overallChange = totalHistorical > 0 
-    ? ((totalForecasted - totalHistorical) / totalHistorical) * 100 
-    : 0;
+  const totalHistorical = forecastData.reduce((sum, item) => sum + item.historicalAverage, 0)
+  const totalForecasted = forecastData.reduce((sum, item) => sum + item.forecastedDemand, 0)
+  const overallChange =
+    totalHistorical > 0 ? ((totalForecasted - totalHistorical) / totalHistorical) * 100 : 0
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
@@ -50,23 +50,27 @@ export default function SalesForecastInsights() {
               </h4>
             </div>
             <p className="text-sm text-red-200 mb-3">
-              Los siguientes productos muestran tendencia de aumento en la demanda. Considere incrementar stock para evitar quiebres.
+              Los siguientes productos muestran tendencia de aumento en la demanda. Considere
+              incrementar stock para evitar quiebres.
             </p>
             <div className="space-y-2">
               {increasingTrend.slice(0, 5).map(item => {
-                const increase = item.historicalAverage > 0 
-                  ? ((item.forecastedDemand - item.historicalAverage) / item.historicalAverage) * 100 
-                  : 0;
+                const increase =
+                  item.historicalAverage > 0
+                    ? ((item.forecastedDemand - item.historicalAverage) / item.historicalAverage) *
+                      100
+                    : 0
                 return (
                   <div key={item.productId} className="flex items-center justify-between text-sm">
                     <span className="text-red-100">{item.productName}</span>
                     <span className="text-red-300 font-semibold">+{increase.toFixed(1)}%</span>
                   </div>
-                );
+                )
               })}
             </div>
             <div className="mt-3 text-xs text-red-300 bg-red-900/30 rounded p-2">
-              💡 <strong>Acción:</strong> Revisar contratos con proveedores y ajustar órdenes de compra anticipadamente.
+              💡 <strong>Acción:</strong> Revisar contratos con proveedores y ajustar órdenes de
+              compra anticipadamente.
             </div>
           </div>
         )}
@@ -81,18 +85,22 @@ export default function SalesForecastInsights() {
               </h4>
             </div>
             <p className="text-sm text-amber-200 mb-3">
-              Estos productos tienen datos históricos limitados, lo que reduce la precisión del pronóstico.
+              Estos productos tienen datos históricos limitados, lo que reduce la precisión del
+              pronóstico.
             </p>
             <div className="space-y-2">
               {lowConfidence.slice(0, 5).map(item => (
                 <div key={item.productId} className="flex items-center justify-between text-sm">
                   <span className="text-amber-100">{item.productName}</span>
-                  <span className="text-amber-300 font-semibold">Confianza: {item.confidence.toFixed(0)}%</span>
+                  <span className="text-amber-300 font-semibold">
+                    Confianza: {item.confidence.toFixed(0)}%
+                  </span>
                 </div>
               ))}
             </div>
             <div className="mt-3 text-xs text-amber-300 bg-amber-900/30 rounded p-2">
-              💡 <strong>Acción:</strong> Recopilar más datos históricos. Utilizar métodos de validación cruzada con ventas similares.
+              💡 <strong>Acción:</strong> Recopilar más datos históricos. Utilizar métodos de
+              validación cruzada con ventas similares.
             </div>
           </div>
         )}
@@ -107,23 +115,27 @@ export default function SalesForecastInsights() {
               </h4>
             </div>
             <p className="text-sm text-green-200 mb-3">
-              Productos con disminución en demanda pronosticada. Evaluar causas y ajustar inventario.
+              Productos con disminución en demanda pronosticada. Evaluar causas y ajustar
+              inventario.
             </p>
             <div className="space-y-2">
               {decreasingTrend.slice(0, 5).map(item => {
-                const decrease = item.historicalAverage > 0 
-                  ? ((item.forecastedDemand - item.historicalAverage) / item.historicalAverage) * 100 
-                  : 0;
+                const decrease =
+                  item.historicalAverage > 0
+                    ? ((item.forecastedDemand - item.historicalAverage) / item.historicalAverage) *
+                      100
+                    : 0
                 return (
                   <div key={item.productId} className="flex items-center justify-between text-sm">
                     <span className="text-green-100">{item.productName}</span>
                     <span className="text-green-300 font-semibold">{decrease.toFixed(1)}%</span>
                   </div>
-                );
+                )
               })}
             </div>
             <div className="mt-3 text-xs text-green-300 bg-green-900/30 rounded p-2">
-              💡 <strong>Acción:</strong> Reducir pedidos futuros. Considerar promociones para liquidar excedentes.
+              💡 <strong>Acción:</strong> Reducir pedidos futuros. Considerar promociones para
+              liquidar excedentes.
             </div>
           </div>
         )}
@@ -138,18 +150,22 @@ export default function SalesForecastInsights() {
               </h4>
             </div>
             <p className="text-sm text-purple-200 mb-3">
-              Productos con demanda significativamente superior al promedio. Requieren atención prioritaria.
+              Productos con demanda significativamente superior al promedio. Requieren atención
+              prioritaria.
             </p>
             <div className="space-y-2">
               {highVolume.slice(0, 5).map(item => (
                 <div key={item.productId} className="flex items-center justify-between text-sm">
                   <span className="text-purple-100">{item.productName}</span>
-                  <span className="text-purple-300 font-semibold">{item.forecastedDemand.toFixed(0)} u/mes</span>
+                  <span className="text-purple-300 font-semibold">
+                    {item.forecastedDemand.toFixed(0)} u/mes
+                  </span>
                 </div>
               ))}
             </div>
             <div className="mt-3 text-xs text-purple-300 bg-purple-900/30 rounded p-2">
-              💡 <strong>Acción:</strong> Asegurar disponibilidad con proveedores. Evaluar descuentos por volumen.
+              💡 <strong>Acción:</strong> Asegurar disponibilidad con proveedores. Evaluar
+              descuentos por volumen.
             </div>
           </div>
         )}
@@ -162,19 +178,29 @@ export default function SalesForecastInsights() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-400">Demanda Histórica Total</span>
-              <span className="text-sm font-semibold text-white">{totalHistorical.toFixed(0)} u/mes</span>
+              <span className="text-sm font-semibold text-white">
+                {totalHistorical.toFixed(0)} u/mes
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-400">Demanda Pronosticada Total</span>
-              <span className="text-sm font-semibold text-white">{totalForecasted.toFixed(0)} u/mes</span>
+              <span className="text-sm font-semibold text-white">
+                {totalForecasted.toFixed(0)} u/mes
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-400">Variación Global</span>
-              <span className={`text-sm font-semibold ${
-                overallChange > 5 ? "text-red-400" : 
-                overallChange < -5 ? "text-green-400" : "text-neutral-300"
-              }`}>
-                {overallChange > 0 ? "+" : ""}{overallChange.toFixed(1)}%
+              <span
+                className={`text-sm font-semibold ${
+                  overallChange > 5
+                    ? 'text-red-400'
+                    : overallChange < -5
+                      ? 'text-green-400'
+                      : 'text-neutral-300'
+                }`}
+              >
+                {overallChange > 0 ? '+' : ''}
+                {overallChange.toFixed(1)}%
               </span>
             </div>
           </div>
@@ -182,17 +208,20 @@ export default function SalesForecastInsights() {
           <div className="space-y-2">
             {overallChange > 10 && (
               <p className="text-xs text-red-300">
-                ⚠️ Se espera un <strong>aumento significativo</strong> en la demanda global. Preparar recursos y capacidad operativa.
+                ⚠️ Se espera un <strong>aumento significativo</strong> en la demanda global.
+                Preparar recursos y capacidad operativa.
               </p>
             )}
             {overallChange >= -10 && overallChange <= 10 && (
               <p className="text-xs text-neutral-300">
-                ℹ️ Demanda global <strong>estable</strong>. Mantener niveles actuales de inventario y operación.
+                ℹ️ Demanda global <strong>estable</strong>. Mantener niveles actuales de inventario
+                y operación.
               </p>
             )}
             {overallChange < -10 && (
               <p className="text-xs text-green-300">
-                ℹ️ Se espera una <strong>disminución</strong> en la demanda global. Ajustar inventario y evaluar estrategias de marketing.
+                ℹ️ Se espera una <strong>disminución</strong> en la demanda global. Ajustar
+                inventario y evaluar estrategias de marketing.
               </p>
             )}
           </div>
@@ -219,5 +248,5 @@ export default function SalesForecastInsights() {
         </div>
       </div>
     </div>
-  );
+  )
 }

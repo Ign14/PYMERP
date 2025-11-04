@@ -1,13 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
-import { getStockMovementStats } from "../services/client";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useQuery } from '@tanstack/react-query'
+import { getStockMovementStats } from '../services/client'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 
 export default function InventoryMovementSummary() {
-  const { data: stats, isLoading, error } = useQuery({
-    queryKey: ["stockMovementStats"],
+  const {
+    data: stats,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['stockMovementStats'],
     queryFn: getStockMovementStats,
     refetchInterval: 60000,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -15,7 +28,7 @@ export default function InventoryMovementSummary() {
         <div className="h-6 bg-neutral-800 rounded w-1/3 mb-6"></div>
         <div className="h-64 bg-neutral-800 rounded"></div>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -23,33 +36,33 @@ export default function InventoryMovementSummary() {
       <div className="bg-red-900/20 border border-red-800 rounded-lg p-6 text-center">
         <p className="text-red-400">Error al cargar estadísticas de movimiento</p>
       </div>
-    );
+    )
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
       minimumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("es-CL").format(value);
-  };
+    return new Intl.NumberFormat('es-CL').format(value)
+  }
 
   const chartData = [
     {
-      name: "Entradas",
+      name: 'Entradas',
       valor: stats?.totalInflows || 0,
       transacciones: stats?.inflowTransactions || 0,
     },
     {
-      name: "Salidas",
+      name: 'Salidas',
       valor: stats?.totalOutflows || 0,
       transacciones: stats?.outflowTransactions || 0,
     },
-  ];
+  ]
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
@@ -57,9 +70,7 @@ export default function InventoryMovementSummary() {
         <h2 className="text-xl font-semibold text-neutral-100 mb-2">
           Resumen de Movimientos (últimos 30 días)
         </h2>
-        <p className="text-sm text-neutral-400">
-          Análisis de entradas y salidas de inventario
-        </p>
+        <p className="text-sm text-neutral-400">Análisis de entradas y salidas de inventario</p>
       </div>
 
       {/* Chart Section */}
@@ -68,14 +79,14 @@ export default function InventoryMovementSummary() {
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#404040" />
             <XAxis dataKey="name" stroke="#a3a3a3" />
-            <YAxis stroke="#a3a3a3" tickFormatter={(value) => formatCurrency(value)} />
+            <YAxis stroke="#a3a3a3" tickFormatter={value => formatCurrency(value)} />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#262626",
-                border: "1px solid #404040",
-                borderRadius: "8px",
+                backgroundColor: '#262626',
+                border: '1px solid #404040',
+                borderRadius: '8px',
               }}
-              labelStyle={{ color: "#f5f5f5" }}
+              labelStyle={{ color: '#f5f5f5' }}
               formatter={(value: number) => formatCurrency(value)}
             />
             <Legend />
@@ -110,9 +121,7 @@ export default function InventoryMovementSummary() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Inflows */}
         <div>
-          <h3 className="text-sm font-semibold text-neutral-300 mb-3">
-            Top 5 Entradas
-          </h3>
+          <h3 className="text-sm font-semibold text-neutral-300 mb-3">Top 5 Entradas</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-800">
@@ -149,9 +158,7 @@ export default function InventoryMovementSummary() {
 
         {/* Top Outflows */}
         <div>
-          <h3 className="text-sm font-semibold text-neutral-300 mb-3">
-            Top 5 Salidas
-          </h3>
+          <h3 className="text-sm font-semibold text-neutral-300 mb-3">Top 5 Salidas</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-800">
@@ -187,5 +194,5 @@ export default function InventoryMovementSummary() {
         </div>
       </div>
     </div>
-  );
+  )
 }

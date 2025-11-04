@@ -1,31 +1,31 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getInventorySummary } from "../../services/client";
-import { createCurrencyFormatter } from "../../utils/currency";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getInventorySummary } from '../../services/client'
+import { createCurrencyFormatter } from '../../utils/currency'
 
 export default function InventoryValuationChart() {
-  const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
-  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(), [])
+  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0)
 
   const summaryQuery = useQuery({
-    queryKey: ["inventory-summary"],
+    queryKey: ['inventory-summary'],
     queryFn: getInventorySummary,
-  });
+  })
 
-  const summary = summaryQuery.data;
-  const totalValue = Number(summary?.totalValue ?? 0);
+  const summary = summaryQuery.data
+  const totalValue = Number(summary?.totalValue ?? 0)
 
   // Simular evolución (en producción vendría de histórico)
   const historicalData = useMemo(() => {
     return [
-      { month: "Hace 3m", value: totalValue * 0.75 },
-      { month: "Hace 2m", value: totalValue * 0.85 },
-      { month: "Hace 1m", value: totalValue * 0.92 },
-      { month: "Actual", value: totalValue },
-    ];
-  }, [totalValue]);
+      { month: 'Hace 3m', value: totalValue * 0.75 },
+      { month: 'Hace 2m', value: totalValue * 0.85 },
+      { month: 'Hace 1m', value: totalValue * 0.92 },
+      { month: 'Actual', value: totalValue },
+    ]
+  }, [totalValue])
 
-  const maxValue = Math.max(...historicalData.map((d) => d.value));
+  const maxValue = Math.max(...historicalData.map(d => d.value))
 
   if (summaryQuery.isLoading) {
     return (
@@ -33,7 +33,7 @@ export default function InventoryValuationChart() {
         <h3 className="text-neutral-100 mb-4">Evolución de Valorización</h3>
         <div className="animate-pulse bg-neutral-800 rounded-lg h-64"></div>
       </div>
-    );
+    )
   }
 
   return (
@@ -48,8 +48,8 @@ export default function InventoryValuationChart() {
       {/* Gráfico de barras simple */}
       <div className="space-y-4 mb-6">
         {historicalData.map((data, idx) => {
-          const widthPercentage = maxValue > 0 ? (data.value / maxValue) * 100 : 0;
-          const isActual = idx === historicalData.length - 1;
+          const widthPercentage = maxValue > 0 ? (data.value / maxValue) * 100 : 0
+          const isActual = idx === historicalData.length - 1
 
           return (
             <div key={data.month}>
@@ -60,13 +60,13 @@ export default function InventoryValuationChart() {
               <div className="w-full bg-neutral-800 rounded-full h-3 overflow-hidden">
                 <div
                   className={`h-full ${
-                    isActual ? "bg-gradient-to-r from-blue-600 to-blue-400" : "bg-neutral-600"
+                    isActual ? 'bg-gradient-to-r from-blue-600 to-blue-400' : 'bg-neutral-600'
                   } transition-all`}
                   style={{ width: `${widthPercentage}%` }}
                 ></div>
               </div>
             </div>
-          );
+          )
         })}
       </div>
 
@@ -82,5 +82,5 @@ export default function InventoryValuationChart() {
         </div>
       </div>
     </div>
-  );
+  )
 }

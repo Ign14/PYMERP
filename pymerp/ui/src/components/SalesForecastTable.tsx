@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSalesProductForecast } from "../services/client";
+import { useQuery } from '@tanstack/react-query'
+import { getSalesProductForecast } from '../services/client'
 
 export default function SalesForecastTable() {
   const { data: forecastData = [], isLoading } = useQuery({
-    queryKey: ["salesProductForecast"],
+    queryKey: ['salesProductForecast'],
     queryFn: () => getSalesProductForecast(),
     refetchInterval: 5 * 60 * 1000,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -20,28 +20,40 @@ export default function SalesForecastTable() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   const getTrendBadge = (trend: string) => {
-    if (trend === "increasing") {
-      return <span className="px-2 py-1 rounded text-xs font-semibold bg-red-950 border-red-900 text-red-200">↗ Creciente</span>;
+    if (trend === 'increasing') {
+      return (
+        <span className="px-2 py-1 rounded text-xs font-semibold bg-red-950 border-red-900 text-red-200">
+          ↗ Creciente
+        </span>
+      )
     }
-    if (trend === "decreasing") {
-      return <span className="px-2 py-1 rounded text-xs font-semibold bg-green-950 border-green-900 text-green-200">↘ Decreciente</span>;
+    if (trend === 'decreasing') {
+      return (
+        <span className="px-2 py-1 rounded text-xs font-semibold bg-green-950 border-green-900 text-green-200">
+          ↘ Decreciente
+        </span>
+      )
     }
-    return <span className="px-2 py-1 rounded text-xs font-semibold bg-neutral-800 border-neutral-700 text-neutral-300">→ Estable</span>;
-  };
+    return (
+      <span className="px-2 py-1 rounded text-xs font-semibold bg-neutral-800 border-neutral-700 text-neutral-300">
+        → Estable
+      </span>
+    )
+  }
 
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 70) {
-      return <span className="text-green-400 font-semibold">{confidence.toFixed(0)}%</span>;
+      return <span className="text-green-400 font-semibold">{confidence.toFixed(0)}%</span>
     }
     if (confidence >= 50) {
-      return <span className="text-amber-400 font-semibold">{confidence.toFixed(0)}%</span>;
+      return <span className="text-amber-400 font-semibold">{confidence.toFixed(0)}%</span>
     }
-    return <span className="text-red-400 font-semibold">{confidence.toFixed(0)}%</span>;
-  };
+    return <span className="text-red-400 font-semibold">{confidence.toFixed(0)}%</span>
+  }
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
@@ -66,16 +78,18 @@ export default function SalesForecastTable() {
           </thead>
           <tbody>
             {forecastData.map((item, index) => {
-              const variation = item.historicalAverage > 0 
-                ? ((item.forecastedDemand - item.historicalAverage) / item.historicalAverage) * 100 
-                : 0;
-              const isTopTen = index < 10;
+              const variation =
+                item.historicalAverage > 0
+                  ? ((item.forecastedDemand - item.historicalAverage) / item.historicalAverage) *
+                    100
+                  : 0
+              const isTopTen = index < 10
 
               return (
                 <tr
                   key={item.productId}
                   className={`border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors ${
-                    isTopTen ? "bg-neutral-800/30" : ""
+                    isTopTen ? 'bg-neutral-800/30' : ''
                   }`}
                 >
                   <td className="py-3 px-2">
@@ -91,27 +105,31 @@ export default function SalesForecastTable() {
                     {item.forecastedDemand.toFixed(1)} u/mes
                   </td>
                   <td className="py-3 px-2 text-right">
-                    <span className={`font-semibold ${
-                      variation > 10 ? "text-red-400" : 
-                      variation < -10 ? "text-green-400" : "text-neutral-400"
-                    }`}>
-                      {variation > 0 ? "+" : ""}{variation.toFixed(1)}%
+                    <span
+                      className={`font-semibold ${
+                        variation > 10
+                          ? 'text-red-400'
+                          : variation < -10
+                            ? 'text-green-400'
+                            : 'text-neutral-400'
+                      }`}
+                    >
+                      {variation > 0 ? '+' : ''}
+                      {variation.toFixed(1)}%
                     </span>
                   </td>
-                  <td className="py-3 px-2 text-center">
-                    {getTrendBadge(item.trend)}
-                  </td>
-                  <td className="py-3 px-2 text-center">
-                    {getConfidenceBadge(item.confidence)}
-                  </td>
+                  <td className="py-3 px-2 text-center">{getTrendBadge(item.trend)}</td>
+                  <td className="py-3 px-2 text-center">{getConfidenceBadge(item.confidence)}</td>
                   <td className="py-3 px-2 text-right text-neutral-300">
                     {item.recommendedStock.toFixed(0)} u
                   </td>
                   <td className="py-3 px-2 text-neutral-400 text-xs">
-                    {item.nextSaleDate ? new Date(item.nextSaleDate).toLocaleDateString("es-CL") : "N/A"}
+                    {item.nextSaleDate
+                      ? new Date(item.nextSaleDate).toLocaleDateString('es-CL')
+                      : 'N/A'}
                   </td>
                 </tr>
-              );
+              )
             })}
           </tbody>
         </table>
@@ -130,5 +148,5 @@ export default function SalesForecastTable() {
         </div>
       )}
     </div>
-  );
+  )
 }

@@ -1,89 +1,89 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { CustomerSaleHistoryItem, getCustomerSaleHistory } from "../../services/client";
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { CustomerSaleHistoryItem, getCustomerSaleHistory } from '../../services/client'
 
 type Props = {
-  customerId: string;
-  customerName: string;
-};
+  customerId: string
+  customerName: string
+}
 
 type TimelineEvent = {
-  id: string;
-  type: "sale" | "registration";
-  date: Date;
-  title: string;
-  description: string;
-  amount?: number;
-  icon: string;
-  color: string;
-};
+  id: string
+  type: 'sale' | 'registration'
+  date: Date
+  title: string
+  description: string
+  amount?: number
+  icon: string
+  color: string
+}
 
 export default function CustomersActivityTimeline({ customerId, customerName }: Props) {
-  const [filterPeriod, setFilterPeriod] = useState<number>(365); // días
+  const [filterPeriod, setFilterPeriod] = useState<number>(365) // días
 
   const salesQuery = useQuery({
-    queryKey: ["customers", customerId, "sales-history"],
+    queryKey: ['customers', customerId, 'sales-history'],
     queryFn: () => getCustomerSaleHistory(customerId, 0, 100),
     staleTime: 30_000,
-  });
+  })
 
   // Convertir ventas en eventos de timeline
   const timelineEvents = useMemo<TimelineEvent[]>(() => {
-    const events: TimelineEvent[] = [];
+    const events: TimelineEvent[] = []
 
     // Agregar ventas
     if (salesQuery.data?.content) {
-      salesQuery.data.content.forEach((sale) => {
-        const saleDate = new Date(sale.saleDate);
-        const now = new Date();
-        const daysDiff = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+      salesQuery.data.content.forEach(sale => {
+        const saleDate = new Date(sale.saleDate)
+        const now = new Date()
+        const daysDiff = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24))
 
         if (daysDiff <= filterPeriod) {
           events.push({
             id: `sale-${sale.saleId}`,
-            type: "sale",
+            type: 'sale',
             date: saleDate,
-            title: `Venta ${sale.docType || ""} ${sale.docNumber || ""}`,
-            description: `${sale.itemCount || 0} productos • Total: $${(sale.total || 0).toLocaleString("es-CL")}`,
+            title: `Venta ${sale.docType || ''} ${sale.docNumber || ''}`,
+            description: `${sale.itemCount || 0} productos • Total: $${(sale.total || 0).toLocaleString('es-CL')}`,
             amount: sale.total,
-            icon: "💰",
-            color: "bg-green-950 border-green-800 text-green-400",
-          });
+            icon: '💰',
+            color: 'bg-green-950 border-green-800 text-green-400',
+          })
         }
-      });
+      })
     }
 
     // Ordenar por fecha descendente (más reciente primero)
-    return events.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [salesQuery.data, filterPeriod]);
+    return events.sort((a, b) => b.date.getTime() - a.date.getTime())
+  }, [salesQuery.data, filterPeriod])
 
   // Agrupar eventos por mes
   const groupedEvents = useMemo(() => {
-    const groups: Record<string, TimelineEvent[]> = {};
+    const groups: Record<string, TimelineEvent[]> = {}
 
-    timelineEvents.forEach((event) => {
-      const monthKey = event.date.toLocaleDateString("es-CL", { year: "numeric", month: "long" });
+    timelineEvents.forEach(event => {
+      const monthKey = event.date.toLocaleDateString('es-CL', { year: 'numeric', month: 'long' })
       if (!groups[monthKey]) {
-        groups[monthKey] = [];
+        groups[monthKey] = []
       }
-      groups[monthKey].push(event);
-    });
+      groups[monthKey].push(event)
+    })
 
-    return groups;
-  }, [timelineEvents]);
+    return groups
+  }, [timelineEvents])
 
   const formatRelativeDate = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-    if (diffDays === 0) return "Hoy";
-    if (diffDays === 1) return "Ayer";
-    if (diffDays < 7) return `Hace ${diffDays} días`;
-    if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} semanas`;
-    if (diffDays < 365) return `Hace ${Math.floor(diffDays / 30)} meses`;
-    return `Hace ${Math.floor(diffDays / 365)} años`;
-  };
+    if (diffDays === 0) return 'Hoy'
+    if (diffDays === 1) return 'Ayer'
+    if (diffDays < 7) return `Hace ${diffDays} días`
+    if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} semanas`
+    if (diffDays < 365) return `Hace ${Math.floor(diffDays / 30)} meses`
+    return `Hace ${Math.floor(diffDays / 365)} años`
+  }
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
@@ -94,7 +94,7 @@ export default function CustomersActivityTimeline({ customerId, customerName }: 
         <select
           className="input bg-neutral-800 border-neutral-700 text-neutral-100 text-sm"
           value={filterPeriod}
-          onChange={(e) => setFilterPeriod(parseInt(e.target.value))}
+          onChange={e => setFilterPeriod(parseInt(e.target.value))}
         >
           <option value={30}>Últimos 30 días</option>
           <option value={90}>Últimos 3 meses</option>
@@ -134,10 +134,12 @@ export default function CustomersActivityTimeline({ customerId, customerName }: 
               </div>
 
               <div className="space-y-3 relative before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-neutral-700">
-                {events.map((event) => (
+                {events.map(event => (
                   <div key={event.id} className="relative pl-12">
                     {/* Icono del evento */}
-                    <div className={`absolute left-0 top-1 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg ${event.color}`}>
+                    <div
+                      className={`absolute left-0 top-1 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg ${event.color}`}
+                    >
                       {event.icon}
                     </div>
 
@@ -150,13 +152,19 @@ export default function CustomersActivityTimeline({ customerId, customerName }: 
                         </div>
                         {event.amount && (
                           <span className="text-lg font-bold text-green-400">
-                            ${event.amount.toLocaleString("es-CL")}
+                            ${event.amount.toLocaleString('es-CL')}
                           </span>
                         )}
                       </div>
                       <div className="flex gap-3 text-xs text-neutral-500">
-                        <span>📆 {event.date.toLocaleDateString("es-CL")}</span>
-                        <span>⏰ {event.date.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
+                        <span>📆 {event.date.toLocaleDateString('es-CL')}</span>
+                        <span>
+                          ⏰{' '}
+                          {event.date.toLocaleTimeString('es-CL', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
                         <span className="text-neutral-400">{formatRelativeDate(event.date)}</span>
                       </div>
                     </div>
@@ -178,16 +186,17 @@ export default function CustomersActivityTimeline({ customerId, customerName }: 
             </div>
             <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
               <p className="text-2xl font-bold text-green-400">
-                {timelineEvents.filter(e => e.type === "sale").length}
+                {timelineEvents.filter(e => e.type === 'sale').length}
               </p>
               <p className="text-xs text-neutral-400">Ventas registradas</p>
             </div>
             <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
               <p className="text-2xl font-bold text-blue-400">
-                ${timelineEvents
+                $
+                {timelineEvents
                   .filter(e => e.amount)
                   .reduce((sum, e) => sum + (e.amount || 0), 0)
-                  .toLocaleString("es-CL")}
+                  .toLocaleString('es-CL')}
               </p>
               <p className="text-xs text-neutral-400">Total del período</p>
             </div>
@@ -195,5 +204,5 @@ export default function CustomersActivityTimeline({ customerId, customerName }: 
         </div>
       )}
     </div>
-  );
+  )
 }

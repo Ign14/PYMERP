@@ -1,17 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSalesABCAnalysis } from "../services/client";
-import { useMemo } from "react";
+import { useQuery } from '@tanstack/react-query'
+import { getSalesABCAnalysis } from '../services/client'
+import { useMemo } from 'react'
 
 export default function SalesABCTable() {
   const { data: abcData = [], isLoading } = useQuery({
-    queryKey: ["salesABCAnalysis"],
+    queryKey: ['salesABCAnalysis'],
     queryFn: () => getSalesABCAnalysis(),
     refetchInterval: 5 * 60 * 1000,
-  });
+  })
 
   const sortedData = useMemo(() => {
-    return [...abcData].sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [abcData]);
+    return [...abcData].sort((a, b) => b.totalRevenue - a.totalRevenue)
+  }, [abcData])
 
   if (isLoading) {
     return (
@@ -25,14 +25,14 @@ export default function SalesABCTable() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   const classColors = {
-    A: { bg: "bg-red-950", border: "border-red-900", text: "text-red-200" },
-    B: { bg: "bg-amber-950", border: "border-amber-900", text: "text-amber-200" },
-    C: { bg: "bg-emerald-950", border: "border-emerald-900", text: "text-emerald-200" },
-  };
+    A: { bg: 'bg-red-950', border: 'border-red-900', text: 'text-red-200' },
+    B: { bg: 'bg-amber-950', border: 'border-amber-900', text: 'text-amber-200' },
+    C: { bg: 'bg-emerald-950', border: 'border-emerald-900', text: 'text-emerald-200' },
+  }
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
@@ -52,19 +52,22 @@ export default function SalesABCTable() {
               <th className="text-right py-3 px-2 text-neutral-400 font-medium">% Total</th>
               <th className="text-right py-3 px-2 text-neutral-400 font-medium">% Acum.</th>
               <th className="text-right py-3 px-2 text-neutral-400 font-medium">Precio Prom.</th>
-              <th className="text-left py-3 px-2 text-neutral-400 font-medium">Acción Recomendada</th>
+              <th className="text-left py-3 px-2 text-neutral-400 font-medium">
+                Acción Recomendada
+              </th>
             </tr>
           </thead>
           <tbody>
             {sortedData.map((item, index) => {
-              const colors = classColors[item.classification as keyof typeof classColors] || classColors.C;
-              const isTopTen = index < 10;
+              const colors =
+                classColors[item.classification as keyof typeof classColors] || classColors.C
+              const isTopTen = index < 10
 
               return (
                 <tr
                   key={item.productId}
                   className={`border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors ${
-                    isTopTen ? "bg-neutral-800/30" : ""
+                    isTopTen ? 'bg-neutral-800/30' : ''
                   }`}
                 >
                   <td className="py-3 px-2">
@@ -81,7 +84,7 @@ export default function SalesABCTable() {
                     </div>
                   </td>
                   <td className="py-3 px-2 text-right text-white font-medium">
-                    ${item.totalRevenue.toLocaleString("es-CL")}
+                    ${item.totalRevenue.toLocaleString('es-CL')}
                   </td>
                   <td className="py-3 px-2 text-right text-neutral-300">{item.salesCount}</td>
                   <td className="py-3 px-2 text-right text-neutral-300">
@@ -91,13 +94,13 @@ export default function SalesABCTable() {
                     {item.cumulativePercentage.toFixed(2)}%
                   </td>
                   <td className="py-3 px-2 text-right text-neutral-300">
-                    ${item.averagePrice.toLocaleString("es-CL")}
+                    ${item.averagePrice.toLocaleString('es-CL')}
                   </td>
                   <td className="py-3 px-2 text-neutral-400 text-xs max-w-xs truncate">
                     {item.recommendedAction}
                   </td>
                 </tr>
-              );
+              )
             })}
           </tbody>
         </table>
@@ -116,5 +119,5 @@ export default function SalesABCTable() {
         </div>
       )}
     </div>
-  );
+  )
 }

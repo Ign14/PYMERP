@@ -1,16 +1,16 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Product } from "../../services/client";
-import Modal from "./Modal";
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { Product } from '../../services/client'
+import Modal from './Modal'
 
 type Props = {
-  open: boolean;
-  product: Product | null;
-  pendingValue?: number | null;
-  submitting?: boolean;
-  error?: string | null;
-  onClose: () => void;
-  onSubmit: (value: number) => void;
-};
+  open: boolean
+  product: Product | null
+  pendingValue?: number | null
+  submitting?: boolean
+  error?: string | null
+  onClose: () => void
+  onSubmit: (value: number) => void
+}
 
 export default function ProductInventoryAlertModal({
   open,
@@ -21,47 +21,47 @@ export default function ProductInventoryAlertModal({
   onClose,
   onSubmit,
 }: Props) {
-  const [value, setValue] = useState<string>("0");
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [value, setValue] = useState<string>('0')
+  const [localError, setLocalError] = useState<string | null>(null)
 
   const initialValue = useMemo(() => {
-    if (typeof pendingValue === "number") {
-      return pendingValue;
+    if (typeof pendingValue === 'number') {
+      return pendingValue
     }
-    const numeric = Number(product?.criticalStock ?? 0);
-    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
-  }, [pendingValue, product?.criticalStock]);
+    const numeric = Number(product?.criticalStock ?? 0)
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0
+  }, [pendingValue, product?.criticalStock])
 
   useEffect(() => {
     if (!open || !product) {
-      setValue("0");
-      setLocalError(null);
-      return;
+      setValue('0')
+      setLocalError(null)
+      return
     }
-    setValue(String(initialValue));
-    setLocalError(null);
-  }, [open, product?.id, initialValue]);
+    setValue(String(initialValue))
+    setLocalError(null)
+  }, [open, product?.id, initialValue])
 
   const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const numeric = Number(value);
+    event.preventDefault()
+    const numeric = Number(value)
     if (!Number.isFinite(numeric) || numeric < 0) {
-      setLocalError("Ingresa un stock válido (mayor o igual a 0)");
-      return;
+      setLocalError('Ingresa un stock válido (mayor o igual a 0)')
+      return
     }
-    setLocalError(null);
-    onSubmit(numeric);
-  };
+    setLocalError(null)
+    onSubmit(numeric)
+  }
 
   const handleClose = () => {
     if (!submitting) {
-      onClose();
+      onClose()
     }
-  };
+  }
 
-  const title = product ? `Stock crítico - ${product.name}` : "Stock crítico";
+  const title = product ? `Stock crítico - ${product.name}` : 'Stock crítico'
 
-  const hasError = !!localError || !!error;
+  const hasError = !!localError || !!error
 
   return (
     <Modal open={open} title={title} onClose={handleClose}>
@@ -69,12 +69,12 @@ export default function ProductInventoryAlertModal({
         <label>
           <span>Stock crítico</span>
           <input
-            className={`input${hasError ? " input-error" : ""}`}
+            className={`input${hasError ? ' input-error' : ''}`}
             type="number"
             min="0"
             step="1"
             value={value}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={event => setValue(event.target.value)}
             disabled={submitting}
             data-autofocus
             inputMode="numeric"
@@ -82,7 +82,7 @@ export default function ProductInventoryAlertModal({
         </label>
         <div className="buttons">
           <button className="btn" type="submit" disabled={submitting}>
-            {submitting ? "Guardando..." : "Guardar"}
+            {submitting ? 'Guardando...' : 'Guardar'}
           </button>
           <button className="btn ghost" type="button" onClick={handleClose} disabled={submitting}>
             Cancelar
@@ -92,5 +92,5 @@ export default function ProductInventoryAlertModal({
         {!localError && error && <p className="error">{error}</p>}
       </form>
     </Modal>
-  );
+  )
 }

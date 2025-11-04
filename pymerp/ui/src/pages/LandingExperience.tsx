@@ -1,277 +1,284 @@
-import { FormEvent, MouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
+import { FormEvent, MouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
+import axios from 'axios'
 
-import logo from "../../assets/logo.png";
-import { useAuth } from "../context/AuthContext";
+import logo from '../../assets/logo.png'
+import { useAuth } from '../context/AuthContext'
 import {
   AccountRequestPayload,
   AccountRequestResponse,
   LoginPayload,
   submitAccountRequest,
-} from "../services/client";
-import { isValidRut, normalizeRut } from "../utils/rut";
+} from '../services/client'
+import { isValidRut, normalizeRut } from '../utils/rut'
 
-type PanelState = "none" | "login" | "request" | "success";
+type PanelState = 'none' | 'login' | 'request' | 'success'
 
 type LandingExperienceProps = {
-  children: ReactNode;
-  forceLoginOnMount?: boolean;
-  onLoginClose?: () => void;
-};
-
-type RequestFormState = {
-  rut: string;
-  fullName: string;
-  address: string;
-  email: string;
-  companyName: string;
-  password: string;
-  confirmPassword: string;
-};
-
-type CaptchaChallenge = {
-  a: number;
-  b: number;
-};
-
-const SUCCESS_MESSAGE = "¡Muchas gracias! Te contactaremos lo antes posible. PYMERP.cl";
-const CAPTCHA_ENABLED = String(import.meta.env.VITE_CAPTCHA_ENABLED ?? "true").toLowerCase() !== "false";
-
-const initialRequestState: RequestFormState = {
-  rut: "",
-  fullName: "",
-  address: "",
-  email: "",
-  companyName: "",
-  password: "",
-  confirmPassword: "",
-};
-
-function createChallenge(): CaptchaChallenge {
-  const a = Math.floor(Math.random() * 7) + 3;
-  const b = Math.floor(Math.random() * 6) + 2;
-  return { a, b };
+  children: ReactNode
+  forceLoginOnMount?: boolean
+  onLoginClose?: () => void
 }
 
-export default function LandingExperience({ children, forceLoginOnMount = false, onLoginClose }: LandingExperienceProps) {
-  const { login, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+type RequestFormState = {
+  rut: string
+  fullName: string
+  address: string
+  email: string
+  companyName: string
+  password: string
+  confirmPassword: string
+}
 
-  const [overlayVisible, setOverlayVisible] = useState(true);
-  const [panel, setPanel] = useState<PanelState>("none");
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginFailures, setLoginFailures] = useState(0);
-  const [loginCooldownSeconds, setLoginCooldownSeconds] = useState(0);
+type CaptchaChallenge = {
+  a: number
+  b: number
+}
 
-  const [requestForm, setRequestForm] = useState<RequestFormState>(initialRequestState);
-  const [requestError, setRequestError] = useState<string | null>(null);
-  const [confirmationMessage, setConfirmationMessage] = useState<string>(SUCCESS_MESSAGE);
-  const [requestCaptcha, setRequestCaptcha] = useState<CaptchaChallenge>(() => createChallenge());
-  const [requestCaptchaAnswer, setRequestCaptchaAnswer] = useState<string>("");
+const SUCCESS_MESSAGE = '¡Muchas gracias! Te contactaremos lo antes posible. PYMERP.cl'
+const CAPTCHA_ENABLED =
+  String(import.meta.env.VITE_CAPTCHA_ENABLED ?? 'true').toLowerCase() !== 'false'
 
-  const loginEmailRef = useRef<HTMLInputElement | null>(null);
-  const loginPasswordRef = useRef<HTMLInputElement | null>(null);
-  const requestRutRef = useRef<HTMLInputElement | null>(null);
-  const previousPanelRef = useRef<PanelState>("none");
-  const hasOpenedByForceRef = useRef(false);
+const initialRequestState: RequestFormState = {
+  rut: '',
+  fullName: '',
+  address: '',
+  email: '',
+  companyName: '',
+  password: '',
+  confirmPassword: '',
+}
+
+function createChallenge(): CaptchaChallenge {
+  const a = Math.floor(Math.random() * 7) + 3
+  const b = Math.floor(Math.random() * 6) + 2
+  return { a, b }
+}
+
+export default function LandingExperience({
+  children,
+  forceLoginOnMount = false,
+  onLoginClose,
+}: LandingExperienceProps) {
+  const { login, isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+
+  const [overlayVisible, setOverlayVisible] = useState(true)
+  const [panel, setPanel] = useState<PanelState>('none')
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' })
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginFailures, setLoginFailures] = useState(0)
+  const [loginCooldownSeconds, setLoginCooldownSeconds] = useState(0)
+
+  const [requestForm, setRequestForm] = useState<RequestFormState>(initialRequestState)
+  const [requestError, setRequestError] = useState<string | null>(null)
+  const [confirmationMessage, setConfirmationMessage] = useState<string>(SUCCESS_MESSAGE)
+  const [requestCaptcha, setRequestCaptcha] = useState<CaptchaChallenge>(() => createChallenge())
+  const [requestCaptchaAnswer, setRequestCaptchaAnswer] = useState<string>('')
+
+  const loginEmailRef = useRef<HTMLInputElement | null>(null)
+  const loginPasswordRef = useRef<HTMLInputElement | null>(null)
+  const requestRutRef = useRef<HTMLInputElement | null>(null)
+  const previousPanelRef = useRef<PanelState>('none')
+  const hasOpenedByForceRef = useRef(false)
   const loginMutation = useMutation<void, unknown, LoginPayload>({
-    mutationFn: (payload) => login(payload),
+    mutationFn: payload => login(payload),
     onSuccess: () => {
-      setLoginError(null);
-      setLoginFailures(0);
-      setLoginCooldownSeconds(0);
-      setPanel("none");
-      navigate("/app");
+      setLoginError(null)
+      setLoginFailures(0)
+      setLoginCooldownSeconds(0)
+      setPanel('none')
+      navigate('/app')
     },
-    onError: (error) => {
+    onError: error => {
       if (axios.isAxiosError(error)) {
         if (!error.response) {
-          setLoginError("No se pudo conectar con el servidor. Intenta nuevamente.");
+          setLoginError('No se pudo conectar con el servidor. Intenta nuevamente.')
         } else {
           const detail =
             (error.response.data as { detail?: string; message?: string })?.detail ??
             (error.response.data as { message?: string })?.message ??
-            "Credenciales inválidas";
-          setLoginError(detail);
+            'Credenciales inválidas'
+          setLoginError(detail)
         }
       } else {
-        setLoginError((error as Error).message);
+        setLoginError((error as Error).message)
       }
-      setLoginFailures((prev) => {
-        const next = prev + 1;
+      setLoginFailures(prev => {
+        const next = prev + 1
         if (next >= 3) {
-          const cooldown = Math.min(30, (next - 2) * 5);
-          setLoginCooldownSeconds((current) => Math.max(current, cooldown));
+          const cooldown = Math.min(30, (next - 2) * 5)
+          setLoginCooldownSeconds(current => Math.max(current, cooldown))
         }
-        return next;
-      });
+        return next
+      })
     },
-  });
+  })
 
   const requestMutation = useMutation<AccountRequestResponse, unknown, AccountRequestPayload>({
     mutationFn: submitAccountRequest,
-    onSuccess: (response) => {
-      setRequestError(null);
-      setConfirmationMessage(response?.message ?? SUCCESS_MESSAGE);
-      setPanel("success");
-      setRequestForm(initialRequestState);
-      setRequestCaptcha(createChallenge());
-      setRequestCaptchaAnswer("");
+    onSuccess: response => {
+      setRequestError(null)
+      setConfirmationMessage(response?.message ?? SUCCESS_MESSAGE)
+      setPanel('success')
+      setRequestForm(initialRequestState)
+      setRequestCaptcha(createChallenge())
+      setRequestCaptchaAnswer('')
     },
-    onError: (error) => {
-      setRequestCaptcha(createChallenge());
-      setRequestCaptchaAnswer("");
+    onError: error => {
+      setRequestCaptcha(createChallenge())
+      setRequestCaptchaAnswer('')
       if (axios.isAxiosError(error)) {
-        const data = error.response?.data as { detail?: string; message?: string; error?: string } | undefined;
-        const detail = data?.detail ?? data?.message ?? data?.error;
-        setRequestError(detail ?? "No se pudo enviar la solicitud. Intenta nuevamente más tarde.");
+        const data = error.response?.data as
+          | { detail?: string; message?: string; error?: string }
+          | undefined
+        const detail = data?.detail ?? data?.message ?? data?.error
+        setRequestError(detail ?? 'No se pudo enviar la solicitud. Intenta nuevamente más tarde.')
       } else {
-        setRequestError((error as Error).message);
+        setRequestError((error as Error).message)
       }
     },
-  });
+  })
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setOverlayVisible(true);
-      setPanel("none");
+      setOverlayVisible(true)
+      setPanel('none')
     } else {
-      setLoginForm({ email: "", password: "" });
-      setLoginError(null);
+      setLoginForm({ email: '', password: '' })
+      setLoginError(null)
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (!forceLoginOnMount) {
-      hasOpenedByForceRef.current = false;
-      return;
+      hasOpenedByForceRef.current = false
+      return
     }
     // Siempre abrir el panel de login en la ruta /login,
     // incluso si hay sesión activa (permite cambiar de cuenta)
-    setOverlayVisible(true);
-    setPanel("login");
-    hasOpenedByForceRef.current = true;
-  }, [forceLoginOnMount]);
+    setOverlayVisible(true)
+    setPanel('login')
+    hasOpenedByForceRef.current = true
+  }, [forceLoginOnMount])
 
   // Nota: ya no redirigimos automáticamente a /app cuando hay sesión en /login,
   // para permitir que el usuario abra el panel de inicio de sesión y cambie de cuenta.
 
   useEffect(() => {
-    if (panel === "login") {
-      const target = loginEmailRef.current ?? loginPasswordRef.current;
-      target?.focus();
+    if (panel === 'login') {
+      const target = loginEmailRef.current ?? loginPasswordRef.current
+      target?.focus()
     }
-    if (panel === "request") {
-      requestRutRef.current?.focus();
+    if (panel === 'request') {
+      requestRutRef.current?.focus()
     }
-  }, [panel]);
+  }, [panel])
 
   useEffect(() => {
-    if (panel === "none") {
-      return;
+    if (panel === 'none') {
+      return
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (panel === "request") {
-          setPanel("login");
-        } else if (panel === "login") {
-          setPanel("none");
-        } else if (panel === "success") {
-          setPanel(isAuthenticated ? "none" : "login");
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (panel === 'request') {
+          setPanel('login')
+        } else if (panel === 'login') {
+          setPanel('none')
+        } else if (panel === 'success') {
+          setPanel(isAuthenticated ? 'none' : 'login')
           if (isAuthenticated) {
-            setOverlayVisible(false);
+            setOverlayVisible(false)
           }
         }
       }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [panel, isAuthenticated]);
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [panel, isAuthenticated])
 
   useEffect(() => {
     if (!CAPTCHA_ENABLED) {
-      setRequestCaptchaAnswer(String(requestCaptcha.a + requestCaptcha.b));
+      setRequestCaptchaAnswer(String(requestCaptcha.a + requestCaptcha.b))
     }
-  }, [requestCaptcha]);
+  }, [requestCaptcha])
 
   useEffect(() => {
     if (loginCooldownSeconds <= 0) {
-      return;
+      return
     }
     const timer = window.setInterval(() => {
-      setLoginCooldownSeconds((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [loginCooldownSeconds]);
+      setLoginCooldownSeconds(prev => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [loginCooldownSeconds])
 
   const overlayInstructions = useMemo(() => {
     // Post-login: mostrar CTA de acceso; si no autenticado, invitar a iniciar sesión
-    return isAuthenticated ? "Haz clic aquí para acceder y entrar." : "Haz clic para iniciar sesión";
-  }, [isAuthenticated]);
+    return isAuthenticated ? 'Haz clic aquí para acceder y entrar.' : 'Haz clic para iniciar sesión'
+  }, [isAuthenticated])
 
   const handleOverlayClick = () => {
-    if (panel !== "none") {
-      return;
+    if (panel !== 'none') {
+      return
     }
     if (isAuthenticated) {
       // Post-login: ocultar overlay y llevar al área principal
-      setOverlayVisible(false);
-      navigate("/app");
+      setOverlayVisible(false)
+      navigate('/app')
     } else {
       // No autenticado: llevar a login
-      navigate("/login");
+      navigate('/login')
     }
-  };
+  }
 
   const handlePanelContainerClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (panel === "none") {
-      event.preventDefault();
-      handleOverlayClick();
+    if (panel === 'none') {
+      event.preventDefault()
+      handleOverlayClick()
     } else {
-      event.stopPropagation();
+      event.stopPropagation()
     }
-  };
+  }
 
   const handleLoginSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+    event.preventDefault()
     if (loginMutation.isPending || loginCooldownSeconds > 0) {
-      return;
+      return
     }
-    setLoginError(null);
+    setLoginError(null)
     await loginMutation.mutateAsync({
       email: loginForm.email.trim(),
       password: loginForm.password,
-    });
-  };
+    })
+  }
 
   const handleRequestSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setRequestError(null);
+    event.preventDefault()
+    setRequestError(null)
 
-    const trimmedRut = normalizeRut(requestForm.rut);
+    const trimmedRut = normalizeRut(requestForm.rut)
     if (!isValidRut(trimmedRut)) {
-      setRequestError("El RUT ingresado no es válido");
-      setRequestCaptcha(createChallenge());
-      setRequestCaptchaAnswer("");
-      return;
+      setRequestError('El RUT ingresado no es válido')
+      setRequestCaptcha(createChallenge())
+      setRequestCaptchaAnswer('')
+      return
     }
     if (requestForm.password !== requestForm.confirmPassword) {
-      setRequestError("Las contraseñas no coinciden");
-      return;
+      setRequestError('Las contraseñas no coinciden')
+      return
     }
-    const expected = requestCaptcha.a + requestCaptcha.b;
-    const normalizedAnswer = requestCaptchaAnswer.trim();
+    const expected = requestCaptcha.a + requestCaptcha.b
+    const normalizedAnswer = requestCaptchaAnswer.trim()
     if (CAPTCHA_ENABLED) {
-      const provided = Number.parseInt(normalizedAnswer, 10);
+      const provided = Number.parseInt(normalizedAnswer, 10)
       if (!normalizedAnswer || Number.isNaN(provided) || provided !== expected) {
-        setRequestError("Debes resolver el captcha correctamente");
-        setRequestCaptcha(createChallenge());
-        setRequestCaptchaAnswer("");
-        return;
+        setRequestError('Debes resolver el captcha correctamente')
+        setRequestCaptcha(createChallenge())
+        setRequestCaptchaAnswer('')
+        return
       }
     }
 
@@ -288,34 +295,34 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
         b: requestCaptcha.b,
         answer: CAPTCHA_ENABLED ? normalizedAnswer : String(expected),
       },
-    });
-  };
+    })
+  }
 
   const openRequestPanel = () => {
-    setRequestError(null);
-    setRequestForm(initialRequestState);
-    setRequestCaptcha(createChallenge());
-    setRequestCaptchaAnswer("");
-    setPanel("request");
-  };
+    setRequestError(null)
+    setRequestForm(initialRequestState)
+    setRequestCaptcha(createChallenge())
+    setRequestCaptchaAnswer('')
+    setPanel('request')
+  }
 
   const closeRequestPanel = () => {
-    setPanel("login");
-  };
+    setPanel('login')
+  }
 
   const closeSuccessPanel = () => {
-    setPanel(isAuthenticated ? "none" : "login");
+    setPanel(isAuthenticated ? 'none' : 'login')
     if (isAuthenticated) {
-      setOverlayVisible(false);
+      setOverlayVisible(false)
     }
-  };
+  }
 
   useEffect(() => {
-    if (!isAuthenticated && previousPanelRef.current === "login" && panel === "none") {
-      onLoginClose?.();
+    if (!isAuthenticated && previousPanelRef.current === 'login' && panel === 'none') {
+      onLoginClose?.()
     }
-    previousPanelRef.current = panel;
-  }, [panel, onLoginClose, isAuthenticated]);
+    previousPanelRef.current = panel
+  }, [panel, onLoginClose, isAuthenticated])
 
   return (
     <>
@@ -324,21 +331,28 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
         <div className="landing-overlay" onClick={handleOverlayClick} role="presentation">
           <div className="landing-overlay__gradient" />
           <div
-            className={`landing-overlay__panel ${panel === "none" ? "landing-overlay__panel--compact" : ""}`}
+            className={`landing-overlay__panel ${panel === 'none' ? 'landing-overlay__panel--compact' : ''}`}
             onClick={handlePanelContainerClick}
           >
-            {panel === "none" && (
+            {panel === 'none' && (
               <div className="landing-welcome" aria-live="polite">
                 <img src={logo} alt="PYMERP" className="landing-logo" />
                 <p className="landing-hint">{overlayInstructions}</p>
               </div>
             )}
 
-            {panel === "login" && (
-              <div className="landing-card" role="dialog" aria-modal="true" aria-labelledby="landing-login-title">
+            {panel === 'login' && (
+              <div
+                className="landing-card"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="landing-login-title"
+              >
                 <img src={logo} alt="PYMERP" className="landing-logo landing-logo--small" />
                 <h1 id="landing-login-title">Iniciar sesión</h1>
-                <p className="landing-subtitle">¡Bienvenid@! Ingresa tus credenciales para acceder.</p>
+                <p className="landing-subtitle">
+                  ¡Bienvenid@! Ingresa tus credenciales para acceder.
+                </p>
                 <form className="landing-form" onSubmit={handleLoginSubmit}>
                   <label className="landing-label">
                     <span>Email</span>
@@ -348,7 +362,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                       autoComplete="email"
                       required
                       value={loginForm.email}
-                      onChange={(event) => setLoginForm((prev) => ({ ...prev, email: event.target.value }))}
+                      onChange={event =>
+                        setLoginForm(prev => ({ ...prev, email: event.target.value }))
+                      }
                     />
                   </label>
                   <label className="landing-label">
@@ -359,7 +375,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                       autoComplete="current-password"
                       required
                       value={loginForm.password}
-                      onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
+                      onChange={event =>
+                        setLoginForm(prev => ({ ...prev, password: event.target.value }))
+                      }
                     />
                   </label>
                   {loginError && (
@@ -373,14 +391,15 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     disabled={loginMutation.isPending || loginCooldownSeconds > 0}
                   >
                     {loginMutation.isPending
-                      ? "Ingresando..."
+                      ? 'Ingresando...'
                       : loginCooldownSeconds > 0
                         ? `Reintentar en ${loginCooldownSeconds}s`
-                        : "Entrar"}
+                        : 'Entrar'}
                   </button>
                   {loginCooldownSeconds > 0 && (
                     <p className="landing-hint" role="status" aria-live="polite">
-                      Demasiados intentos fallidos. Espera {loginCooldownSeconds}s antes de reintentar.
+                      Demasiados intentos fallidos. Espera {loginCooldownSeconds}s antes de
+                      reintentar.
                     </p>
                   )}
                 </form>
@@ -390,11 +409,21 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
               </div>
             )}
 
-            {panel === "request" && (
-              <div className="landing-card" role="dialog" aria-modal="true" aria-labelledby="landing-request-title">
+            {panel === 'request' && (
+              <div
+                className="landing-card"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="landing-request-title"
+              >
                 <div className="landing-card__header">
                   <h1 id="landing-request-title">Solicitud de registro o recuperación de cuenta</h1>
-                  <button type="button" className="landing-close" aria-label="Cerrar" onClick={closeRequestPanel}>
+                  <button
+                    type="button"
+                    className="landing-close"
+                    aria-label="Cerrar"
+                    onClick={closeRequestPanel}
+                  >
                     ×
                   </button>
                 </div>
@@ -405,7 +434,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <input
                       ref={requestRutRef}
                       value={requestForm.rut}
-                      onChange={(event) => setRequestForm((prev) => ({ ...prev, rut: event.target.value }))}
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, rut: event.target.value }))
+                      }
                       required
                     />
                   </label>
@@ -413,7 +444,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <span>Nombre completo</span>
                     <input
                       value={requestForm.fullName}
-                      onChange={(event) => setRequestForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, fullName: event.target.value }))
+                      }
                       required
                     />
                   </label>
@@ -421,7 +454,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <span>Dirección</span>
                     <input
                       value={requestForm.address}
-                      onChange={(event) => setRequestForm((prev) => ({ ...prev, address: event.target.value }))}
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, address: event.target.value }))
+                      }
                       required
                     />
                   </label>
@@ -430,7 +465,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <input
                       type="email"
                       value={requestForm.email}
-                      onChange={(event) => setRequestForm((prev) => ({ ...prev, email: event.target.value }))}
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, email: event.target.value }))
+                      }
                       required
                     />
                   </label>
@@ -438,7 +475,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <span>Nombre de la empresa</span>
                     <input
                       value={requestForm.companyName}
-                      onChange={(event) => setRequestForm((prev) => ({ ...prev, companyName: event.target.value }))}
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, companyName: event.target.value }))
+                      }
                       required
                     />
                   </label>
@@ -447,7 +486,9 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <input
                       type="password"
                       value={requestForm.password}
-                      onChange={(event) => setRequestForm((prev) => ({ ...prev, password: event.target.value }))}
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, password: event.target.value }))
+                      }
                       required
                       minLength={8}
                     />
@@ -457,21 +498,24 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                     <input
                       type="password"
                       value={requestForm.confirmPassword}
-                      onChange={(event) =>
-                        setRequestForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
+                      onChange={event =>
+                        setRequestForm(prev => ({ ...prev, confirmPassword: event.target.value }))
                       }
                       required
                       minLength={8}
                     />
                   </label>
                   <label className="landing-label landing-captcha">
-                    <span className="landing-captcha__label">Captcha: ¿Cuánto es {requestCaptcha.a} + {requestCaptcha.b}?</span>
+                    <span className="landing-captcha__label">
+                      Captcha: ¿Cuánto es {requestCaptcha.a} + {requestCaptcha.b}?
+                    </span>
                     <input
                       inputMode="numeric"
-
                       pattern="\\d*"
                       value={requestCaptchaAnswer}
-                      onChange={(event) => setRequestCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ""))}
+                      onChange={event =>
+                        setRequestCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ''))
+                      }
                       required={CAPTCHA_ENABLED}
                       aria-required={CAPTCHA_ENABLED}
                       aria-label={`Captcha: ¿Cuánto es ${requestCaptcha.a} + ${requestCaptcha.b}?`}
@@ -487,20 +531,29 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
                       {requestError}
                     </p>
                   )}
-                  <button className="landing-button" type="submit" disabled={requestMutation.isPending}>
-                    {requestMutation.isPending ? "Enviando..." : "Enviar solicitud"}
+                  <button
+                    className="landing-button"
+                    type="submit"
+                    disabled={requestMutation.isPending}
+                  >
+                    {requestMutation.isPending ? 'Enviando...' : 'Enviar solicitud'}
                   </button>
                 </form>
               </div>
             )}
 
-            {panel === "success" && (
-              <div className="landing-card" role="dialog" aria-modal="true" aria-labelledby="landing-success-title">
+            {panel === 'success' && (
+              <div
+                className="landing-card"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="landing-success-title"
+              >
                 <img src={logo} alt="PYMERP" className="landing-logo landing-logo--small" />
                 <h1 id="landing-success-title">Solicitud enviada</h1>
                 <p className="landing-subtitle">{confirmationMessage}</p>
                 <button className="landing-button" type="button" onClick={closeSuccessPanel}>
-                  {isAuthenticated ? "Ir al panel" : "Volver al inicio de sesión"}
+                  {isAuthenticated ? 'Ir al panel' : 'Volver al inicio de sesión'}
                 </button>
               </div>
             )}
@@ -508,5 +561,5 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
         </div>
       )}
     </>
-  );
+  )
 }

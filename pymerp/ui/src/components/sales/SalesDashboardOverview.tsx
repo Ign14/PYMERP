@@ -1,34 +1,34 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import DailyAvgCard from "./DailyAvgCard";
-import Total14DaysCard from "./Total14DaysCard";
-import { createCurrencyFormatter } from "../../utils/currency";
-import { getSalesWindowMetrics, SalesWindowMetrics } from "../../services/client";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import DailyAvgCard from './DailyAvgCard'
+import Total14DaysCard from './Total14DaysCard'
+import { createCurrencyFormatter } from '../../utils/currency'
+import { getSalesWindowMetrics, SalesWindowMetrics } from '../../services/client'
 
 type SalesDashboardOverviewProps = {
-  startDate: string;
-  endDate: string;
-  onStartDateChange: (date: string) => void;
-  onEndDateChange: (date: string) => void;
-};
+  startDate: string
+  endDate: string
+  onStartDateChange: (date: string) => void
+  onEndDateChange: (date: string) => void
+}
 
-export default function SalesDashboardOverview({ 
-  startDate, 
+export default function SalesDashboardOverview({
+  startDate,
   endDate,
   onStartDateChange,
-  onEndDateChange 
+  onEndDateChange,
 }: SalesDashboardOverviewProps) {
-  const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
-  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(), [])
+  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0)
 
   // Calcular el número de días en el rango
   const days = useMemo(() => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
-  }, [startDate, endDate]);
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+    return diffDays
+  }, [startDate, endDate])
 
   // Obtener métricas de ventas del período especificado
   const {
@@ -36,30 +36,33 @@ export default function SalesDashboardOverview({
     isLoading,
     error,
   } = useQuery<SalesWindowMetrics>({
-    queryKey: ["sales-window-metrics", days],
+    queryKey: ['sales-window-metrics', days],
     queryFn: () => getSalesWindowMetrics(`${days}d`),
-  });
+  })
 
   const dailyAverage = useMemo(() => {
-    return salesMetrics?.dailyAverage ?? 0;
-  }, [salesMetrics]);
+    return salesMetrics?.dailyAverage ?? 0
+  }, [salesMetrics])
 
   const totalSales = useMemo(() => {
-    return salesMetrics?.totalWithTax ?? 0;
-  }, [salesMetrics]);
+    return salesMetrics?.totalWithTax ?? 0
+  }, [salesMetrics])
 
   const documentCount = useMemo(() => {
-    return salesMetrics?.documentCount ?? 0;
-  }, [salesMetrics]);
+    return salesMetrics?.documentCount ?? 0
+  }, [salesMetrics])
 
-  const rangeLabel = `Últimos ${days} días`;
+  const rangeLabel = `Últimos ${days} días`
 
   if (isLoading) {
     return (
       <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
           <header className="mb-4">
-            <h2 id="sales-dashboard-overview-heading" className="text-xl font-semibold text-neutral-100">
+            <h2
+              id="sales-dashboard-overview-heading"
+              className="text-xl font-semibold text-neutral-100"
+            >
               📊 Resumen de ventas
             </h2>
           </header>
@@ -70,7 +73,7 @@ export default function SalesDashboardOverview({
           </div>
         </div>
       </section>
-    );
+    )
   }
 
   if (error) {
@@ -78,7 +81,10 @@ export default function SalesDashboardOverview({
       <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
           <header className="mb-4">
-            <h2 id="sales-dashboard-overview-heading" className="text-xl font-semibold text-neutral-100">
+            <h2
+              id="sales-dashboard-overview-heading"
+              className="text-xl font-semibold text-neutral-100"
+            >
               📊 Resumen de ventas
             </h2>
           </header>
@@ -93,32 +99,27 @@ export default function SalesDashboardOverview({
           </div>
         </div>
       </section>
-    );
+    )
   }
 
   return (
     <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
         <header className="mb-4">
-          <h2 id="sales-dashboard-overview-heading" className="text-xl font-semibold text-neutral-100">
+          <h2
+            id="sales-dashboard-overview-heading"
+            className="text-xl font-semibold text-neutral-100"
+          >
             📊 Resumen de ventas
           </h2>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <DailyAvgCard 
-            value={dailyAverage} 
-            rangeLabel={rangeLabel} 
-            formatter={formatCurrency} 
-          />
+          <DailyAvgCard value={dailyAverage} rangeLabel={rangeLabel} formatter={formatCurrency} />
 
-          <Total14DaysCard 
-            value={totalSales} 
-            rangeLabel={rangeLabel} 
-            formatter={formatCurrency} 
-          />
+          <Total14DaysCard value={totalSales} rangeLabel={rangeLabel} formatter={formatCurrency} />
         </div>
       </div>
     </section>
-  );
+  )
 }

@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { getForecastAnalysis } from "../services/client";
+import { useQuery } from '@tanstack/react-query'
+import { getForecastAnalysis } from '../services/client'
 
 export default function ForecastRecommendations() {
   const { data: forecasts, isLoading } = useQuery({
-    queryKey: ["forecastAnalysis"],
+    queryKey: ['forecastAnalysis'],
     queryFn: () => getForecastAnalysis(),
     refetchInterval: 5 * 60 * 1000,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -18,7 +18,7 @@ export default function ForecastRecommendations() {
           <div className="h-20 bg-neutral-800 rounded"></div>
         </div>
       </div>
-    );
+    )
   }
 
   if (!forecasts || forecasts.length === 0) {
@@ -26,31 +26,31 @@ export default function ForecastRecommendations() {
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
         <p className="text-neutral-400">No hay recomendaciones disponibles</p>
       </div>
-    );
+    )
   }
 
   // Productos críticos (stock bajo)
   const criticalProducts = forecasts
-    .filter(f => f.stockStatus === "understocked")
+    .filter(f => f.stockStatus === 'understocked')
     .sort((a, b) => a.daysOfStock - b.daysOfStock)
-    .slice(0, 5);
+    .slice(0, 5)
 
   // Productos con tendencia creciente
   const growingProducts = forecasts
-    .filter(f => f.trend === "increasing")
+    .filter(f => f.trend === 'increasing')
     .sort((a, b) => b.predictedDemand - a.predictedDemand)
-    .slice(0, 3);
+    .slice(0, 3)
 
   // Productos sobre-stock
   const overstockedProducts = forecasts
-    .filter(f => f.stockStatus === "overstocked")
+    .filter(f => f.stockStatus === 'overstocked')
     .sort((a, b) => b.daysOfStock - a.daysOfStock)
-    .slice(0, 3);
+    .slice(0, 3)
 
   // Calcular orden de compra total recomendada
   const totalRecommendedOrder = forecasts
     .filter(f => f.recommendedOrderQty > 0)
-    .reduce((sum, f) => sum + f.recommendedOrderQty, 0);
+    .reduce((sum, f) => sum + f.recommendedOrderQty, 0)
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-6">
@@ -65,17 +65,23 @@ export default function ForecastRecommendations() {
           </div>
           <div className="space-y-2">
             {criticalProducts.map((product, index) => (
-              <div key={index} className="bg-neutral-900/50 rounded-lg p-3 border border-red-800/30">
+              <div
+                key={index}
+                className="bg-neutral-900/50 rounded-lg p-3 border border-red-800/30"
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-medium text-white">{product.productName}</div>
                     <div className="text-sm text-red-400 mt-1">
-                      Stock actual: {product.currentStock.toFixed(0)} unidades ({product.daysOfStock} días)
+                      Stock actual: {product.currentStock.toFixed(0)} unidades (
+                      {product.daysOfStock} días)
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-neutral-400">Ordenar</div>
-                    <div className="text-lg font-bold text-yellow-400">{product.recommendedOrderQty.toFixed(0)} unidades</div>
+                    <div className="text-lg font-bold text-yellow-400">
+                      {product.recommendedOrderQty.toFixed(0)} unidades
+                    </div>
                   </div>
                 </div>
               </div>
@@ -94,11 +100,16 @@ export default function ForecastRecommendations() {
         <div className="bg-green-900/20 border border-green-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-2xl">📈</span>
-            <h4 className="text-lg font-semibold text-green-400">Productos con Demanda Creciente</h4>
+            <h4 className="text-lg font-semibold text-green-400">
+              Productos con Demanda Creciente
+            </h4>
           </div>
           <div className="space-y-2">
             {growingProducts.map((product, index) => (
-              <div key={index} className="flex justify-between items-center bg-neutral-900/50 rounded-lg p-3">
+              <div
+                key={index}
+                className="flex justify-between items-center bg-neutral-900/50 rounded-lg p-3"
+              >
                 <div>
                   <div className="font-medium text-white">{product.productName}</div>
                   <div className="text-sm text-green-400 mt-1">
@@ -107,7 +118,9 @@ export default function ForecastRecommendations() {
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-neutral-400">Promedio diario</div>
-                  <div className="text-white font-semibold">{product.historicalAverage.toFixed(1)}</div>
+                  <div className="text-white font-semibold">
+                    {product.historicalAverage.toFixed(1)}
+                  </div>
                 </div>
               </div>
             ))}
@@ -129,7 +142,10 @@ export default function ForecastRecommendations() {
           </div>
           <div className="space-y-2">
             {overstockedProducts.map((product, index) => (
-              <div key={index} className="flex justify-between items-center bg-neutral-900/50 rounded-lg p-3">
+              <div
+                key={index}
+                className="flex justify-between items-center bg-neutral-900/50 rounded-lg p-3"
+              >
                 <div>
                   <div className="font-medium text-white">{product.productName}</div>
                   <div className="text-sm text-orange-400 mt-1">
@@ -163,7 +179,9 @@ export default function ForecastRecommendations() {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-blue-400">{totalRecommendedOrder.toFixed(0)}</div>
+              <div className="text-3xl font-bold text-blue-400">
+                {totalRecommendedOrder.toFixed(0)}
+              </div>
               <div className="text-sm text-neutral-400">unidades</div>
             </div>
           </div>
@@ -200,5 +218,5 @@ export default function ForecastRecommendations() {
         </ul>
       </div>
     </div>
-  );
+  )
 }

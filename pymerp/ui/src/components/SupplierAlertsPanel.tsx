@@ -1,24 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSupplierAlerts, SupplierAlert } from "../services/client";
-import { useMemo } from "react";
+import { useQuery } from '@tanstack/react-query'
+import { getSupplierAlerts, SupplierAlert } from '../services/client'
+import { useMemo } from 'react'
 
 export default function SupplierAlertsPanel() {
   const alertsQuery = useQuery<SupplierAlert[], Error>({
-    queryKey: ["supplier-alerts"],
+    queryKey: ['supplier-alerts'],
     queryFn: () => getSupplierAlerts(),
     refetchOnWindowFocus: false,
-  });
+  })
 
   const groupedAlerts = useMemo(() => {
-    const alerts = alertsQuery.data ?? [];
+    const alerts = alertsQuery.data ?? []
     return {
-      critical: alerts.filter(a => a.severity === "CRITICAL"),
-      warning: alerts.filter(a => a.severity === "WARNING"),
-      info: alerts.filter(a => a.severity === "INFO"),
-    };
-  }, [alertsQuery.data]);
+      critical: alerts.filter(a => a.severity === 'CRITICAL'),
+      warning: alerts.filter(a => a.severity === 'WARNING'),
+      info: alerts.filter(a => a.severity === 'INFO'),
+    }
+  }, [alertsQuery.data])
 
-  const totalAlerts = (alertsQuery.data ?? []).length;
+  const totalAlerts = (alertsQuery.data ?? []).length
 
   if (alertsQuery.isLoading) {
     return (
@@ -26,7 +26,7 @@ export default function SupplierAlertsPanel() {
         <h2 className="text-lg font-semibold text-neutral-100 mb-4">🔔 Alertas de Proveedores</h2>
         <p className="text-neutral-400 text-sm">Cargando alertas...</p>
       </div>
-    );
+    )
   }
 
   if (alertsQuery.isError) {
@@ -37,46 +37,46 @@ export default function SupplierAlertsPanel() {
           Error al cargar alertas: {alertsQuery.error.message}
         </div>
       </div>
-    );
+    )
   }
 
-  const getSeverityStyles = (severity: SupplierAlert["severity"]) => {
+  const getSeverityStyles = (severity: SupplierAlert['severity']) => {
     switch (severity) {
-      case "CRITICAL":
+      case 'CRITICAL':
         return {
-          container: "bg-red-950/30 border-red-800",
-          text: "text-red-400",
-          icon: "🔴",
-        };
-      case "WARNING":
+          container: 'bg-red-950/30 border-red-800',
+          text: 'text-red-400',
+          icon: '🔴',
+        }
+      case 'WARNING':
         return {
-          container: "bg-yellow-950/30 border-yellow-800",
-          text: "text-yellow-400",
-          icon: "⚠️",
-        };
-      case "INFO":
+          container: 'bg-yellow-950/30 border-yellow-800',
+          text: 'text-yellow-400',
+          icon: '⚠️',
+        }
+      case 'INFO':
         return {
-          container: "bg-blue-950/30 border-blue-800",
-          text: "text-blue-400",
-          icon: "ℹ️",
-        };
+          container: 'bg-blue-950/30 border-blue-800',
+          text: 'text-blue-400',
+          icon: 'ℹ️',
+        }
     }
-  };
+  }
 
-  const getTypeLabel = (type: SupplierAlert["type"]) => {
+  const getTypeLabel = (type: SupplierAlert['type']) => {
     switch (type) {
-      case "NO_RECENT_PURCHASES":
-        return "Sin compras recientes";
-      case "INACTIVE_SUPPLIER":
-        return "Proveedor inactivo";
-      case "HIGH_CONCENTRATION":
-        return "Alta concentración";
-      case "SINGLE_SOURCE":
-        return "Fuente única";
+      case 'NO_RECENT_PURCHASES':
+        return 'Sin compras recientes'
+      case 'INACTIVE_SUPPLIER':
+        return 'Proveedor inactivo'
+      case 'HIGH_CONCENTRATION':
+        return 'Alta concentración'
+      case 'SINGLE_SOURCE':
+        return 'Fuente única'
       default:
-        return type;
+        return type
     }
-  };
+  }
 
   return (
     <div className="card-content">
@@ -93,7 +93,9 @@ export default function SupplierAlertsPanel() {
         <div className="text-center py-8">
           <div className="text-4xl mb-2">✅</div>
           <p className="text-sm text-neutral-400">No hay alertas pendientes</p>
-          <p className="text-xs text-neutral-500 mt-1">Todos los proveedores están en buen estado</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            Todos los proveedores están en buen estado
+          </p>
         </div>
       )}
 
@@ -108,24 +110,23 @@ export default function SupplierAlertsPanel() {
               </h3>
               <div className="space-y-2">
                 {groupedAlerts.critical.map((alert, idx) => {
-                  const styles = getSeverityStyles(alert.severity);
+                  const styles = getSeverityStyles(alert.severity)
                   return (
-                    <div
-                      key={idx}
-                      className={`rounded-lg border p-3 ${styles.container}`}
-                    >
+                    <div key={idx} className={`rounded-lg border p-3 ${styles.container}`}>
                       <div className="flex items-start gap-2">
                         <span className="text-lg flex-shrink-0">{styles.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${styles.container}`}>
+                            <span
+                              className={`text-xs font-medium px-2 py-0.5 rounded ${styles.container}`}
+                            >
                               {getTypeLabel(alert.type)}
                             </span>
                           </div>
                           <p className={`text-sm font-medium ${styles.text} mb-1`}>
                             {alert.message}
                           </p>
-                          {alert.supplierName && alert.type !== "HIGH_CONCENTRATION" && (
+                          {alert.supplierName && alert.type !== 'HIGH_CONCENTRATION' && (
                             <p className="text-xs text-neutral-400 mb-2">
                               Proveedor: {alert.supplierName}
                             </p>
@@ -148,7 +149,7 @@ export default function SupplierAlertsPanel() {
                         </div>
                       </div>
                     </div>
-                  );
+                  )
                 })}
               </div>
             </div>
@@ -163,24 +164,23 @@ export default function SupplierAlertsPanel() {
               </h3>
               <div className="space-y-2">
                 {groupedAlerts.warning.map((alert, idx) => {
-                  const styles = getSeverityStyles(alert.severity);
+                  const styles = getSeverityStyles(alert.severity)
                   return (
-                    <div
-                      key={idx}
-                      className={`rounded-lg border p-3 ${styles.container}`}
-                    >
+                    <div key={idx} className={`rounded-lg border p-3 ${styles.container}`}>
                       <div className="flex items-start gap-2">
                         <span className="text-lg flex-shrink-0">{styles.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${styles.container}`}>
+                            <span
+                              className={`text-xs font-medium px-2 py-0.5 rounded ${styles.container}`}
+                            >
                               {getTypeLabel(alert.type)}
                             </span>
                           </div>
                           <p className={`text-sm font-medium ${styles.text} mb-1`}>
                             {alert.message}
                           </p>
-                          {alert.supplierName && alert.type !== "HIGH_CONCENTRATION" && (
+                          {alert.supplierName && alert.type !== 'HIGH_CONCENTRATION' && (
                             <p className="text-xs text-neutral-400 mb-2">
                               Proveedor: {alert.supplierName}
                             </p>
@@ -203,7 +203,7 @@ export default function SupplierAlertsPanel() {
                         </div>
                       </div>
                     </div>
-                  );
+                  )
                 })}
               </div>
             </div>
@@ -218,23 +218,20 @@ export default function SupplierAlertsPanel() {
               </h3>
               <div className="space-y-2">
                 {groupedAlerts.info.slice(0, 3).map((alert, idx) => {
-                  const styles = getSeverityStyles(alert.severity);
+                  const styles = getSeverityStyles(alert.severity)
                   return (
-                    <div
-                      key={idx}
-                      className={`rounded-lg border p-3 ${styles.container}`}
-                    >
+                    <div key={idx} className={`rounded-lg border p-3 ${styles.container}`}>
                       <div className="flex items-start gap-2">
                         <span className="text-lg flex-shrink-0">{styles.icon}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${styles.container}`}>
+                            <span
+                              className={`text-xs font-medium px-2 py-0.5 rounded ${styles.container}`}
+                            >
                               {getTypeLabel(alert.type)}
                             </span>
                           </div>
-                          <p className={`text-sm ${styles.text} mb-1`}>
-                            {alert.message}
-                          </p>
+                          <p className={`text-sm ${styles.text} mb-1`}>{alert.message}</p>
                           {alert.supplierName && (
                             <p className="text-xs text-neutral-400">
                               Proveedor: {alert.supplierName}
@@ -243,11 +240,12 @@ export default function SupplierAlertsPanel() {
                         </div>
                       </div>
                     </div>
-                  );
+                  )
                 })}
                 {groupedAlerts.info.length > 3 && (
                   <p className="text-xs text-neutral-500 text-center py-2">
-                    +{groupedAlerts.info.length - 3} alerta{groupedAlerts.info.length - 3 !== 1 ? 's' : ''} más...
+                    +{groupedAlerts.info.length - 3} alerta
+                    {groupedAlerts.info.length - 3 !== 1 ? 's' : ''} más...
                   </p>
                 )}
               </div>
@@ -256,5 +254,5 @@ export default function SupplierAlertsPanel() {
         </div>
       )}
     </div>
-  );
+  )
 }

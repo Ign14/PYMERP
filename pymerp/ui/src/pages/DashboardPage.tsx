@@ -1,7 +1,7 @@
-import type { ChangeEvent } from "react";
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import type { ChangeEvent } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   CartesianGrid,
   Legend,
@@ -11,134 +11,139 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
-import PageHeader from "../components/layout/PageHeader";
+} from 'recharts'
+import PageHeader from '../components/layout/PageHeader'
 import {
   type DashboardSalesMetrics,
   type DashboardSalesMetricsParams,
   type TrendSeriesResponse,
   getDashboardSalesMetrics,
   getPurchaseSaleTrend,
-} from "../services/client";
+} from '../services/client'
 
-type DateRange = { from: string; to: string };
+type DateRange = { from: string; to: string }
 
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
 function addDays(base: Date, amount: number): Date {
-  const copy = new Date(base);
-  copy.setDate(copy.getDate() + amount);
-  return copy;
+  const copy = new Date(base)
+  copy.setDate(copy.getDate() + amount)
+  return copy
 }
 
 function formatAsInputDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function buildDefaultRange(): DateRange {
-  const today = new Date();
-  const start = addDays(today, -13);
-  return { from: formatAsInputDate(start), to: formatAsInputDate(today) };
+  const today = new Date()
+  const start = addDays(today, -13)
+  return { from: formatAsInputDate(start), to: formatAsInputDate(today) }
 }
 
 function normalizeRange(
   fromValue: string | null,
   toValue: string | null,
-  fallback: DateRange,
+  fallback: DateRange
 ): DateRange {
-  const from = DATE_REGEX.test(fromValue ?? "") ? fromValue! : fallback.from;
-  const to = DATE_REGEX.test(toValue ?? "") ? toValue! : fallback.to;
+  const from = DATE_REGEX.test(fromValue ?? '') ? fromValue! : fallback.from
+  const to = DATE_REGEX.test(toValue ?? '') ? toValue! : fallback.to
   if (from > to) {
-    return { from, to: from };
+    return { from, to: from }
   }
-  return { from, to };
+  return { from, to }
 }
 
 export default function DashboardPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const defaultRange = useMemo(buildDefaultRange, []);
+  const [searchParams, setSearchParams] = useSearchParams()
+  const defaultRange = useMemo(buildDefaultRange, [])
 
   const rawRange = useMemo(
     () => ({
-      from: searchParams.get("from"),
-      to: searchParams.get("to"),
+      from: searchParams.get('from'),
+      to: searchParams.get('to'),
     }),
-    [searchParams],
-  );
+    [searchParams]
+  )
 
   const range = useMemo(
     () => normalizeRange(rawRange.from, rawRange.to, defaultRange),
-    [rawRange.from, rawRange.to, defaultRange],
-  );
+    [rawRange.from, rawRange.to, defaultRange]
+  )
 
   useEffect(() => {
     if (rawRange.from !== range.from || rawRange.to !== range.to) {
-      setSearchParams({ from: range.from, to: range.to }, { replace: true });
+      setSearchParams({ from: range.from, to: range.to }, { replace: true })
     }
-  }, [rawRange.from, rawRange.to, range.from, range.to, setSearchParams]);
+  }, [rawRange.from, rawRange.to, range.from, range.to, setSearchParams])
 
-  const handleRangeChange = (field: "from" | "to") => (event: ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const handleRangeChange = (field: 'from' | 'to') => (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
     if (!DATE_REGEX.test(value)) {
-      return;
+      return
     }
-    let nextFrom = field === "from" ? value : range.from;
-    let nextTo = field === "to" ? value : range.to;
+    let nextFrom = field === 'from' ? value : range.from
+    let nextTo = field === 'to' ? value : range.to
     if (nextFrom > nextTo) {
-      if (field === "from") {
-        nextTo = value;
+      if (field === 'from') {
+        nextTo = value
       } else {
-        nextFrom = value;
+        nextFrom = value
       }
     }
-    setSearchParams({ from: nextFrom, to: nextTo });
-  };
+    setSearchParams({ from: nextFrom, to: nextTo })
+  }
 
-  const { from, to } = range;
+  const { from, to } = range
 
   const metricsQuery = useQuery<DashboardSalesMetrics, Error>({
-    queryKey: ["salesMetrics", from, to],
+    queryKey: ['salesMetrics', from, to],
     queryFn: () => getDashboardSalesMetrics({ from, to } satisfies DashboardSalesMetricsParams),
     enabled: Boolean(from && to),
-  });
+  })
 
   const trendQuery = useQuery<TrendSeriesResponse, Error>({
-    queryKey: ["trend", from, to, "purchase-sale"],
-    queryFn: () => getPurchaseSaleTrend({ from, to, series: "purchase,sale" }),
+    queryKey: ['trend', from, to, 'purchase-sale'],
+    queryFn: () => getPurchaseSaleTrend({ from, to, series: 'purchase,sale' }),
     enabled: Boolean(from && to),
-  });
+  })
 
   const currencyFormatter = useMemo(
-    () => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }),
-    [],
-  );
+    () =>
+      new Intl.NumberFormat('es-CL', {
+        style: 'currency',
+        currency: 'CLP',
+        maximumFractionDigits: 0,
+      }),
+    []
+  )
 
-  const formatCurrency = (value: number | null | undefined) => currencyFormatter.format(value ?? 0);
+  const formatCurrency = (value: number | null | undefined) => currencyFormatter.format(value ?? 0)
 
   const chartData = useMemo(() => {
     if (!trendQuery.data) {
-      return [] as Array<{ date: string; purchase: number; sale: number }>;
+      return [] as Array<{ date: string; purchase: number; sale: number }>
     }
-    const points = new Map<string, { date: string; purchase: number; sale: number }>();
-    trendQuery.data.purchase.forEach((point) => {
-      const entry = points.get(point.date) ?? { date: point.date, purchase: 0, sale: 0 };
-      entry.purchase = point.value ?? 0;
-      points.set(point.date, entry);
-    });
-    trendQuery.data.sale.forEach((point) => {
-      const entry = points.get(point.date) ?? { date: point.date, purchase: 0, sale: 0 };
-      entry.sale = point.value ?? 0;
-      points.set(point.date, entry);
-    });
-    return Array.from(points.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [trendQuery.data]);
+    const points = new Map<string, { date: string; purchase: number; sale: number }>()
+    trendQuery.data.purchase.forEach(point => {
+      const entry = points.get(point.date) ?? { date: point.date, purchase: 0, sale: 0 }
+      entry.purchase = point.value ?? 0
+      points.set(point.date, entry)
+    })
+    trendQuery.data.sale.forEach(point => {
+      const entry = points.get(point.date) ?? { date: point.date, purchase: 0, sale: 0 }
+      entry.sale = point.value ?? 0
+      points.set(point.date, entry)
+    })
+    return Array.from(points.values()).sort((a, b) => a.date.localeCompare(b.date))
+  }, [trendQuery.data])
 
-  const paymentMethods = metricsQuery.data?.topPaymentMethods ?? [];
-  const topMethods = paymentMethods.slice(0, 4);
-  const isUpdating = metricsQuery.isFetching || trendQuery.isFetching;
+  const paymentMethods = metricsQuery.data?.topPaymentMethods ?? []
+  const topMethods = paymentMethods.slice(0, 4)
+  const isUpdating = metricsQuery.isFetching || trendQuery.isFetching
 
   return (
     <div className="dashboard-panel">
@@ -150,31 +155,23 @@ export default function DashboardPage() {
       <section className="card panel-filter" aria-labelledby="panel-filter-title">
         <div className="panel-filter-header">
           <h3 id="panel-filter-title">Filtro por fechas</h3>
-          <span className={`panel-filter-status ${isUpdating ? "busy" : ""}`} role="status">
-            {isUpdating ? "Actualizando datos..." : "Datos al día"}
+          <span className={`panel-filter-status ${isUpdating ? 'busy' : ''}`} role="status">
+            {isUpdating ? 'Actualizando datos...' : 'Datos al día'}
           </span>
         </div>
         <div className="date-filter" role="group" aria-label="Rango de fechas">
           <label>
             <span>Desde</span>
-            <input
-              type="date"
-              value={from}
-              max={to}
-              onChange={handleRangeChange("from")}
-            />
+            <input type="date" value={from} max={to} onChange={handleRangeChange('from')} />
           </label>
           <label>
             <span>Hasta</span>
-            <input
-              type="date"
-              value={to}
-              min={from}
-              onChange={handleRangeChange("to")}
-            />
+            <input type="date" value={to} min={from} onChange={handleRangeChange('to')} />
           </label>
         </div>
-        <p className="muted small">Período seleccionado: {from} a {to}</p>
+        <p className="muted small">
+          Período seleccionado: {from} a {to}
+        </p>
       </section>
 
       <section className="panel-kpis" aria-label="Indicadores clave">
@@ -216,7 +213,7 @@ export default function DashboardPage() {
             <p className="panel-error">No se pudieron cargar los indicadores.</p>
           ) : topMethods.length > 0 ? (
             <ul className="kpi-list">
-              {topMethods.map((method) => (
+              {topMethods.map(method => (
                 <li key={method.method}>
                   <span className="kpi-list-label">{method.method}</span>
                   <span className="kpi-list-value">{method.count} usos</span>
@@ -248,16 +245,37 @@ export default function DashboardPage() {
               <LineChart data={chartData} margin={{ top: 20, right: 24, bottom: 8, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis dataKey="date" stroke="#9aa0a6" tick={{ fontSize: 12 }} />
-                <YAxis stroke="#9aa0a6" tickFormatter={(value) => formatCurrency(Number(value))} width={96} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} labelFormatter={(label) => `Fecha: ${label}`} />
+                <YAxis
+                  stroke="#9aa0a6"
+                  tickFormatter={value => formatCurrency(Number(value))}
+                  width={96}
+                />
+                <Tooltip
+                  formatter={(value: number) => formatCurrency(value)}
+                  labelFormatter={label => `Fecha: ${label}`}
+                />
                 <Legend />
-                <Line type="monotone" dataKey="sale" name="Ventas" stroke="#60a5fa" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="purchase" name="Compras" stroke="#f97316" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="sale"
+                  name="Ventas"
+                  stroke="#60a5fa"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="purchase"
+                  name="Compras"
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
         )}
       </section>
     </div>
-  );
+  )
 }

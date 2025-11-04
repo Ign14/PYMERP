@@ -1,11 +1,11 @@
-import PageHeader from "../components/layout/PageHeader";
-import AccountOverviewCard from "../components/settings/AccountOverviewCard";
-import SessionAccessCard from "../components/settings/SessionAccessCard";
-import UserManagementCard from "../components/settings/UserManagementCard";
-import { useAuth } from "../context/AuthContext";
+import PageHeader from '../components/layout/PageHeader'
+import AccountOverviewCard from '../components/settings/AccountOverviewCard'
+import SessionAccessCard from '../components/settings/SessionAccessCard'
+import UserManagementCard from '../components/settings/UserManagementCard'
+import { useAuth } from '../context/AuthContext'
 
 export default function SettingsPage() {
-  const { session } = useAuth();
+  const { session } = useAuth()
 
   if (!session) {
     return (
@@ -13,15 +13,15 @@ export default function SettingsPage() {
         <PageHeader title="Configuracion" description="Inicia sesion para administrar la cuenta." />
         <p>No hay una sesion activa actualmente.</p>
       </div>
-    );
+    )
   }
 
   const layoutStyle = {
-    display: "grid",
-    gap: "24px",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    alignItems: "stretch",
-  } as const;
+    display: 'grid',
+    gap: '24px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+    alignItems: 'stretch',
+  } as const
 
   return (
     <div className="page-section">
@@ -35,5 +35,5 @@ export default function SettingsPage() {
         <UserManagementCard />
       </div>
     </div>
-  );
+  )
 }

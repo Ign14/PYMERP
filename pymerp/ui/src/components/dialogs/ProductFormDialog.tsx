@@ -1,148 +1,151 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
-import { Product, ProductFormData, createProduct, updateProduct } from "../../services/client";
-import Modal from "./Modal";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import axios from 'axios'
+import { Product, ProductFormData, createProduct, updateProduct } from '../../services/client'
+import Modal from './Modal'
 
 type Props = {
-  open: boolean;
-  product?: Product | null;
-  onClose: () => void;
-  onSaved?: (product: Product) => void;
-};
+  open: boolean
+  product?: Product | null
+  onClose: () => void
+  onSaved?: (product: Product) => void
+}
 
 type FormState = {
-  sku: string;
-  name: string;
-  description: string;
-  category: string;
-  barcode: string;
-  imageUrl: string | null;
-  imageFile: File | null;
-};
+  sku: string
+  name: string
+  description: string
+  category: string
+  barcode: string
+  imageUrl: string | null
+  imageFile: File | null
+}
 
 const EMPTY_FORM: FormState = {
-  sku: "",
-  name: "",
-  description: "",
-  category: "",
-  barcode: "",
+  sku: '',
+  name: '',
+  description: '',
+  category: '',
+  barcode: '',
   imageUrl: null,
   imageFile: null,
-};
+}
 
 export default function ProductFormDialog({ open, product, onClose, onSaved }: Props) {
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
 
-  useEffect(() => () => {
-    if (previewUrlRef.current && previewUrlRef.current.startsWith("blob:")) {
-      URL.revokeObjectURL(previewUrlRef.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current && previewUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrlRef.current)
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     if (!open) {
-      setForm(EMPTY_FORM);
-      setImageError(null);
-      resetPreview(null);
-      return;
+      setForm(EMPTY_FORM)
+      setImageError(null)
+      resetPreview(null)
+      return
     }
     if (product) {
       setForm({
-        sku: product.sku ?? "",
-        name: product.name ?? "",
-        description: product.description ?? "",
-        category: product.category ?? "",
-        barcode: product.barcode ?? "",
+        sku: product.sku ?? '',
+        name: product.name ?? '',
+        description: product.description ?? '',
+        category: product.category ?? '',
+        barcode: product.barcode ?? '',
         imageUrl: product.imageUrl ?? null,
         imageFile: null,
-      });
-      setImageError(null);
-      resetPreview(product.imageUrl ?? null);
+      })
+      setImageError(null)
+      resetPreview(product.imageUrl ?? null)
     } else {
-      setForm(EMPTY_FORM);
-      setImageError(null);
-      resetPreview(null);
+      setForm(EMPTY_FORM)
+      setImageError(null)
+      resetPreview(null)
     }
-  }, [open, product]);
+  }, [open, product])
 
   const mutation = useMutation({
     mutationFn: (payload: ProductFormData) => {
       if (product) {
-        return updateProduct(product.id, payload);
+        return updateProduct(product.id, payload)
       }
-      return createProduct(payload);
+      return createProduct(payload)
     },
-    onSuccess: (saved) => {
-      onSaved?.(saved);
-      onClose();
+    onSuccess: saved => {
+      onSaved?.(saved)
+      onClose()
     },
-  });
+  })
 
   useEffect(() => {
     if (!open) {
-      mutation.reset();
+      mutation.reset()
     }
-  }, [open, mutation]);
+  }, [open, mutation])
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const file = event.target.files?.[0]
     if (!file) {
-      return;
+      return
     }
     if (file.size > 512 * 1024) {
-      setImageError("La imagen debe pesar 500 KB o menos");
-      event.target.value = "";
-      return;
+      setImageError('La imagen debe pesar 500 KB o menos')
+      event.target.value = ''
+      return
     }
-    setImageError(null);
-    setForm((prev) => ({ ...prev, imageFile: file }));
-    const url = URL.createObjectURL(file);
-    updatePreview(url);
-  };
+    setImageError(null)
+    setForm(prev => ({ ...prev, imageFile: file }))
+    const url = URL.createObjectURL(file)
+    updatePreview(url)
+  }
 
   const removeImage = () => {
-    setImageError(null);
+    setImageError(null)
     if (form.imageFile) {
-      const previousUrl = form.imageUrl ?? null;
-      setForm((prev) => ({ ...prev, imageFile: null }));
-      updatePreview(previousUrl);
+      const previousUrl = form.imageUrl ?? null
+      setForm(prev => ({ ...prev, imageFile: null }))
+      updatePreview(previousUrl)
     } else {
-      setForm((prev) => ({ ...prev, imageUrl: null }));
-      updatePreview(null);
+      setForm(prev => ({ ...prev, imageUrl: null }))
+      updatePreview(null)
     }
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = ''
     }
-  };
+  }
 
   const resetPreview = (value: string | null) => {
-    updatePreview(value);
-  };
+    updatePreview(value)
+  }
 
   const updatePreview = (value: string | null) => {
-    if (previewUrlRef.current && previewUrlRef.current.startsWith("blob:")) {
-      URL.revokeObjectURL(previewUrlRef.current);
+    if (previewUrlRef.current && previewUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrlRef.current)
     }
-    previewUrlRef.current = value;
-    setImagePreview(value);
-  };
+    previewUrlRef.current = value
+    setImagePreview(value)
+  }
 
   const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const sku = form.sku.trim();
-    const name = form.name.trim();
+    event.preventDefault()
+    const sku = form.sku.trim()
+    const name = form.name.trim()
     if (!sku) {
-      window.alert("El SKU es obligatorio");
-      return;
+      window.alert('El SKU es obligatorio')
+      return
     }
     if (!name) {
-      window.alert("El nombre es obligatorio");
-      return;
+      window.alert('El nombre es obligatorio')
+      return
     }
     const payload: ProductFormData = {
       sku,
@@ -150,20 +153,20 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
       description: form.description.trim() ? form.description.trim() : undefined,
       category: form.category.trim() ? form.category.trim() : undefined,
       barcode: form.barcode.trim() ? form.barcode.trim() : undefined,
-    };
-    if (form.imageFile) {
-      payload.imageFile = form.imageFile;
-      payload.imageUrl = null;
-    } else if (form.imageUrl === null) {
-      payload.imageUrl = null;
-    } else if (typeof form.imageUrl === "string" && form.imageUrl.trim().length > 0) {
-      payload.imageUrl = form.imageUrl.trim();
     }
-    mutation.mutate(payload);
-  };
+    if (form.imageFile) {
+      payload.imageFile = form.imageFile
+      payload.imageUrl = null
+    } else if (form.imageUrl === null) {
+      payload.imageUrl = null
+    } else if (typeof form.imageUrl === 'string' && form.imageUrl.trim().length > 0) {
+      payload.imageUrl = form.imageUrl.trim()
+    }
+    mutation.mutate(payload)
+  }
 
-  const title = product ? "Editar producto" : "Nuevo producto";
-  const hasImage = Boolean(imagePreview);
+  const title = product ? 'Editar producto' : 'Nuevo producto'
+  const hasImage = Boolean(imagePreview)
 
   return (
     <Modal open={open} title={title} onClose={() => !mutation.isPending && onClose()}>
@@ -173,7 +176,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <input
             className="input"
             value={form.sku}
-            onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))}
+            onChange={e => setForm(prev => ({ ...prev, sku: e.target.value }))}
             placeholder="SKU-001"
             disabled={mutation.isPending}
             data-autofocus
@@ -184,7 +187,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <input
             className="input"
             value={form.name}
-            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+            onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
             placeholder="Producto demo"
             disabled={mutation.isPending}
           />
@@ -194,7 +197,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <input
             className="input"
             value={form.category}
-            onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}
+            onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))}
             placeholder="Bebidas"
             disabled={mutation.isPending}
           />
@@ -204,7 +207,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <input
             className="input"
             value={form.barcode}
-            onChange={(e) => setForm((prev) => ({ ...prev, barcode: e.target.value }))}
+            onChange={e => setForm(prev => ({ ...prev, barcode: e.target.value }))}
             placeholder="7890000000"
             disabled={mutation.isPending}
           />
@@ -214,7 +217,7 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
           <textarea
             className="input"
             value={form.description}
-            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+            onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
             placeholder="Notas internas"
             rows={3}
             disabled={mutation.isPending}
@@ -255,38 +258,46 @@ export default function ProductFormDialog({ open, product, onClose, onSaved }: P
         </label>
         <div className="buttons">
           <button className="btn" type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Guardando..." : "Guardar"}
+            {mutation.isPending ? 'Guardando...' : 'Guardar'}
           </button>
-          <button className="btn ghost" type="button" onClick={onClose} disabled={mutation.isPending}>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={onClose}
+            disabled={mutation.isPending}
+          >
             Cancelar
           </button>
         </div>
         {mutation.isError && <p className="error">{resolveErrorMessage(mutation.error)}</p>}
       </form>
     </Modal>
-  );
+  )
 }
 
 function resolveErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const detail = error.response?.data as { detail?: string; message?: string; error?: string } | string | undefined;
-    if (typeof detail === "string" && detail.trim().length > 0) {
-      return detail;
+    const detail = error.response?.data as
+      | { detail?: string; message?: string; error?: string }
+      | string
+      | undefined
+    if (typeof detail === 'string' && detail.trim().length > 0) {
+      return detail
     }
-    if (detail && typeof detail === "object") {
-      if (typeof detail.detail === "string" && detail.detail.trim().length > 0) {
-        return detail.detail;
+    if (detail && typeof detail === 'object') {
+      if (typeof detail.detail === 'string' && detail.detail.trim().length > 0) {
+        return detail.detail
       }
-      if (typeof detail.message === "string" && detail.message.trim().length > 0) {
-        return detail.message;
+      if (typeof detail.message === 'string' && detail.message.trim().length > 0) {
+        return detail.message
       }
-      if (typeof detail.error === "string" && detail.error.trim().length > 0) {
-        return detail.error;
+      if (typeof detail.error === 'string' && detail.error.trim().length > 0) {
+        return detail.error
       }
     }
   }
   if (error instanceof Error && error.message) {
-    return error.message;
+    return error.message
   }
-  return "No se pudo guardar";
+  return 'No se pudo guardar'
 }

@@ -1,66 +1,64 @@
-import { useEffect, useMemo, useState } from "react";
-import { useFrequentProducts } from "../../hooks/useFrequentProducts";
-import type { FrequentProduct } from "../../services/client";
+import { useEffect, useMemo, useState } from 'react'
+import { useFrequentProducts } from '../../hooks/useFrequentProducts'
+import type { FrequentProduct } from '../../services/client'
 
-const currencyFormatter = new Intl.NumberFormat("es-CL", {
-  style: "currency",
-  currency: "CLP",
+const currencyFormatter = new Intl.NumberFormat('es-CL', {
+  style: 'currency',
+  currency: 'CLP',
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
-});
+})
 
 function formatDate(value: string) {
   try {
-    return new Date(value).toLocaleDateString();
+    return new Date(value).toLocaleDateString()
   } catch (error) {
-    return value;
+    return value
   }
 }
 
 type FrequentProductsPanelProps = {
-  customerId?: string;
-  visible: boolean;
-  onPick: (product: FrequentProduct, meta?: { lastQty?: number }) => void;
-};
+  customerId?: string
+  visible: boolean
+  onPick: (product: FrequentProduct, meta?: { lastQty?: number }) => void
+}
 
 export function FrequentProductsPanel({ customerId, visible, onPick }: FrequentProductsPanelProps) {
-  const [query, setQuery] = useState("");
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isError,
-    refetch,
-  } = useFrequentProducts(customerId);
+  const [query, setQuery] = useState('')
+  const { data, isLoading, isFetching, isError, refetch } = useFrequentProducts(customerId)
 
   useEffect(() => {
-    setQuery("");
-  }, [customerId]);
+    setQuery('')
+  }, [customerId])
 
   const filtered = useMemo(() => {
     if (!data) {
-      return [];
+      return []
     }
-    const normalized = query.trim().toLowerCase();
+    const normalized = query.trim().toLowerCase()
     if (!normalized) {
-      return data;
+      return data
     }
-    return data.filter((item) => {
-      const name = item.name?.toLowerCase() ?? "";
-      const sku = item.sku?.toLowerCase() ?? "";
-      return name.includes(normalized) || sku.includes(normalized);
-    });
-  }, [data, query]);
+    return data.filter(item => {
+      const name = item.name?.toLowerCase() ?? ''
+      const sku = item.sku?.toLowerCase() ?? ''
+      return name.includes(normalized) || sku.includes(normalized)
+    })
+  }, [data, query])
 
   if (!visible || !customerId) {
-    return null;
+    return null
   }
 
-  const showSearch = (data?.length ?? 0) > 0;
-  const loading = isLoading || (isFetching && !(data && data.length));
+  const showSearch = (data?.length ?? 0) > 0
+  const loading = isLoading || (isFetching && !(data && data.length))
 
   return (
-    <section className="card frequent-products-panel" aria-label="Productos frecuentes del cliente" aria-live="polite">
+    <section
+      className="card frequent-products-panel"
+      aria-label="Productos frecuentes del cliente"
+      aria-live="polite"
+    >
       <header className="card-header frequent-products-header">
         <div className="frequent-products-heading">
           <h2 className="card-title">Productos frecuentes</h2>
@@ -77,7 +75,7 @@ export function FrequentProductsPanel({ customerId, visible, onPick }: FrequentP
               className="input"
               placeholder="Buscar por nombre o SKU"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={event => setQuery(event.target.value)}
               autoComplete="off"
             />
           </div>
@@ -110,17 +108,17 @@ export function FrequentProductsPanel({ customerId, visible, onPick }: FrequentP
 
         {!loading && !isError && filtered.length > 0 ? (
           <ul className="frequent-products-list">
-            {filtered.map((item) => {
-              const lastDateLabel = formatDate(item.lastPurchasedAt);
+            {filtered.map(item => {
+              const lastDateLabel = formatDate(item.lastPurchasedAt)
               const averageLabel =
                 item.avgQty !== undefined && item.avgQty !== null
                   ? Number(item.avgQty).toFixed(1)
-                  : null;
+                  : null
               const priceLabel =
                 item.lastUnitPrice !== undefined && item.lastUnitPrice !== null
                   ? currencyFormatter.format(item.lastUnitPrice)
-                  : null;
-              const handleActivate = () => onPick(item, { lastQty: item.lastQty });
+                  : null
+              const handleActivate = () => onPick(item, { lastQty: item.lastQty })
 
               return (
                 <li key={item.productId}>
@@ -129,17 +127,17 @@ export function FrequentProductsPanel({ customerId, visible, onPick }: FrequentP
                     tabIndex={0}
                     className="frequent-product-row"
                     onClick={handleActivate}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        handleActivate();
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        handleActivate()
                       }
                     }}
                     aria-label={`Agregar ${item.name}`}
                   >
                     <div className="frequent-product-main">
                       <span className="frequent-product-name">{item.name}</span>
-                      <span className="frequent-product-sku">SKU: {item.sku || "—"}</span>
+                      <span className="frequent-product-sku">SKU: {item.sku || '—'}</span>
                     </div>
                     <dl className="frequent-product-meta">
                       <div>
@@ -171,7 +169,7 @@ export function FrequentProductsPanel({ customerId, visible, onPick }: FrequentP
                     </dl>
                   </div>
                 </li>
-              );
+              )
             })}
           </ul>
         ) : null}
@@ -183,5 +181,5 @@ export function FrequentProductsPanel({ customerId, visible, onPick }: FrequentP
         ) : null}
       </div>
     </section>
-  );
+  )
 }

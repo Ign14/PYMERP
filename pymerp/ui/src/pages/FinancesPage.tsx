@@ -1,8 +1,8 @@
-import PageHeader from "../components/layout/PageHeader";
-import FinanceSummaryCards from "../components/finances/FinanceSummaryCards";
-import AccountsReceivablePanel from "../components/finances/AccountsReceivablePanel";
-import AccountsPayablePanel from "../components/finances/AccountsPayablePanel";
-import CashflowChart from "../components/finances/CashflowChart";
+import PageHeader from '../components/layout/PageHeader'
+import FinanceSummaryCards from '../components/finances/FinanceSummaryCards'
+import AccountsReceivablePanel from '../components/finances/AccountsReceivablePanel'
+import AccountsPayablePanel from '../components/finances/AccountsPayablePanel'
+import CashflowChart from '../components/finances/CashflowChart'
 
 export default function FinancesPage() {
   return (
@@ -21,5 +21,5 @@ export default function FinancesPage() {
         <AccountsPayablePanel />
       </div>
     </div>
-  );
+  )
 }

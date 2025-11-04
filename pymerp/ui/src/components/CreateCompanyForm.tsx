@@ -1,88 +1,88 @@
-import { FormEvent, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createCompany, type Company, type CreateCompanyPayload } from "../services/client";
-import { isValidRut, normalizeRut } from "../utils/rut";
-import { parseProblemDetail } from "../utils/problemDetail";
+import { FormEvent, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { createCompany, type Company, type CreateCompanyPayload } from '../services/client'
+import { isValidRut, normalizeRut } from '../utils/rut'
+import { parseProblemDetail } from '../utils/problemDetail'
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Props = {
-  onCreated?: () => void;
-};
+  onCreated?: () => void
+}
 
 export type CompanyFormValues = {
-  businessName: string;
-  rut: string;
-  businessActivity: string;
-  address: string;
-  commune: string;
-  phone: string;
-  email: string;
-  receiptFooterMessage: string;
-};
+  businessName: string
+  rut: string
+  businessActivity: string
+  address: string
+  commune: string
+  phone: string
+  email: string
+  receiptFooterMessage: string
+}
 
-export type CompanyFormErrors = Partial<Record<keyof CompanyFormValues, string>>;
+export type CompanyFormErrors = Partial<Record<keyof CompanyFormValues, string>>
 
 export function emptyCompanyFormValues(): CompanyFormValues {
   return {
-    businessName: "",
-    rut: "",
-    businessActivity: "",
-    address: "",
-    commune: "",
-    phone: "",
-    email: "",
-    receiptFooterMessage: "",
-  };
+    businessName: '',
+    rut: '',
+    businessActivity: '',
+    address: '',
+    commune: '',
+    phone: '',
+    email: '',
+    receiptFooterMessage: '',
+  }
 }
 
 export function valuesFromCompany(company: Company): CompanyFormValues {
   return {
-    businessName: company.businessName ?? "",
-    rut: company.rut ?? "",
-    businessActivity: company.businessActivity ?? "",
-    address: company.address ?? "",
-    commune: company.commune ?? "",
-    phone: company.phone ?? "",
-    email: company.email ?? "",
-    receiptFooterMessage: company.receiptFooterMessage ?? "",
-  };
+    businessName: company.businessName ?? '',
+    rut: company.rut ?? '',
+    businessActivity: company.businessActivity ?? '',
+    address: company.address ?? '',
+    commune: company.commune ?? '',
+    phone: company.phone ?? '',
+    email: company.email ?? '',
+    receiptFooterMessage: company.receiptFooterMessage ?? '',
+  }
 }
 
 export function validateCompanyForm(values: CompanyFormValues): {
-  payload?: CreateCompanyPayload;
-  errors: CompanyFormErrors;
+  payload?: CreateCompanyPayload
+  errors: CompanyFormErrors
 } {
-  const errors: CompanyFormErrors = {};
+  const errors: CompanyFormErrors = {}
 
-  const businessName = values.businessName.trim();
+  const businessName = values.businessName.trim()
   if (!businessName) {
-    errors.businessName = "La razón social es obligatoria";
+    errors.businessName = 'La razón social es obligatoria'
   }
 
-  const rutInput = values.rut.trim();
-  let normalizedRut: string | undefined;
+  const rutInput = values.rut.trim()
+  let normalizedRut: string | undefined
   if (!rutInput) {
-    errors.rut = "El RUT es obligatorio";
+    errors.rut = 'El RUT es obligatorio'
   } else if (!isValidRut(rutInput)) {
-    errors.rut = "Ingresa un RUT válido";
+    errors.rut = 'Ingresa un RUT válido'
   } else {
-    normalizedRut = normalizeRut(rutInput);
+    normalizedRut = normalizeRut(rutInput)
   }
 
-  const emailInput = values.email.trim();
+  const emailInput = values.email.trim()
   if (emailInput && !EMAIL_REGEX.test(emailInput)) {
-    errors.email = "Ingresa un email válido";
+    errors.email = 'Ingresa un email válido'
   }
 
   if (Object.keys(errors).length > 0) {
-    return { errors };
+    return { errors }
   }
 
   const toOptional = (value: string) => {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  };
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : undefined
+  }
 
   const payload: CreateCompanyPayload = {
     businessName,
@@ -93,67 +93,67 @@ export function validateCompanyForm(values: CompanyFormValues): {
     phone: toOptional(values.phone),
     email: emailInput ? emailInput.toLowerCase() : undefined,
     receiptFooterMessage: toOptional(values.receiptFooterMessage),
-  };
+  }
 
-  return { payload, errors };
+  return { payload, errors }
 }
 
 export default function CreateCompanyForm({ onCreated }: Props) {
-  const [values, setValues] = useState<CompanyFormValues>(emptyCompanyFormValues());
-  const [fieldErrors, setFieldErrors] = useState<CompanyFormErrors>({});
-  const [globalError, setGlobalError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const queryClient = useQueryClient();
+  const [values, setValues] = useState<CompanyFormValues>(emptyCompanyFormValues())
+  const [fieldErrors, setFieldErrors] = useState<CompanyFormErrors>({})
+  const [globalError, setGlobalError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const mutation = useMutation({
     mutationFn: createCompany,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["companies"], exact: false });
-      setValues(emptyCompanyFormValues());
-      setFieldErrors({});
-      setGlobalError(null);
-      setSuccessMessage("Compañía creada correctamente");
-      onCreated?.();
+      queryClient.invalidateQueries({ queryKey: ['companies'], exact: false })
+      setValues(emptyCompanyFormValues())
+      setFieldErrors({})
+      setGlobalError(null)
+      setSuccessMessage('Compañía creada correctamente')
+      onCreated?.()
     },
     onError: (error: unknown) => {
-      const parsed = parseProblemDetail(error);
-      setFieldErrors((prev) => ({ ...prev, ...parsed.fieldErrors }));
-      setGlobalError(parsed.message ?? "No se pudo crear la compañía");
-      setSuccessMessage(null);
+      const parsed = parseProblemDetail(error)
+      setFieldErrors(prev => ({ ...prev, ...parsed.fieldErrors }))
+      setGlobalError(parsed.message ?? 'No se pudo crear la compañía')
+      setSuccessMessage(null)
     },
-  });
+  })
 
   const clearFieldError = (field: keyof CompanyFormValues) => {
-    setFieldErrors((prev) => {
+    setFieldErrors(prev => {
       if (!prev[field]) {
-        return prev;
+        return prev
       }
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-  };
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setGlobalError(null);
-    setSuccessMessage(null);
+    event.preventDefault()
+    setGlobalError(null)
+    setSuccessMessage(null)
 
-    const { payload, errors } = validateCompanyForm(values);
+    const { payload, errors } = validateCompanyForm(values)
     if (!payload || Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
+      setFieldErrors(errors)
+      return
     }
 
-    mutation.mutate(payload);
-  };
+    mutation.mutate(payload)
+  }
 
   const handleReset = () => {
-    setValues(emptyCompanyFormValues());
-    setFieldErrors({});
-    setGlobalError(null);
-    setSuccessMessage(null);
-  };
+    setValues(emptyCompanyFormValues())
+    setFieldErrors({})
+    setGlobalError(null)
+    setSuccessMessage(null)
+  }
 
   return (
     <div className="card">
@@ -163,15 +163,15 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Razón social *</span>
           <input
             value={values.businessName}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, businessName: event.target.value }));
-              clearFieldError("businessName");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, businessName: event.target.value }))
+              clearFieldError('businessName')
+              setSuccessMessage(null)
             }}
             placeholder="Ej. Comercial Demo SpA"
             className="input"
-            aria-invalid={fieldErrors.businessName ? "true" : undefined}
-            aria-describedby={fieldErrors.businessName ? "company-businessName-error" : undefined}
+            aria-invalid={fieldErrors.businessName ? 'true' : undefined}
+            aria-describedby={fieldErrors.businessName ? 'company-businessName-error' : undefined}
             disabled={mutation.isPending}
           />
           {fieldErrors.businessName ? (
@@ -185,15 +185,15 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>RUT *</span>
           <input
             value={values.rut}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, rut: event.target.value }));
-              clearFieldError("rut");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, rut: event.target.value }))
+              clearFieldError('rut')
+              setSuccessMessage(null)
             }}
             placeholder="76.123.456-0"
             className="input"
-            aria-invalid={fieldErrors.rut ? "true" : undefined}
-            aria-describedby={fieldErrors.rut ? "company-rut-error" : undefined}
+            aria-invalid={fieldErrors.rut ? 'true' : undefined}
+            aria-describedby={fieldErrors.rut ? 'company-rut-error' : undefined}
             disabled={mutation.isPending}
           />
           {fieldErrors.rut ? (
@@ -207,10 +207,10 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Giro / actividad</span>
           <input
             value={values.businessActivity}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, businessActivity: event.target.value }));
-              clearFieldError("businessActivity");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, businessActivity: event.target.value }))
+              clearFieldError('businessActivity')
+              setSuccessMessage(null)
             }}
             placeholder="Ej. Servicios de tecnología"
             className="input"
@@ -222,10 +222,10 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Dirección</span>
           <input
             value={values.address}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, address: event.target.value }));
-              clearFieldError("address");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, address: event.target.value }))
+              clearFieldError('address')
+              setSuccessMessage(null)
             }}
             placeholder="Av. Principal 1234"
             className="input"
@@ -237,10 +237,10 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Comuna</span>
           <input
             value={values.commune}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, commune: event.target.value }));
-              clearFieldError("commune");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, commune: event.target.value }))
+              clearFieldError('commune')
+              setSuccessMessage(null)
             }}
             placeholder="Providencia"
             className="input"
@@ -252,10 +252,10 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Teléfono</span>
           <input
             value={values.phone}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, phone: event.target.value }));
-              clearFieldError("phone");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, phone: event.target.value }))
+              clearFieldError('phone')
+              setSuccessMessage(null)
             }}
             placeholder="+56 9 1234 5678"
             className="input"
@@ -267,15 +267,15 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Email</span>
           <input
             value={values.email}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, email: event.target.value }));
-              clearFieldError("email");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, email: event.target.value }))
+              clearFieldError('email')
+              setSuccessMessage(null)
             }}
             placeholder="contacto@empresa.cl"
             className="input"
-            aria-invalid={fieldErrors.email ? "true" : undefined}
-            aria-describedby={fieldErrors.email ? "company-email-error" : undefined}
+            aria-invalid={fieldErrors.email ? 'true' : undefined}
+            aria-describedby={fieldErrors.email ? 'company-email-error' : undefined}
             disabled={mutation.isPending}
           />
           {fieldErrors.email ? (
@@ -289,10 +289,10 @@ export default function CreateCompanyForm({ onCreated }: Props) {
           <span>Mensaje personalizado para boletas</span>
           <textarea
             value={values.receiptFooterMessage}
-            onChange={(event) => {
-              setValues((prev) => ({ ...prev, receiptFooterMessage: event.target.value }));
-              clearFieldError("receiptFooterMessage");
-              setSuccessMessage(null);
+            onChange={event => {
+              setValues(prev => ({ ...prev, receiptFooterMessage: event.target.value }))
+              clearFieldError('receiptFooterMessage')
+              setSuccessMessage(null)
             }}
             placeholder="Ej. ¡Gracias por preferirnos!"
             className="input"
@@ -303,7 +303,7 @@ export default function CreateCompanyForm({ onCreated }: Props) {
 
         <div className="buttons">
           <button className="btn" disabled={mutation.isPending} type="submit">
-            {mutation.isPending ? "Guardando..." : "Crear"}
+            {mutation.isPending ? 'Guardando...' : 'Crear'}
           </button>
           <button
             className="btn ghost"
@@ -328,5 +328,5 @@ export default function CreateCompanyForm({ onCreated }: Props) {
         ) : null}
       </form>
     </div>
-  );
+  )
 }

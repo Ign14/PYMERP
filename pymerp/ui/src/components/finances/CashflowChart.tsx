@@ -1,49 +1,58 @@
-import { useEffect, useState } from "react";
-import { getCashflowProjection, type CashflowProjection } from "../../services/client";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useEffect, useState } from 'react'
+import { getCashflowProjection, type CashflowProjection } from '../../services/client'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 
 export default function CashflowChart() {
-  const [data, setData] = useState<CashflowProjection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(30);
+  const [data, setData] = useState<CashflowProjection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [days, setDays] = useState(30)
 
   useEffect(() => {
-    loadData();
-  }, [days]);
+    loadData()
+  }, [days])
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      const result = await getCashflowProjection(days);
-      setData(result);
+      setLoading(true)
+      const result = await getCashflowProjection(days)
+      setData(result)
     } catch (err) {
-      console.error("Error loading cashflow:", err);
+      console.error('Error loading cashflow:', err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return `${date.getDate()}/${date.getMonth() + 1}`;
-  };
+    const date = new Date(dateStr)
+    return `${date.getDate()}/${date.getMonth() + 1}`
+  }
 
-  const chartData = data.map((item) => ({
+  const chartData = data.map(item => ({
     date: formatDate(item.date),
     ingresos: item.expectedIncome,
     egresos: item.expectedExpense,
     neto: item.netCashflow,
     acumulado: item.cumulativeBalance,
-  }));
+  }))
 
   if (loading) {
     return (
@@ -53,7 +62,7 @@ export default function CashflowChart() {
           <span className="ml-3 text-neutral-400">Cargando proyección...</span>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -61,14 +70,14 @@ export default function CashflowChart() {
       <div className="p-5 border-b border-neutral-800 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-neutral-100">Proyección de Flujo de Caja</h2>
         <div className="flex gap-2">
-          {[7, 15, 30, 60].map((d) => (
+          {[7, 15, 30, 60].map(d => (
             <button
               key={d}
               onClick={() => setDays(d)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 days === d
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
               }`}
             >
               {d} días
@@ -81,33 +90,26 @@ export default function CashflowChart() {
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="date"
-              stroke="#6b7280"
-              style={{ fontSize: "12px" }}
-            />
+            <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
             <YAxis
               stroke="#6b7280"
-              style={{ fontSize: "12px" }}
-              tickFormatter={(value) => {
-                if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-                if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
-                return value.toString();
+              style={{ fontSize: '12px' }}
+              tickFormatter={value => {
+                if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+                if (value >= 1000) return `${(value / 1000).toFixed(0)}K`
+                return value.toString()
               }}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                padding: "8px",
+                backgroundColor: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '8px',
               }}
               formatter={(value: number) => formatCurrency(value)}
             />
-            <Legend
-              wrapperStyle={{ paddingTop: "20px" }}
-              iconType="line"
-            />
+            <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="line" />
             <Line
               type="monotone"
               dataKey="ingresos"
@@ -176,5 +178,5 @@ export default function CashflowChart() {
         </div>
       </div>
     </div>
-  );
+  )
 }

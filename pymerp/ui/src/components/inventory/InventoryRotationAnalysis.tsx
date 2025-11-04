@@ -1,65 +1,65 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { listProducts } from "../../services/client";
-import { createCurrencyFormatter } from "../../utils/currency";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listProducts } from '../../services/client'
+import { createCurrencyFormatter } from '../../utils/currency'
 
 export default function InventoryRotationAnalysis() {
-  const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
-  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(), [])
+  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0)
 
   const productsQuery = useQuery({
-    queryKey: ["products-rotation"],
-    queryFn: () => listProducts({ size: 200, status: "all" }),
-  });
+    queryKey: ['products-rotation'],
+    queryFn: () => listProducts({ size: 200, status: 'all' }),
+  })
 
-  const products = productsQuery.data?.content ?? [];
+  const products = productsQuery.data?.content ?? []
 
   const analysis = useMemo(() => {
-    const productsWithValue = products.map((p) => {
-      const stock = Number(p.stock ?? 0);
+    const productsWithValue = products.map(p => {
+      const stock = Number(p.stock ?? 0)
       // Usar currentPrice del producto (precio de venta actual)
-      const price = Number(p.currentPrice ?? 0);
+      const price = Number(p.currentPrice ?? 0)
       // Para el costo, deberíamos obtenerlo de los lotes de inventario
       // Por ahora, estimamos el costo como 70% del precio de venta (markup estándar 30%)
-      const estimatedCost = price * 0.7;
-      const value = stock * estimatedCost;
+      const estimatedCost = price * 0.7
+      const value = stock * estimatedCost
       // Simular rotación (en producción vendría de ventas)
-      const rotation = Math.random() * 20; // Ventas simuladas
+      const rotation = Math.random() * 20 // Ventas simuladas
 
       return {
         id: p.id,
-        name: p.name ?? "Sin nombre",
+        name: p.name ?? 'Sin nombre',
         stock,
         value,
         rotation,
-        category: p.category ?? "General",
-      };
-    });
+        category: p.category ?? 'General',
+      }
+    })
 
-    const totalValue = productsWithValue.reduce((sum, p) => sum + p.value, 0);
-    
+    const totalValue = productsWithValue.reduce((sum, p) => sum + p.value, 0)
+
     // Clasificación ABC
-    const sortedByValue = [...productsWithValue].sort((a, b) => b.value - a.value);
-    let accumulated = 0;
-    const abc = sortedByValue.map((p) => {
-      accumulated += p.value;
-      const percentage = totalValue > 0 ? (accumulated / totalValue) * 100 : 0;
+    const sortedByValue = [...productsWithValue].sort((a, b) => b.value - a.value)
+    let accumulated = 0
+    const abc = sortedByValue.map(p => {
+      accumulated += p.value
+      const percentage = totalValue > 0 ? (accumulated / totalValue) * 100 : 0
       return {
         ...p,
-        class: percentage <= 80 ? "A" : percentage <= 95 ? "B" : "C",
-      };
-    });
+        class: percentage <= 80 ? 'A' : percentage <= 95 ? 'B' : 'C',
+      }
+    })
 
-    const classA = abc.filter((p) => p.class === "A");
-    const classB = abc.filter((p) => p.class === "B");
-    const classC = abc.filter((p) => p.class === "C");
+    const classA = abc.filter(p => p.class === 'A')
+    const classB = abc.filter(p => p.class === 'B')
+    const classC = abc.filter(p => p.class === 'C')
 
     // Top y Slow movers
-    const topMovers = [...productsWithValue].sort((a, b) => b.rotation - a.rotation).slice(0, 5);
-    const slowMovers = [...productsWithValue].sort((a, b) => a.rotation - b.rotation).slice(0, 5);
+    const topMovers = [...productsWithValue].sort((a, b) => b.rotation - a.rotation).slice(0, 5)
+    const slowMovers = [...productsWithValue].sort((a, b) => a.rotation - b.rotation).slice(0, 5)
 
-    return { classA, classB, classC, topMovers, slowMovers, totalValue };
-  }, [products]);
+    return { classA, classB, classC, topMovers, slowMovers, totalValue }
+  }, [products])
 
   if (productsQuery.isLoading) {
     return (
@@ -67,7 +67,7 @@ export default function InventoryRotationAnalysis() {
         <h3 className="text-neutral-100 mb-4">Análisis de Rotación</h3>
         <div className="animate-pulse bg-neutral-800 rounded-lg h-80"></div>
       </div>
-    );
+    )
   }
 
   return (
@@ -102,9 +102,12 @@ export default function InventoryRotationAnalysis() {
               <div key={p.id} className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-neutral-100 font-medium">
-                    {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}.`} {p.name}
+                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`}{' '}
+                    {p.name}
                   </span>
-                  <span className="text-green-400 font-semibold">{p.rotation.toFixed(1)} u/mes</span>
+                  <span className="text-green-400 font-semibold">
+                    {p.rotation.toFixed(1)} u/mes
+                  </span>
                 </div>
               </div>
             ))}
@@ -114,7 +117,7 @@ export default function InventoryRotationAnalysis() {
         <div>
           <h4 className="text-neutral-300 font-medium mb-3">🐌 Slow Movers</h4>
           <div className="space-y-2">
-            {analysis.slowMovers.map((p) => (
+            {analysis.slowMovers.map(p => (
               <div key={p.id} className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-neutral-100 font-medium">{p.name}</span>
@@ -127,8 +130,9 @@ export default function InventoryRotationAnalysis() {
       </div>
 
       <div className="mt-4 bg-blue-950 border border-blue-800 rounded-lg p-3 text-blue-400 text-sm">
-        💡 <strong>Insight:</strong> Clasificación ABC ayuda a priorizar gestión de inventario según valor
+        💡 <strong>Insight:</strong> Clasificación ABC ayuda a priorizar gestión de inventario según
+        valor
       </div>
     </div>
-  );
+  )
 }

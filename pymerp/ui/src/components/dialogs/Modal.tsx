@@ -1,12 +1,12 @@
-import { ReactNode, RefObject, useEffect, useId, useRef } from "react";
+import { ReactNode, RefObject, useEffect, useId, useRef } from 'react'
 
 interface ModalProps {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-  initialFocusRef?: RefObject<HTMLElement>;
-  className?: string;
+  open: boolean
+  title: string
+  onClose: () => void
+  children: ReactNode
+  initialFocusRef?: RefObject<HTMLElement>
+  className?: string
 }
 
 export default function Modal({
@@ -17,62 +17,62 @@ export default function Modal({
   initialFocusRef,
   className,
 }: ModalProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const headingId = useId();
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const headingId = useId()
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
       }
-      if (event.key !== "Tab") {
-        return;
+      if (event.key !== 'Tab') {
+        return
       }
-      const focusable = getFocusableElements(containerRef.current);
+      const focusable = getFocusableElements(containerRef.current)
       if (focusable.length === 0) {
-        event.preventDefault();
-        return;
+        event.preventDefault()
+        return
       }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement as HTMLElement | null;
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement as HTMLElement | null
 
       if (event.shiftKey) {
         if (active === first || !containerRef.current?.contains(active)) {
-          event.preventDefault();
-          last.focus();
+          event.preventDefault()
+          last.focus()
         }
       } else if (active === last) {
-        event.preventDefault();
-        first.focus();
+        event.preventDefault()
+        first.focus()
       }
-    };
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return
     const focusTarget =
       initialFocusRef?.current ??
-      containerRef.current?.querySelector<HTMLElement>("[data-autofocus]") ??
-      getFocusableElements(containerRef.current)[0];
+      containerRef.current?.querySelector<HTMLElement>('[data-autofocus]') ??
+      getFocusableElements(containerRef.current)[0]
     if (focusTarget) {
-      requestAnimationFrame(() => focusTarget.focus());
+      requestAnimationFrame(() => focusTarget.focus())
     }
-  }, [open, initialFocusRef]);
+  }, [open, initialFocusRef])
 
-  if (!open) return null;
+  if (!open) return null
 
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className={className ? `modal ${className}` : "modal"}
+        className={className ? `modal ${className}` : 'modal'}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -87,20 +87,20 @@ export default function Modal({
         <div className="modal-body">{children}</div>
       </div>
     </div>
-  );
+  )
 }
 
 function getFocusableElements(container: HTMLElement | null): HTMLElement[] {
-  if (!container) return [];
+  if (!container) return []
   const selectors = [
-    "button",
-    "[href]",
-    "input",
-    "select",
-    "textarea",
+    'button',
+    '[href]',
+    'input',
+    'select',
+    'textarea',
     "[tabindex]:not([tabindex='-1'])",
-  ];
-  return Array.from(container.querySelectorAll<HTMLElement>(selectors.join(","))).filter(
-    (element) => !element.hasAttribute("disabled") && !element.getAttribute("aria-hidden"),
-  );
+  ]
+  return Array.from(container.querySelectorAll<HTMLElement>(selectors.join(','))).filter(
+    element => !element.hasAttribute('disabled') && !element.getAttribute('aria-hidden')
+  )
 }

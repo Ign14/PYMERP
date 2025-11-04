@@ -1,122 +1,124 @@
-import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import PageHeader from "../components/layout/PageHeader";
-import SuppliersCard, { SuppliersCardHandle } from "../components/SuppliersCard";
-import SupplierFormDialog from "../components/dialogs/SupplierFormDialog";
-import SuppliersStatsCard from "../components/SuppliersStatsCard";
-import SupplierPerformancePanel from "../components/SupplierPerformancePanel";
-import SupplierAlertsPanel from "../components/SupplierAlertsPanel";
-import SuppliersRanking from "../components/SuppliersRanking";
-import SupplierRiskAnalysis from "../components/SupplierRiskAnalysis";
-import SupplierPriceHistory from "../components/SupplierPriceHistory";
-import SupplierComparison from "../components/SupplierComparison";
-import NegotiationOpportunities from "../components/NegotiationOpportunities";
-import SingleSourceProducts from "../components/SingleSourceProducts";
-import PurchaseForecast from "../components/PurchaseForecast";
-import SupplierDashboard from "../components/SupplierDashboard";
-import { Supplier, exportSuppliersToCSV, importSuppliersFromCSV } from "../services/client";
+import { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import PageHeader from '../components/layout/PageHeader'
+import SuppliersCard, { SuppliersCardHandle } from '../components/SuppliersCard'
+import SupplierFormDialog from '../components/dialogs/SupplierFormDialog'
+import SuppliersStatsCard from '../components/SuppliersStatsCard'
+import SupplierPerformancePanel from '../components/SupplierPerformancePanel'
+import SupplierAlertsPanel from '../components/SupplierAlertsPanel'
+import SuppliersRanking from '../components/SuppliersRanking'
+import SupplierRiskAnalysis from '../components/SupplierRiskAnalysis'
+import SupplierPriceHistory from '../components/SupplierPriceHistory'
+import SupplierComparison from '../components/SupplierComparison'
+import NegotiationOpportunities from '../components/NegotiationOpportunities'
+import SingleSourceProducts from '../components/SingleSourceProducts'
+import PurchaseForecast from '../components/PurchaseForecast'
+import SupplierDashboard from '../components/SupplierDashboard'
+import { Supplier, exportSuppliersToCSV, importSuppliersFromCSV } from '../services/client'
 
 const mockContracts = [
-  { supplier: "Distribuidora Norte", nextReview: "2025-10-15", status: "Activo" },
-  { supplier: "Logística Express", nextReview: "2025-11-01", status: "Renegociar" }
-];
+  { supplier: 'Distribuidora Norte', nextReview: '2025-10-15', status: 'Activo' },
+  { supplier: 'Logística Express', nextReview: '2025-11-01', status: 'Renegociar' },
+]
 
 export default function SuppliersPage() {
-  const cardRef = useRef<SuppliersCardHandle>(null);
-  const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const cardRef = useRef<SuppliersCardHandle>(null)
+  const queryClient = useQueryClient()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importSuccess, setImportSuccess] = useState<string | null>(null)
 
   const handleOpenCreateDialog = () => {
-    setEditingSupplier(null);
-    setDialogOpen(true);
-  };
+    setEditingSupplier(null)
+    setDialogOpen(true)
+  }
 
   const handleOpenEditDialog = (supplier: Supplier) => {
-    setEditingSupplier(supplier);
-    setDialogOpen(true);
-  };
+    setEditingSupplier(supplier)
+    setDialogOpen(true)
+  }
 
   const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setEditingSupplier(null);
-  };
+    setDialogOpen(false)
+    setEditingSupplier(null)
+  }
 
   const handleSaved = () => {
-    queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-    handleCloseDialog();
-  };
+    queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+    handleCloseDialog()
+  }
 
   const handleExport = async () => {
     try {
-      const blob = await exportSuppliersToCSV();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `proveedores_${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const blob = await exportSuppliersToCSV()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `proveedores_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
     } catch (error) {
-      console.error("Error exportando proveedores:", error);
-      alert("Error al exportar proveedores");
+      console.error('Error exportando proveedores:', error)
+      alert('Error al exportar proveedores')
     }
-  };
+  }
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const file = event.target.files?.[0]
+    if (!file) return
 
-    setImporting(true);
-    setImportError(null);
-    setImportSuccess(null);
+    setImporting(true)
+    setImportError(null)
+    setImportSuccess(null)
 
     try {
-      const result = await importSuppliersFromCSV(file);
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      
+      const result = await importSuppliersFromCSV(file)
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+
       if (result.errors.length > 0) {
-        setImportError(`Se crearon ${result.created} proveedores con ${result.errors.length} errores`);
+        setImportError(
+          `Se crearon ${result.created} proveedores con ${result.errors.length} errores`
+        )
       } else {
-        setImportSuccess(`Se importaron ${result.created} proveedores exitosamente`);
+        setImportSuccess(`Se importaron ${result.created} proveedores exitosamente`)
       }
     } catch (error) {
-      setImportError((error as Error)?.message ?? "Error al importar proveedores");
+      setImportError((error as Error)?.message ?? 'Error al importar proveedores')
     } finally {
-      setImporting(false);
-      event.target.value = "";
+      setImporting(false)
+      event.target.value = ''
     }
-  };
+  }
 
   return (
     <div className="page-section">
       <PageHeader
         title="Proveedores"
         description="Consolida contratos, contactos y desempeño de abastecimiento."
-        actions={(
+        actions={
           <>
             <button className="btn btn-ghost" onClick={handleExport}>
               📥 Exportar CSV
             </button>
-            <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
+            <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
               📤 Importar CSV
               <input
                 type="file"
                 accept=".csv"
                 onChange={handleImport}
                 disabled={importing}
-                style={{ display: "none" }}
+                style={{ display: 'none' }}
               />
             </label>
             <button className="btn" onClick={handleOpenCreateDialog}>
               + Nuevo proveedor
             </button>
           </>
-        )}
+        }
       />
 
       {importError && <div className="alert alert-error">{importError}</div>}
@@ -192,5 +194,5 @@ export default function SuppliersPage() {
         </div>
       </section>
     </div>
-  );
+  )
 }

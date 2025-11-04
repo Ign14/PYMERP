@@ -1,10 +1,10 @@
-import { formatMoneyCLP } from "../../utils/currency";
+import { formatMoneyCLP } from '../../utils/currency'
 
 type Total14DaysCardProps = {
-  value: number;
-  rangeLabel: string;
-  formatter?: (value: number) => string;
-};
+  value: number
+  rangeLabel: string
+  formatter?: (value: number) => string
+}
 
 export default function Total14DaysCard({
   value,
@@ -20,5 +20,5 @@ export default function Total14DaysCard({
       <span className="stat-trend">Rango seleccionado: {rangeLabel}</span>
       <span className="muted small">Incluye solo Boleta y Factura</span>
     </article>
-  );
+  )
 }

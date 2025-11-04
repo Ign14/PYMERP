@@ -1,22 +1,29 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSalesKPIs } from "../../services/client";
+import { useQuery } from '@tanstack/react-query'
+import { getSalesKPIs } from '../../services/client'
 
 export default function SalesAdvancedKPIs() {
   // KPIs de últimos 30 días por defecto
-  const { data: kpis, isLoading, error } = useQuery({
-    queryKey: ["salesKPIs"],
+  const {
+    data: kpis,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['salesKPIs'],
     queryFn: () => getSalesKPIs(),
     refetchInterval: 5 * 60 * 1000, // 5 minutos
-  });
+  })
 
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
-        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-          <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 h-32"></div>
+        {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+          <div
+            key={i}
+            className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 h-32"
+          ></div>
         ))}
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -24,32 +31,32 @@ export default function SalesAdvancedKPIs() {
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
         <p className="text-red-400">Error al cargar KPIs de ventas</p>
       </div>
-    );
+    )
   }
 
   if (!kpis) {
-    return null;
+    return null
   }
 
   const formatCurrency = (value: number) => {
-    return `$${value.toLocaleString("es-CL", { maximumFractionDigits: 0 })}`;
-  };
+    return `$${value.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`
+  }
 
   const formatPercent = (value: number) => {
-    return `${value.toFixed(1)}%`;
-  };
+    return `${value.toFixed(1)}%`
+  }
 
   const getGrowthColor = (growth: number) => {
-    if (growth > 0) return "text-green-400";
-    if (growth < 0) return "text-red-400";
-    return "text-neutral-400";
-  };
+    if (growth > 0) return 'text-green-400'
+    if (growth < 0) return 'text-red-400'
+    return 'text-neutral-400'
+  }
 
   const getGrowthIcon = (growth: number) => {
-    if (growth > 0) return "↗️";
-    if (growth < 0) return "↘️";
-    return "→";
-  };
+    if (growth > 0) return '↗️'
+    if (growth < 0) return '↘️'
+    return '→'
+  }
 
   return (
     <div className="space-y-6">
@@ -62,9 +69,7 @@ export default function SalesAdvancedKPIs() {
         <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-800 rounded-lg p-6">
           <div className="text-sm text-blue-400 mb-1">Ingresos Totales</div>
           <div className="text-3xl font-bold text-white">{formatCurrency(kpis.totalRevenue)}</div>
-          <div className="text-xs text-blue-300 mt-2">
-            {kpis.totalOrders} órdenes emitidas
-          </div>
+          <div className="text-xs text-blue-300 mt-2">{kpis.totalOrders} órdenes emitidas</div>
         </div>
 
         {/* Gross Profit */}
@@ -80,9 +85,7 @@ export default function SalesAdvancedKPIs() {
         <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-800 rounded-lg p-6">
           <div className="text-sm text-purple-400 mb-1">Ticket Promedio</div>
           <div className="text-3xl font-bold text-white">{formatCurrency(kpis.averageTicket)}</div>
-          <div className="text-xs text-purple-300 mt-2">
-            Por orden emitida
-          </div>
+          <div className="text-xs text-purple-300 mt-2">Por orden emitida</div>
         </div>
 
         {/* Sales Growth */}
@@ -91,9 +94,7 @@ export default function SalesAdvancedKPIs() {
           <div className={`text-3xl font-bold ${getGrowthColor(kpis.salesGrowth)}`}>
             {getGrowthIcon(kpis.salesGrowth)} {formatPercent(Math.abs(kpis.salesGrowth))}
           </div>
-          <div className="text-xs text-orange-300 mt-2">
-            vs período anterior
-          </div>
+          <div className="text-xs text-orange-300 mt-2">vs período anterior</div>
         </div>
       </div>
 
@@ -112,9 +113,7 @@ export default function SalesAdvancedKPIs() {
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5">
           <div className="text-sm text-neutral-400 mb-1">Tasa de Conversión</div>
           <div className="text-2xl font-bold text-white">{formatPercent(kpis.conversionRate)}</div>
-          <div className="text-xs text-neutral-500 mt-1">
-            Emitidas vs total
-          </div>
+          <div className="text-xs text-neutral-500 mt-1">Emitidas vs total</div>
         </div>
 
         {/* Top Product */}
@@ -149,10 +148,7 @@ export default function SalesAdvancedKPIs() {
             <span className="text-white font-semibold">{formatCurrency(kpis.totalRevenue)}</span>
           </div>
           <div className="w-full bg-neutral-800 rounded-full h-3">
-            <div 
-              className="bg-blue-500 h-3 rounded-full" 
-              style={{ width: '100%' }}
-            ></div>
+            <div className="bg-blue-500 h-3 rounded-full" style={{ width: '100%' }}></div>
           </div>
 
           <div className="flex items-center justify-between">
@@ -160,19 +156,21 @@ export default function SalesAdvancedKPIs() {
             <span className="text-red-400 font-semibold">{formatCurrency(kpis.totalCost)}</span>
           </div>
           <div className="w-full bg-neutral-800 rounded-full h-3">
-            <div 
-              className="bg-red-500 h-3 rounded-full" 
+            <div
+              className="bg-red-500 h-3 rounded-full"
               style={{ width: `${(kpis.totalCost / kpis.totalRevenue) * 100}%` }}
             ></div>
           </div>
 
           <div className="flex items-center justify-between">
             <span className="text-neutral-400">Utilidad Bruta</span>
-            <span className="text-green-400 font-bold text-lg">{formatCurrency(kpis.grossProfit)}</span>
+            <span className="text-green-400 font-bold text-lg">
+              {formatCurrency(kpis.grossProfit)}
+            </span>
           </div>
           <div className="w-full bg-neutral-800 rounded-full h-3">
-            <div 
-              className="bg-green-500 h-3 rounded-full" 
+            <div
+              className="bg-green-500 h-3 rounded-full"
               style={{ width: `${kpis.profitMargin}%` }}
             ></div>
           </div>
@@ -183,13 +181,12 @@ export default function SalesAdvancedKPIs() {
       <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-blue-400">
-            📅 Período de análisis: {new Date(kpis.periodStart).toLocaleDateString("es-CL")} - {new Date(kpis.periodEnd).toLocaleDateString("es-CL")}
+            📅 Período de análisis: {new Date(kpis.periodStart).toLocaleDateString('es-CL')} -{' '}
+            {new Date(kpis.periodEnd).toLocaleDateString('es-CL')}
           </span>
-          <span className="text-xs text-blue-300">
-            Actualizado automáticamente cada 5 minutos
-          </span>
+          <span className="text-xs text-blue-300">Actualizado automáticamente cada 5 minutos</span>
         </div>
       </div>
     </div>
-  );
+  )
 }

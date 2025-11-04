@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query'
 import {
   listSuppliers,
   getSupplierRanking,
@@ -7,139 +7,138 @@ import {
   getSupplierAlerts,
   type Supplier,
   type SupplierRanking,
-  type SupplierAlert
-} from "../services/client";
+  type SupplierAlert,
+} from '../services/client'
 
 export default function SupplierDashboard() {
   // Datos de múltiples endpoints
   const { data: allSuppliers = [] } = useQuery({
-    queryKey: ["suppliers"],
+    queryKey: ['suppliers'],
     queryFn: () => listSuppliers(),
-  });
+  })
 
   const { data: ranking = [] } = useQuery<SupplierRanking[]>({
-    queryKey: ["suppliers-ranking"],
+    queryKey: ['suppliers-ranking'],
     queryFn: () => getSupplierRanking(),
-  });
+  })
 
   const { data: opportunities = [] } = useQuery({
-    queryKey: ["negotiation-opportunities"],
+    queryKey: ['negotiation-opportunities'],
     queryFn: getNegotiationOpportunities,
-  });
+  })
 
   const { data: singleSource = [] } = useQuery({
-    queryKey: ["single-source-products"],
+    queryKey: ['single-source-products'],
     queryFn: getSingleSourceProducts,
-  });
+  })
 
   const { data: alerts = [] } = useQuery<SupplierAlert[]>({
-    queryKey: ["supplier-alerts"],
+    queryKey: ['supplier-alerts'],
     queryFn: getSupplierAlerts,
-  });
+  })
 
   // Calcular KPIs ejecutivos
-  const totalSuppliers = allSuppliers.length;
-  const activeSuppliers = allSuppliers.filter(s => s.active !== false).length;
+  const totalSuppliers = allSuppliers.length
+  const activeSuppliers = allSuppliers.filter(s => s.active !== false).length
   // avgOnTimeRate calculado desde ranking (promedio de reliability)
-  const avgOnTimeRate = ranking.length > 0
-    ? ranking.reduce((sum, s) => sum + s.reliability, 0) / ranking.length
-    : 0;
+  const avgOnTimeRate =
+    ranking.length > 0 ? ranking.reduce((sum, s) => sum + s.reliability, 0) / ranking.length : 0
 
-  const classASuppliers = ranking.filter(s => s.category === "A").length;
-  const criticalRisks = singleSource.filter(p => p.riskLevel === "CRITICAL").length;
-  const highPriorityOpportunities = opportunities.filter(o => o.priority === "HIGH").length;
-  
+  const classASuppliers = ranking.filter(s => s.category === 'A').length
+  const criticalRisks = singleSource.filter(p => p.riskLevel === 'CRITICAL').length
+  const highPriorityOpportunities = opportunities.filter(o => o.priority === 'HIGH').length
+
   const potentialSavings = opportunities
-    .filter(o => o.priority === "HIGH" || o.priority === "MEDIUM")
-    .reduce((sum, o) => sum + o.potentialSavings, 0);
+    .filter(o => o.priority === 'HIGH' || o.priority === 'MEDIUM')
+    .reduce((sum, o) => sum + o.potentialSavings, 0)
 
   // Top 3 acciones urgentes
   const urgentActions: Array<{
-    icon: string;
-    title: string;
-    description: string;
-    severity: "critical" | "high" | "medium";
-    link?: string;
-  }> = [];
+    icon: string
+    title: string
+    description: string
+    severity: 'critical' | 'high' | 'medium'
+    link?: string
+  }> = []
 
   if (criticalRisks > 0) {
     urgentActions.push({
-      icon: "⚠️",
+      icon: '⚠️',
       title: `${criticalRisks} Productos en Riesgo Crítico`,
-      description: "Productos con un solo proveedor y alta exposición. Buscar alternativas.",
-      severity: "critical",
-      link: "#single-source"
-    });
+      description: 'Productos con un solo proveedor y alta exposición. Buscar alternativas.',
+      severity: 'critical',
+      link: '#single-source',
+    })
   }
 
   if (highPriorityOpportunities > 0) {
     urgentActions.push({
-      icon: "💰",
+      icon: '💰',
       title: `${highPriorityOpportunities} Oportunidades de Ahorro`,
-      description: `Potencial de ahorro: $${potentialSavings.toLocaleString("es-CL")}`,
-      severity: "high",
-      link: "#negotiation"
-    });
+      description: `Potencial de ahorro: $${potentialSavings.toLocaleString('es-CL')}`,
+      severity: 'high',
+      link: '#negotiation',
+    })
   }
 
-  const criticalAlerts = alerts.filter(a => a.severity === "CRITICAL");
+  const criticalAlerts = alerts.filter(a => a.severity === 'CRITICAL')
   if (criticalAlerts.length > 0) {
     urgentActions.push({
-      icon: "🔴",
+      icon: '🔴',
       title: `${criticalAlerts.length} Alertas Críticas`,
-      description: criticalAlerts[0]?.message ?? "Requieren atención inmediata",
-      severity: "critical",
-      link: "#alerts"
-    });
+      description: criticalAlerts[0]?.message ?? 'Requieren atención inmediata',
+      severity: 'critical',
+      link: '#alerts',
+    })
   }
 
-  const warningAlerts = alerts.filter(a => a.severity === "WARNING");
+  const warningAlerts = alerts.filter(a => a.severity === 'WARNING')
   if (warningAlerts.length > 0 && urgentActions.length < 3) {
     urgentActions.push({
-      icon: "🟠",
+      icon: '🟠',
       title: `${warningAlerts.length} Alertas de Advertencia`,
-      description: warningAlerts[0]?.message ?? "Requieren revisión pronta",
-      severity: "high",
-      link: "#alerts"
-    });
+      description: warningAlerts[0]?.message ?? 'Requieren revisión pronta',
+      severity: 'high',
+      link: '#alerts',
+    })
   }
 
   // Recomendaciones estratégicas
   const recommendations: Array<{
-    icon: string;
-    text: string;
-    action: string;
-  }> = [];
+    icon: string
+    text: string
+    action: string
+  }> = []
 
   if (classASuppliers < 5) {
     recommendations.push({
-      icon: "📊",
+      icon: '📊',
       text: `Solo ${classASuppliers} proveedores clase A. Considere expandir su base estratégica.`,
-      action: "Ver ranking completo"
-    });
+      action: 'Ver ranking completo',
+    })
   }
 
   if (avgOnTimeRate < 90) {
     recommendations.push({
-      icon: "⏱️",
+      icon: '⏱️',
       text: `Tasa de entrega a tiempo: ${avgOnTimeRate.toFixed(1)}%. Revisar SLAs con proveedores.`,
-      action: "Ver performance"
-    });
+      action: 'Ver performance',
+    })
   }
 
   if (singleSource.length > 10) {
     recommendations.push({
-      icon: "🔄",
+      icon: '🔄',
       text: `${singleSource.length} productos con único proveedor. Riesgo de dependencia.`,
-      action: "Diversificar fuentes"
-    });
+      action: 'Diversificar fuentes',
+    })
   }
 
   const severityColors = {
-    critical: "border-red-500/30 bg-red-500/10 text-red-300",
-    high: "border-orange-500/30 bg-orange-500/10 text-orange-300",
-    medium: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
-  };
+    critical: 'border-red-500/30 bg-red-500/10 text-red-300',
+    high: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
+    medium: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+  }
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
@@ -179,9 +178,7 @@ export default function SupplierDashboard() {
       {/* Acciones urgentes */}
       {urgentActions.length > 0 && (
         <div className="mb-6">
-          <h3 className="mb-3 text-sm font-medium text-neutral-300">
-            🚨 Acciones Prioritarias
-          </h3>
+          <h3 className="mb-3 text-sm font-medium text-neutral-300">🚨 Acciones Prioritarias</h3>
           <div className="space-y-2">
             {urgentActions.slice(0, 3).map((action, idx) => (
               <div
@@ -213,20 +210,18 @@ export default function SupplierDashboard() {
           📊 Clasificación ABC de Proveedores
         </h3>
         <div className="space-y-2">
-          {["A", "B", "C"].map(classification => {
-            const count = ranking.filter(s => s.category === classification).length;
-            const percentage = totalSuppliers > 0 ? (count / totalSuppliers) * 100 : 0;
+          {['A', 'B', 'C'].map(classification => {
+            const count = ranking.filter(s => s.category === classification).length
+            const percentage = totalSuppliers > 0 ? (count / totalSuppliers) * 100 : 0
             const colors = {
-              A: "bg-green-500",
-              B: "bg-yellow-500",
-              C: "bg-blue-500"
-            };
+              A: 'bg-green-500',
+              B: 'bg-yellow-500',
+              C: 'bg-blue-500',
+            }
 
             return (
               <div key={classification} className="flex items-center gap-3">
-                <div className="w-16 text-sm text-neutral-400">
-                  Clase {classification}
-                </div>
+                <div className="w-16 text-sm text-neutral-400">Clase {classification}</div>
                 <div className="flex-1">
                   <div className="h-6 w-full rounded bg-neutral-800">
                     <div
@@ -237,11 +232,9 @@ export default function SupplierDashboard() {
                     </div>
                   </div>
                 </div>
-                <div className="w-20 text-right text-sm text-neutral-400">
-                  {count} prov.
-                </div>
+                <div className="w-20 text-right text-sm text-neutral-400">{count} prov.</div>
               </div>
-            );
+            )
           })}
         </div>
       </div>
@@ -272,53 +265,51 @@ export default function SupplierDashboard() {
       {/* Resumen de riesgos */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded border border-neutral-800 bg-neutral-950 p-4">
-          <h3 className="mb-2 text-sm font-medium text-neutral-300">
-            Productos en Riesgo
-          </h3>
+          <h3 className="mb-2 text-sm font-medium text-neutral-300">Productos en Riesgo</h3>
           <div className="space-y-2">
-            {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map(level => {
-              const count = singleSource.filter(p => p.riskLevel === level).length;
+            {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(level => {
+              const count = singleSource.filter(p => p.riskLevel === level).length
               const colors = {
-                CRITICAL: "text-red-400",
-                HIGH: "text-orange-400",
-                MEDIUM: "text-yellow-400",
-                LOW: "text-green-400"
-              };
+                CRITICAL: 'text-red-400',
+                HIGH: 'text-orange-400',
+                MEDIUM: 'text-yellow-400',
+                LOW: 'text-green-400',
+              }
 
               return count > 0 ? (
                 <div key={level} className="flex justify-between text-sm">
                   <span className="text-neutral-400">{level}</span>
                   <span className={colors[level as keyof typeof colors]}>{count}</span>
                 </div>
-              ) : null;
+              ) : null
             })}
           </div>
         </div>
 
         <div className="rounded border border-neutral-800 bg-neutral-950 p-4">
-          <h3 className="mb-2 text-sm font-medium text-neutral-300">
-            Oportunidades de Ahorro
-          </h3>
+          <h3 className="mb-2 text-sm font-medium text-neutral-300">Oportunidades de Ahorro</h3>
           <div className="space-y-2">
-            {["HIGH", "MEDIUM", "LOW"].map(priority => {
-              const count = opportunities.filter(o => o.priority === priority).length;
+            {['HIGH', 'MEDIUM', 'LOW'].map(priority => {
+              const count = opportunities.filter(o => o.priority === priority).length
               const savings = opportunities
                 .filter(o => o.priority === priority)
-                .reduce((sum, o) => sum + o.potentialSavings, 0);
+                .reduce((sum, o) => sum + o.potentialSavings, 0)
               const colors = {
-                HIGH: "text-red-400",
-                MEDIUM: "text-orange-400",
-                LOW: "text-yellow-400"
-              };
+                HIGH: 'text-red-400',
+                MEDIUM: 'text-orange-400',
+                LOW: 'text-yellow-400',
+              }
 
               return count > 0 ? (
                 <div key={priority} className="flex justify-between text-sm">
-                  <span className="text-neutral-400">{priority} ({count})</span>
+                  <span className="text-neutral-400">
+                    {priority} ({count})
+                  </span>
                   <span className={colors[priority as keyof typeof colors]}>
                     ${(savings / 1000).toFixed(0)}k
                   </span>
                 </div>
-              ) : null;
+              ) : null
             })}
           </div>
         </div>
@@ -331,13 +322,13 @@ export default function SupplierDashboard() {
         </summary>
         <div className="mt-3 space-y-2 text-sm text-neutral-500">
           <p>
-            Este dashboard ejecutivo consolida los principales indicadores de gestión
-            de proveedores para facilitar la toma de decisiones estratégicas.
+            Este dashboard ejecutivo consolida los principales indicadores de gestión de proveedores
+            para facilitar la toma de decisiones estratégicas.
           </p>
           <ul className="list-inside list-disc space-y-1 pl-2">
             <li>
-              <strong>Acciones Prioritarias:</strong> Identifica automáticamente las acciones
-              más urgentes basadas en riesgos y oportunidades detectadas.
+              <strong>Acciones Prioritarias:</strong> Identifica automáticamente las acciones más
+              urgentes basadas en riesgos y oportunidades detectadas.
             </li>
             <li>
               <strong>Clasificación ABC:</strong> Proveedores A (80% volumen), B (15%), C (5%).
@@ -352,5 +343,5 @@ export default function SupplierDashboard() {
         </div>
       </details>
     </div>
-  );
+  )
 }

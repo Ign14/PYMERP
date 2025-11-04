@@ -1,28 +1,30 @@
-import { useQuery } from "@tanstack/react-query";
-import { getPurchaseABCAnalysis } from "../../services/client";
+import { useQuery } from '@tanstack/react-query'
+import { getPurchaseABCAnalysis } from '../../services/client'
 
 export default function PurchaseABCRecommendations() {
   const { data: classifications } = useQuery({
-    queryKey: ["purchaseABCAnalysis"],
+    queryKey: ['purchaseABCAnalysis'],
     queryFn: () => getPurchaseABCAnalysis(),
     refetchInterval: 5 * 60 * 1000,
-  });
+  })
 
   if (!classifications || classifications.length === 0) {
-    return null;
+    return null
   }
 
-  const classA = classifications.filter((c) => c.classification === "A");
-  const classB = classifications.filter((c) => c.classification === "B");
-  const classC = classifications.filter((c) => c.classification === "C");
+  const classA = classifications.filter(c => c.classification === 'A')
+  const classB = classifications.filter(c => c.classification === 'B')
+  const classC = classifications.filter(c => c.classification === 'C')
 
-  const totalSpent = classifications.reduce((sum, c) => sum + c.totalSpent, 0);
-  const classASpent = classA.reduce((sum, c) => sum + c.totalSpent, 0);
-  const classAPercentage = totalSpent > 0 ? (classASpent / totalSpent) * 100 : 0;
+  const totalSpent = classifications.reduce((sum, c) => sum + c.totalSpent, 0)
+  const classASpent = classA.reduce((sum, c) => sum + c.totalSpent, 0)
+  const classAPercentage = totalSpent > 0 ? (classASpent / totalSpent) * 100 : 0
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-6">💡 Insights y Estrategias por Clasificación</h3>
+      <h3 className="text-lg font-semibold text-white mb-6">
+        💡 Insights y Estrategias por Clasificación
+      </h3>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Clase A */}
@@ -59,7 +61,8 @@ export default function PurchaseABCRecommendations() {
 
             <div className="bg-amber-900/20 border border-amber-700 rounded p-2">
               <p className="text-amber-200 text-xs">
-                ⚡ <strong>Acción urgente:</strong> Desarrollar proveedores alternativos para reducir riesgo
+                ⚡ <strong>Acción urgente:</strong> Desarrollar proveedores alternativos para
+                reducir riesgo
               </p>
             </div>
           </div>
@@ -71,7 +74,9 @@ export default function PurchaseABCRecommendations() {
             <span className="text-2xl">🟡</span>
             <div>
               <h4 className="text-amber-400 font-semibold">Clase B - Proveedores Importantes</h4>
-              <p className="text-xs text-amber-300">{classB.length} proveedores · Equilibrio ideal</p>
+              <p className="text-xs text-amber-300">
+                {classB.length} proveedores · Equilibrio ideal
+              </p>
             </div>
           </div>
 
@@ -97,7 +102,8 @@ export default function PurchaseABCRecommendations() {
 
             <div className="bg-blue-900/20 border border-blue-700 rounded p-2">
               <p className="text-blue-200 text-xs">
-                💼 <strong>Recomendación:</strong> Mantener relación activa y evaluar potencial de crecimiento
+                💼 <strong>Recomendación:</strong> Mantener relación activa y evaluar potencial de
+                crecimiento
               </p>
             </div>
           </div>
@@ -109,7 +115,9 @@ export default function PurchaseABCRecommendations() {
             <span className="text-2xl">🟢</span>
             <div>
               <h4 className="text-green-400 font-semibold">Clase C - Proveedores Ocasionales</h4>
-              <p className="text-xs text-green-300">{classC.length} proveedores · Bajo impacto individual</p>
+              <p className="text-xs text-green-300">
+                {classC.length} proveedores · Bajo impacto individual
+              </p>
             </div>
           </div>
 
@@ -135,7 +143,8 @@ export default function PurchaseABCRecommendations() {
 
             <div className="bg-purple-900/20 border border-purple-700 rounded p-2">
               <p className="text-purple-200 text-xs">
-                🔄 <strong>Acción:</strong> Revisar anualmente y considerar consolidación con otros proveedores
+                🔄 <strong>Acción:</strong> Revisar anualmente y considerar consolidación con otros
+                proveedores
               </p>
             </div>
           </div>
@@ -151,8 +160,8 @@ export default function PurchaseABCRecommendations() {
           <div>
             <p className="text-neutral-400 mb-1">Distribución de Proveedores</p>
             <p className="text-white">
-              <span className="text-red-400 font-bold">{classA.length}</span> A ·{" "}
-              <span className="text-amber-400 font-bold">{classB.length}</span> B ·{" "}
+              <span className="text-red-400 font-bold">{classA.length}</span> A ·{' '}
+              <span className="text-amber-400 font-bold">{classB.length}</span> B ·{' '}
               <span className="text-green-400 font-bold">{classC.length}</span> C
             </p>
           </div>
@@ -161,11 +170,11 @@ export default function PurchaseABCRecommendations() {
             <p className="text-white">
               {classA.length > 0 ? (
                 <>
-                  ~{((classA.length / classifications.length) * 100).toFixed(0)}% de proveedores genera ~
-                  {classAPercentage.toFixed(0)}% del gasto
+                  ~{((classA.length / classifications.length) * 100).toFixed(0)}% de proveedores
+                  genera ~{classAPercentage.toFixed(0)}% del gasto
                 </>
               ) : (
-                "Distribución equilibrada"
+                'Distribución equilibrada'
               )}
             </p>
           </div>
@@ -173,14 +182,14 @@ export default function PurchaseABCRecommendations() {
             <p className="text-neutral-400 mb-1">Recomendación Principal</p>
             <p className="text-blue-300">
               {classAPercentage > 85
-                ? "⚠️ Reducir dependencia de Clase A"
+                ? '⚠️ Reducir dependencia de Clase A'
                 : classC.length > classA.length * 3
-                ? "🔄 Consolidar proveedores Clase C"
-                : "✅ Distribución saludable"}
+                  ? '🔄 Consolidar proveedores Clase C'
+                  : '✅ Distribución saludable'}
             </p>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

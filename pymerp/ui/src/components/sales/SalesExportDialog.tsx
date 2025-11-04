@@ -1,23 +1,23 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { exportSalesToCSV } from "../../services/client";
+import { useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import { exportSalesToCSV } from '../../services/client'
 
-type ExportFormat = "csv" | "json";
-type ExportScope = "current" | "all" | "filtered";
+type ExportFormat = 'csv' | 'json'
+type ExportScope = 'current' | 'all' | 'filtered'
 
 type SalesExportDialogProps = {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
   filters: {
-    status?: string;
-    docType?: string;
-    paymentMethod?: string;
-    search?: string;
-    startDate?: string;
-    endDate?: string;
-  };
-  totalRecords: number;
-};
+    status?: string
+    docType?: string
+    paymentMethod?: string
+    search?: string
+    startDate?: string
+    endDate?: string
+  }
+  totalRecords: number
+}
 
 export default function SalesExportDialog({
   isOpen,
@@ -25,64 +25,69 @@ export default function SalesExportDialog({
   filters,
   totalRecords,
 }: SalesExportDialogProps) {
-  const [format, setFormat] = useState<ExportFormat>("csv");
-  const [scope, setScope] = useState<ExportScope>("filtered");
-  const [includeMetadata, setIncludeMetadata] = useState(true);
+  const [format, setFormat] = useState<ExportFormat>('csv')
+  const [scope, setScope] = useState<ExportScope>('filtered')
+  const [includeMetadata, setIncludeMetadata] = useState(true)
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      const params = scope === "all" ? {} : {
-        status: filters.status || undefined,
-        docType: filters.docType || undefined,
-        paymentMethod: filters.paymentMethod || undefined,
-        search: filters.search || undefined,
-      };
+      const params =
+        scope === 'all'
+          ? {}
+          : {
+              status: filters.status || undefined,
+              docType: filters.docType || undefined,
+              paymentMethod: filters.paymentMethod || undefined,
+              search: filters.search || undefined,
+            }
 
-      if (format === "csv") {
-        const blob = await exportSalesToCSV(params);
-        downloadBlob(blob, `ventas-${new Date().toISOString().split('T')[0]}.csv`);
+      if (format === 'csv') {
+        const blob = await exportSalesToCSV(params)
+        downloadBlob(blob, `ventas-${new Date().toISOString().split('T')[0]}.csv`)
       } else {
         // Para JSON, podríamos crear una exportación personalizada
         const data = {
-          metadata: includeMetadata ? {
-            exportDate: new Date().toISOString(),
-            filters: filters,
-            totalRecords: totalRecords,
-            scope: scope,
-          } : undefined,
+          metadata: includeMetadata
+            ? {
+                exportDate: new Date().toISOString(),
+                filters: filters,
+                totalRecords: totalRecords,
+                scope: scope,
+              }
+            : undefined,
           summary: {
             totalRecords: totalRecords,
             appliedFilters: Object.keys(filters).filter(k => filters[k as keyof typeof filters]),
           },
           // En producción, aquí iría la data real
           data: [],
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        downloadBlob(blob, `ventas-${new Date().toISOString().split('T')[0]}.json`);
+        }
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        downloadBlob(blob, `ventas-${new Date().toISOString().split('T')[0]}.json`)
       }
     },
     onSuccess: () => {
-      onClose();
+      onClose()
     },
-  });
+  })
 
   function downloadBlob(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.rel = 'noopener'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   const activeFilters = Object.entries(filters)
-    .filter(([_, value]) => value && value !== "")
-    .map(([key, value]) => ({ key, value }));
+    .filter(([_, value]) => value && value !== '')
+    .map(([key, value]) => ({ key, value }))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -103,11 +108,11 @@ export default function SalesExportDialog({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setFormat("csv")}
+                onClick={() => setFormat('csv')}
                 className={`p-4 rounded-lg border-2 transition-all ${
-                  format === "csv"
-                    ? "border-cyan-500 bg-cyan-950 text-cyan-400"
-                    : "border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-600"
+                  format === 'csv'
+                    ? 'border-cyan-500 bg-cyan-950 text-cyan-400'
+                    : 'border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-600'
                 }`}
               >
                 <div className="text-2xl mb-1">📊</div>
@@ -116,11 +121,11 @@ export default function SalesExportDialog({
               </button>
               <button
                 type="button"
-                onClick={() => setFormat("json")}
+                onClick={() => setFormat('json')}
                 className={`p-4 rounded-lg border-2 transition-all ${
-                  format === "json"
-                    ? "border-purple-500 bg-purple-950 text-purple-400"
-                    : "border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-600"
+                  format === 'json'
+                    ? 'border-purple-500 bg-purple-950 text-purple-400'
+                    : 'border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-600'
                 }`}
               >
                 <div className="text-2xl mb-1">🔧</div>
@@ -138,51 +143,57 @@ export default function SalesExportDialog({
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => setScope("filtered")}
+                onClick={() => setScope('filtered')}
                 className={`w-full p-3 rounded-lg border text-left transition-all ${
-                  scope === "filtered"
-                    ? "border-cyan-500 bg-cyan-950 text-cyan-100"
-                    : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
+                  scope === 'filtered'
+                    ? 'border-cyan-500 bg-cyan-950 text-cyan-100'
+                    : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600'
                 }`}
               >
                 <div className="font-medium">Resultados filtrados ({totalRecords})</div>
-                <div className="text-xs mt-1 opacity-75">Exportar solo los registros con filtros aplicados</div>
+                <div className="text-xs mt-1 opacity-75">
+                  Exportar solo los registros con filtros aplicados
+                </div>
               </button>
               <button
                 type="button"
-                onClick={() => setScope("all")}
+                onClick={() => setScope('all')}
                 className={`w-full p-3 rounded-lg border text-left transition-all ${
-                  scope === "all"
-                    ? "border-cyan-500 bg-cyan-950 text-cyan-100"
-                    : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
+                  scope === 'all'
+                    ? 'border-cyan-500 bg-cyan-950 text-cyan-100'
+                    : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600'
                 }`}
               >
                 <div className="font-medium">Todas las ventas</div>
-                <div className="text-xs mt-1 opacity-75">Exportar todos los registros sin filtros</div>
+                <div className="text-xs mt-1 opacity-75">
+                  Exportar todos los registros sin filtros
+                </div>
               </button>
             </div>
           </div>
 
           {/* Opciones adicionales */}
-          {format === "json" && (
+          {format === 'json' && (
             <div>
               <label className="flex items-center gap-3 p-3 rounded-lg bg-neutral-800 border border-neutral-700 cursor-pointer hover:border-neutral-600 transition-colors">
                 <input
                   type="checkbox"
                   checked={includeMetadata}
-                  onChange={(e) => setIncludeMetadata(e.target.checked)}
+                  onChange={e => setIncludeMetadata(e.target.checked)}
                   className="w-4 h-4"
                 />
                 <div className="flex-1">
                   <div className="text-sm font-medium text-neutral-100">Incluir metadatos</div>
-                  <div className="text-xs text-neutral-400 mt-0.5">Fecha, filtros aplicados, estadísticas</div>
+                  <div className="text-xs text-neutral-400 mt-0.5">
+                    Fecha, filtros aplicados, estadísticas
+                  </div>
                 </div>
               </label>
             </div>
           )}
 
           {/* Filtros activos */}
-          {activeFilters.length > 0 && scope === "filtered" && (
+          {activeFilters.length > 0 && scope === 'filtered' && (
             <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-4">
               <h3 className="text-sm font-medium text-neutral-100 mb-2">Filtros aplicados:</h3>
               <div className="space-y-1">
@@ -222,13 +233,11 @@ export default function SalesExportDialog({
                 Exportando...
               </>
             ) : (
-              <>
-                📥 Exportar {format.toUpperCase()}
-              </>
+              <>📥 Exportar {format.toUpperCase()}</>
             )}
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }

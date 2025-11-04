@@ -1,46 +1,47 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getInventorySummary, listProducts } from "../../services/client";
-import { createCurrencyFormatter } from "../../utils/currency";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getInventorySummary, listProducts } from '../../services/client'
+import { createCurrencyFormatter } from '../../utils/currency'
 
 export default function InventoryEfficiencyMetrics() {
-  const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
-  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(), [])
+  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0)
 
   const summaryQuery = useQuery({
-    queryKey: ["inventory-summary"],
+    queryKey: ['inventory-summary'],
     queryFn: getInventorySummary,
-  });
+  })
 
   const productsQuery = useQuery({
-    queryKey: ["products-efficiency"],
-    queryFn: () => listProducts({ size: 200, status: "all" }),
-  });
+    queryKey: ['products-efficiency'],
+    queryFn: () => listProducts({ size: 200, status: 'all' }),
+  })
 
-  const summary = summaryQuery.data;
-  const products = productsQuery.data?.content ?? [];
-  const totalValue = Number(summary?.totalValue ?? 0);
+  const summary = summaryQuery.data
+  const products = productsQuery.data?.content ?? []
+  const totalValue = Number(summary?.totalValue ?? 0)
 
   const metrics = useMemo(() => {
     // Simular datos de eficiencia (en producción vendrían de API)
-    const totalProducts = products.length;
-    const dailyConsumption = 15; // Simulado
-    const totalStock = products.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);
-    const daysOfCoverage = dailyConsumption > 0 ? totalStock / dailyConsumption : 0;
+    const totalProducts = products.length
+    const dailyConsumption = 15 // Simulado
+    const totalStock = products.reduce((sum, p) => sum + Number(p.stock ?? 0), 0)
+    const daysOfCoverage = dailyConsumption > 0 ? totalStock / dailyConsumption : 0
 
     // Stock-out rate (productos sin stock / total)
-    const outOfStock = products.filter((p) => Number(p.stock ?? 0) === 0).length;
-    const stockOutRate = totalProducts > 0 ? (outOfStock / totalProducts) * 100 : 0;
+    const outOfStock = products.filter(p => Number(p.stock ?? 0) === 0).length
+    const stockOutRate = totalProducts > 0 ? (outOfStock / totalProducts) * 100 : 0
 
     // Inventory accuracy (ajustes / movimientos totales)
-    const adjustments = 12; // Simulado
-    const totalMovements = 150; // Simulado
-    const inventoryAccuracy = totalMovements > 0 ? ((totalMovements - adjustments) / totalMovements) * 100 : 100;
+    const adjustments = 12 // Simulado
+    const totalMovements = 150 // Simulado
+    const inventoryAccuracy =
+      totalMovements > 0 ? ((totalMovements - adjustments) / totalMovements) * 100 : 100
 
     // Costo de almacenamiento estimado (5% anual del valor)
-    const annualStorageCostRate = 0.05;
-    const estimatedStorageCost = totalValue * annualStorageCostRate;
-    const monthlyStorageCost = estimatedStorageCost / 12;
+    const annualStorageCostRate = 0.05
+    const estimatedStorageCost = totalValue * annualStorageCostRate
+    const monthlyStorageCost = estimatedStorageCost / 12
 
     return {
       daysOfCoverage,
@@ -49,8 +50,8 @@ export default function InventoryEfficiencyMetrics() {
       monthlyStorageCost,
       outOfStock,
       totalProducts,
-    };
-  }, [products, totalValue]);
+    }
+  }, [products, totalValue])
 
   if (summaryQuery.isLoading || productsQuery.isLoading) {
     return (
@@ -58,7 +59,7 @@ export default function InventoryEfficiencyMetrics() {
         <h3 className="text-neutral-100 mb-4">Métricas de Eficiencia</h3>
         <div className="animate-pulse bg-neutral-800 rounded-lg h-64"></div>
       </div>
-    );
+    )
   }
 
   return (
@@ -70,7 +71,9 @@ export default function InventoryEfficiencyMetrics() {
         <div className="bg-blue-950 border border-blue-800 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-blue-400 font-medium">📅 Días de Cobertura</h4>
-            <span className="text-blue-300 text-2xl font-bold">{metrics.daysOfCoverage.toFixed(0)}</span>
+            <span className="text-blue-300 text-2xl font-bold">
+              {metrics.daysOfCoverage.toFixed(0)}
+            </span>
           </div>
           <p className="text-blue-300 text-sm">Stock actual / Consumo diario promedio</p>
           <div className="mt-2 w-full bg-blue-900 rounded-full h-2">
@@ -85,7 +88,9 @@ export default function InventoryEfficiencyMetrics() {
         <div className="bg-red-950 border border-red-800 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-red-400 font-medium">📉 Tasa de Quiebre</h4>
-            <span className="text-red-300 text-2xl font-bold">{metrics.stockOutRate.toFixed(1)}%</span>
+            <span className="text-red-300 text-2xl font-bold">
+              {metrics.stockOutRate.toFixed(1)}%
+            </span>
           </div>
           <p className="text-red-300 text-sm">
             {metrics.outOfStock} de {metrics.totalProducts} productos sin stock
@@ -102,7 +107,9 @@ export default function InventoryEfficiencyMetrics() {
         <div className="bg-green-950 border border-green-800 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-green-400 font-medium">✅ Precisión Inventario</h4>
-            <span className="text-green-300 text-2xl font-bold">{metrics.inventoryAccuracy.toFixed(1)}%</span>
+            <span className="text-green-300 text-2xl font-bold">
+              {metrics.inventoryAccuracy.toFixed(1)}%
+            </span>
           </div>
           <p className="text-green-300 text-sm">Basado en movimientos vs ajustes</p>
           <div className="mt-2 w-full bg-green-900 rounded-full h-2">
@@ -117,7 +124,9 @@ export default function InventoryEfficiencyMetrics() {
         <div className="bg-purple-950 border border-purple-800 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-purple-400 font-medium">💰 Costo Almacenamiento</h4>
-            <span className="text-purple-300 text-2xl font-bold">{formatCurrency(metrics.monthlyStorageCost)}</span>
+            <span className="text-purple-300 text-2xl font-bold">
+              {formatCurrency(metrics.monthlyStorageCost)}
+            </span>
           </div>
           <p className="text-purple-300 text-sm">Estimado mensual (~5% anual del valor)</p>
         </div>
@@ -153,5 +162,5 @@ export default function InventoryEfficiencyMetrics() {
         </ul>
       </div>
     </div>
-  );
+  )
 }

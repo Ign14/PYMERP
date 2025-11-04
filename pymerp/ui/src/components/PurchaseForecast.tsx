@@ -1,39 +1,56 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getSupplierForecast, listSuppliers, type Supplier, type PurchaseForecast as PurchaseForecastType } from "../services/client";
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  getSupplierForecast,
+  listSuppliers,
+  type Supplier,
+  type PurchaseForecast as PurchaseForecastType,
+} from '../services/client'
 
 export default function PurchaseForecast() {
-  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('')
 
   // Lista de proveedores para selector
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", { active: true }],
+    queryKey: ['suppliers', { active: true }],
     queryFn: () => listSuppliers(undefined, true),
-  });
+  })
 
   // Forecast del proveedor seleccionado
-  const { data: forecast, isLoading, error } = useQuery({
-    queryKey: ["supplier-forecast", selectedSupplierId],
+  const {
+    data: forecast,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['supplier-forecast', selectedSupplierId],
     queryFn: () => getSupplierForecast(selectedSupplierId),
     enabled: !!selectedSupplierId,
-  });
+  })
 
   // Calcular totales
-  const historicalMonths = forecast?.monthlyForecasts.filter(m => !m.isForecast) ?? [];
-  const forecastMonths = forecast?.monthlyForecasts.filter(m => m.isForecast) ?? [];
-  
-  const totalHistorical = historicalMonths.reduce((sum, m) => sum + (m.actualSpend ?? 0), 0);
-  const totalForecast = forecastMonths.reduce((sum, m) => sum + (m.forecastSpend ?? 0), 0);
+  const historicalMonths = forecast?.monthlyForecasts.filter(m => !m.isForecast) ?? []
+  const forecastMonths = forecast?.monthlyForecasts.filter(m => m.isForecast) ?? []
+
+  const totalHistorical = historicalMonths.reduce((sum, m) => sum + (m.actualSpend ?? 0), 0)
+  const totalForecast = forecastMonths.reduce((sum, m) => sum + (m.forecastSpend ?? 0), 0)
 
   // Iconos de tendencia
-  const trendIcon = forecast?.trend === "INCREASING" ? "📈" :
-                    forecast?.trend === "DECREASING" ? "📉" : "➡️";
-  
-  const trendColor = forecast?.trend === "INCREASING" ? "text-green-400" :
-                     forecast?.trend === "DECREASING" ? "text-red-400" : "text-blue-400";
+  const trendIcon =
+    forecast?.trend === 'INCREASING' ? '📈' : forecast?.trend === 'DECREASING' ? '📉' : '➡️'
 
-  const trendLabel = forecast?.trend === "INCREASING" ? "En Aumento" :
-                     forecast?.trend === "DECREASING" ? "Decreciente" : "Estable";
+  const trendColor =
+    forecast?.trend === 'INCREASING'
+      ? 'text-green-400'
+      : forecast?.trend === 'DECREASING'
+        ? 'text-red-400'
+        : 'text-blue-400'
+
+  const trendLabel =
+    forecast?.trend === 'INCREASING'
+      ? 'En Aumento'
+      : forecast?.trend === 'DECREASING'
+        ? 'Decreciente'
+        : 'Estable'
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
@@ -43,12 +60,10 @@ export default function PurchaseForecast() {
 
       {/* Selector de proveedor */}
       <div className="mb-6">
-        <label className="mb-2 block text-sm text-neutral-400">
-          Seleccionar Proveedor
-        </label>
+        <label className="mb-2 block text-sm text-neutral-400">Seleccionar Proveedor</label>
         <select
           value={selectedSupplierId}
-          onChange={(e) => setSelectedSupplierId(e.target.value)}
+          onChange={e => setSelectedSupplierId(e.target.value)}
           className="w-full rounded border border-neutral-700 bg-neutral-800 px-3 py-2 text-neutral-100 focus:border-blue-500 focus:outline-none"
         >
           <option value="">-- Seleccione un proveedor --</option>
@@ -61,9 +76,7 @@ export default function PurchaseForecast() {
       </div>
 
       {!selectedSupplierId && (
-        <p className="text-center text-neutral-500">
-          Seleccione un proveedor para ver el forecast
-        </p>
+        <p className="text-center text-neutral-500">Seleccione un proveedor para ver el forecast</p>
       )}
 
       {selectedSupplierId && isLoading && (
@@ -71,9 +84,7 @@ export default function PurchaseForecast() {
       )}
 
       {selectedSupplierId && error && (
-        <p className="text-center text-red-400">
-          Error al cargar forecast
-        </p>
+        <p className="text-center text-red-400">Error al cargar forecast</p>
       )}
 
       {forecast && (
@@ -83,14 +94,14 @@ export default function PurchaseForecast() {
             <div className="rounded border border-neutral-800 bg-neutral-950 p-4">
               <p className="text-sm text-neutral-400">Promedio Mensual</p>
               <p className="mt-1 text-2xl font-semibold text-neutral-100">
-                ${forecast.averageMonthlySpend.toLocaleString("es-CL")}
+                ${forecast.averageMonthlySpend.toLocaleString('es-CL')}
               </p>
             </div>
 
             <div className="rounded border border-neutral-800 bg-neutral-950 p-4">
               <p className="text-sm text-neutral-400">Proyección Próximo Mes</p>
               <p className="mt-1 text-2xl font-semibold text-blue-400">
-                ${forecast.projectedNextMonthSpend.toLocaleString("es-CL")}
+                ${forecast.projectedNextMonthSpend.toLocaleString('es-CL')}
               </p>
             </div>
 
@@ -114,31 +125,33 @@ export default function PurchaseForecast() {
             <h3 className="mb-4 text-sm font-medium text-neutral-300">
               Gasto Mensual (Últimos 6 Meses + Proyección 3 Meses)
             </h3>
-            
+
             <div className="space-y-3">
               {forecast.monthlyForecasts.map((month, idx) => {
-                const spend = month.isForecast ? (month.forecastSpend ?? 0) : (month.actualSpend ?? 0);
-                const maxSpend = Math.max(...forecast.monthlyForecasts.map(m => 
-                  m.isForecast ? (m.forecastSpend ?? 0) : (m.actualSpend ?? 0)
-                ));
-                const widthPercent = maxSpend > 0 ? (spend / maxSpend) * 100 : 0;
+                const spend = month.isForecast
+                  ? (month.forecastSpend ?? 0)
+                  : (month.actualSpend ?? 0)
+                const maxSpend = Math.max(
+                  ...forecast.monthlyForecasts.map(m =>
+                    m.isForecast ? (m.forecastSpend ?? 0) : (m.actualSpend ?? 0)
+                  )
+                )
+                const widthPercent = maxSpend > 0 ? (spend / maxSpend) * 100 : 0
 
                 return (
                   <div key={idx} className="flex items-center gap-3">
-                    <div className="w-20 text-right text-sm text-neutral-400">
-                      {month.month}
-                    </div>
+                    <div className="w-20 text-right text-sm text-neutral-400">{month.month}</div>
                     <div className="flex-1">
-                      <div 
+                      <div
                         className={`rounded px-3 py-2 text-sm ${
-                          month.isForecast 
-                            ? "bg-blue-500/30 text-blue-300" 
-                            : "bg-green-500/30 text-green-300"
+                          month.isForecast
+                            ? 'bg-blue-500/30 text-blue-300'
+                            : 'bg-green-500/30 text-green-300'
                         }`}
                         style={{ width: `${widthPercent}%` }}
                       >
-                        ${spend.toLocaleString("es-CL")}
-                        {month.isForecast && " (proyectado)"}
+                        ${spend.toLocaleString('es-CL')}
+                        {month.isForecast && ' (proyectado)'}
                       </div>
                     </div>
                     {!month.isForecast && (
@@ -152,7 +165,7 @@ export default function PurchaseForecast() {
                       </div>
                     )}
                   </div>
-                );
+                )
               })}
             </div>
 
@@ -196,16 +209,20 @@ export default function PurchaseForecast() {
                   <tr key={idx} className="text-neutral-300">
                     <td className="py-2">{month.month}</td>
                     <td className="py-2 text-right">
-                      {month.actualSpend !== null ? `$${month.actualSpend.toLocaleString("es-CL")}` : "-"}
+                      {month.actualSpend !== null
+                        ? `$${month.actualSpend.toLocaleString('es-CL')}`
+                        : '-'}
                     </td>
                     <td className="py-2 text-right">
-                      {month.forecastSpend !== null ? `$${month.forecastSpend.toLocaleString("es-CL")}` : "-"}
+                      {month.forecastSpend !== null
+                        ? `$${month.forecastSpend.toLocaleString('es-CL')}`
+                        : '-'}
                     </td>
                     <td className="py-2 text-right">
-                      {month.actualOrders !== null ? month.actualOrders : "-"}
+                      {month.actualOrders !== null ? month.actualOrders : '-'}
                     </td>
                     <td className="py-2 text-right">
-                      {month.forecastOrders !== null ? month.forecastOrders : "-"}
+                      {month.forecastOrders !== null ? month.forecastOrders : '-'}
                     </td>
                     <td className="py-2 text-center">
                       {month.isForecast ? (
@@ -225,10 +242,10 @@ export default function PurchaseForecast() {
                 <tr>
                   <td className="pt-2 font-medium">Totales</td>
                   <td className="pt-2 text-right font-medium">
-                    ${totalHistorical.toLocaleString("es-CL")}
+                    ${totalHistorical.toLocaleString('es-CL')}
                   </td>
                   <td className="pt-2 text-right font-medium">
-                    ${totalForecast.toLocaleString("es-CL")}
+                    ${totalForecast.toLocaleString('es-CL')}
                   </td>
                   <td className="pt-2 text-right font-medium">
                     {historicalMonths.reduce((sum, m) => sum + (m.actualOrders ?? 0), 0)}
@@ -249,21 +266,21 @@ export default function PurchaseForecast() {
             </summary>
             <div className="mt-3 space-y-2 text-sm text-neutral-500">
               <p>
-                El forecast analiza las compras de los últimos 6 meses para proyectar
-                las necesidades futuras del proveedor seleccionado.
+                El forecast analiza las compras de los últimos 6 meses para proyectar las
+                necesidades futuras del proveedor seleccionado.
               </p>
               <ul className="list-inside list-disc space-y-1 pl-2">
                 <li>
-                  <strong>Tendencia:</strong> Compara los últimos 3 meses vs los 3 anteriores
-                  para detectar si la demanda está aumentando, disminuyendo o estable.
+                  <strong>Tendencia:</strong> Compara los últimos 3 meses vs los 3 anteriores para
+                  detectar si la demanda está aumentando, disminuyendo o estable.
                 </li>
                 <li>
                   <strong>Proyección:</strong> Usa promedios móviles simples ajustados por tendencia
                   para estimar los próximos 3 meses.
                 </li>
                 <li>
-                  <strong>Precisión:</strong> Esta es una estimación estadística básica. 
-                  Considere factores estacionales y cambios de negocio al tomar decisiones.
+                  <strong>Precisión:</strong> Esta es una estimación estadística básica. Considere
+                  factores estacionales y cambios de negocio al tomar decisiones.
                 </li>
               </ul>
             </div>
@@ -271,5 +288,5 @@ export default function PurchaseForecast() {
         </div>
       )}
     </div>
-  );
+  )
 }

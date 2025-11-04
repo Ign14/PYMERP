@@ -1,41 +1,41 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type React from "react";
-import ProductFormDialog from "../dialogs/ProductFormDialog";
-import ProductQrModal from "../dialogs/ProductQrModal";
-import ProductInventoryAlertModal from "../dialogs/ProductInventoryAlertModal";
-import { createProduct, fetchProductQrBlob } from "../../services/client";
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type React from 'react'
+import ProductFormDialog from '../dialogs/ProductFormDialog'
+import ProductQrModal from '../dialogs/ProductQrModal'
+import ProductInventoryAlertModal from '../dialogs/ProductInventoryAlertModal'
+import { createProduct, fetchProductQrBlob } from '../../services/client'
 
-vi.mock("../../services/client", () => ({
+vi.mock('../../services/client', () => ({
   createProduct: vi.fn(),
   updateProduct: vi.fn(),
   fetchProductQrBlob: vi.fn(),
-}));
+}))
 
 type ProductMock = {
-  id: string;
-  sku: string;
-  name: string;
-  description?: string;
-  category?: string;
-  barcode?: string;
-  imageUrl?: string | null;
-  qrUrl?: string | null;
-  criticalStock?: number;
-  currentPrice?: number;
-  active: boolean;
-};
+  id: string
+  sku: string
+  name: string
+  description?: string
+  category?: string
+  barcode?: string
+  imageUrl?: string | null
+  qrUrl?: string | null
+  criticalStock?: number
+  currentPrice?: number
+  active: boolean
+}
 
-const createProductMock = createProduct as unknown as vi.Mock;
-const fetchProductQrBlobMock = fetchProductQrBlob as unknown as vi.Mock;
+const createProductMock = createProduct as unknown as vi.Mock
+const fetchProductQrBlobMock = fetchProductQrBlob as unknown as vi.Mock
 const createObjectUrlSpy = vi
-  .spyOn(global.URL, "createObjectURL")
-  .mockImplementation(() => "blob:test");
+  .spyOn(global.URL, 'createObjectURL')
+  .mockImplementation(() => 'blob:test')
 const revokeObjectUrlSpy = vi
-  .spyOn(global.URL, "revokeObjectURL")
-  .mockImplementation(() => undefined);
+  .spyOn(global.URL, 'revokeObjectURL')
+  .mockImplementation(() => undefined)
 
 const renderWithQueryClient = (ui: React.ReactElement) => {
   const queryClient = new QueryClient({
@@ -44,115 +44,120 @@ const renderWithQueryClient = (ui: React.ReactElement) => {
         retry: false,
       },
     },
-  });
+  })
 
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
-};
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
+}
 
 beforeEach(() => {
-  createProductMock.mockReset();
-  fetchProductQrBlobMock.mockReset();
-  createObjectUrlSpy.mockClear();
-  revokeObjectUrlSpy.mockClear();
-});
+  createProductMock.mockReset()
+  fetchProductQrBlobMock.mockReset()
+  createObjectUrlSpy.mockClear()
+  revokeObjectUrlSpy.mockClear()
+})
 
-describe("Product form dialog", () => {
-  it("submits new product with uploaded image", async () => {
-    const onSaved = vi.fn();
+describe('Product form dialog', () => {
+  it('submits new product with uploaded image', async () => {
+    const onSaved = vi.fn()
     const product: ProductMock = {
-      id: "prd-1",
-      sku: "SKU-001",
-      name: "Demo",
+      id: 'prd-1',
+      sku: 'SKU-001',
+      name: 'Demo',
       criticalStock: 0,
       active: true,
-    };
-    createProductMock.mockResolvedValue(product);
+    }
+    createProductMock.mockResolvedValue(product)
 
     renderWithQueryClient(
-      <ProductFormDialog open product={null} onClose={() => undefined} onSaved={onSaved} />,
-    );
+      <ProductFormDialog open product={null} onClose={() => undefined} onSaved={onSaved} />
+    )
 
-    await userEvent.type(screen.getByLabelText(/SKU/i), " SKU-001 ");
-    await userEvent.type(screen.getByLabelText(/Nombre/i), " Producto de prueba ");
-    await userEvent.type(screen.getByLabelText(/Categoria/i), "Bebidas");
-    await userEvent.type(screen.getByLabelText(/Codigo de barras/i), "123");
-    await userEvent.type(screen.getByLabelText(/Descripcion/i), "Descripción corta");
+    await userEvent.type(screen.getByLabelText(/SKU/i), ' SKU-001 ')
+    await userEvent.type(screen.getByLabelText(/Nombre/i), ' Producto de prueba ')
+    await userEvent.type(screen.getByLabelText(/Categoria/i), 'Bebidas')
+    await userEvent.type(screen.getByLabelText(/Codigo de barras/i), '123')
+    await userEvent.type(screen.getByLabelText(/Descripcion/i), 'Descripción corta')
 
-    const file = new File(["binary"], "foto.png", { type: "image/png" });
-    const fileInput = screen.getByLabelText(/Imagen/i);
-    await userEvent.upload(fileInput, file);
+    const file = new File(['binary'], 'foto.png', { type: 'image/png' })
+    const fileInput = screen.getByLabelText(/Imagen/i)
+    await userEvent.upload(fileInput, file)
 
-    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }))
 
     await waitFor(() => {
-      expect(createProductMock).toHaveBeenCalledTimes(1);
-    });
+      expect(createProductMock).toHaveBeenCalledTimes(1)
+    })
 
-    const payload = createProductMock.mock.calls[0][0];
+    const payload = createProductMock.mock.calls[0][0]
     expect(payload).toMatchObject({
-      sku: "SKU-001",
-      name: "Producto de prueba",
-      category: "Bebidas",
-      barcode: "123",
-    });
-    expect(payload.imageFile).toBeInstanceOf(File);
-    expect(payload.imageUrl).toBeNull();
-    expect(onSaved).toHaveBeenCalledWith(product);
-  });
-});
+      sku: 'SKU-001',
+      name: 'Producto de prueba',
+      category: 'Bebidas',
+      barcode: '123',
+    })
+    expect(payload.imageFile).toBeInstanceOf(File)
+    expect(payload.imageUrl).toBeNull()
+    expect(onSaved).toHaveBeenCalledWith(product)
+  })
+})
 
-describe("Product QR modal", () => {
-  it("renders QR image and triggers download", async () => {
+describe('Product QR modal', () => {
+  it('renders QR image and triggers download', async () => {
     const product: ProductMock = {
-      id: "prd-qr",
-      sku: "SKU-QR",
-      name: "Producto QR",
+      id: 'prd-qr',
+      sku: 'SKU-QR',
+      name: 'Producto QR',
       active: true,
-    };
+    }
     fetchProductQrBlobMock
-      .mockResolvedValueOnce(new Blob(["data"], { type: "image/png" }))
-      .mockResolvedValueOnce(new Blob(["data"], { type: "image/png" }));
+      .mockResolvedValueOnce(new Blob(['data'], { type: 'image/png' }))
+      .mockResolvedValueOnce(new Blob(['data'], { type: 'image/png' }))
 
     renderWithQueryClient(
-      <ProductQrModal open product={product as any} onClose={() => undefined} />,
-    );
+      <ProductQrModal open product={product as any} onClose={() => undefined} />
+    )
 
     await waitFor(() => {
-      expect(screen.getByRole("img", { name: /QR/i })).toBeInTheDocument();
-    });
+      expect(screen.getByRole('img', { name: /QR/i })).toBeInTheDocument()
+    })
 
-    await userEvent.click(screen.getByRole("button", { name: /descargar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /descargar/i }))
 
     await waitFor(() => {
-      expect(fetchProductQrBlobMock).toHaveBeenCalledWith(product.id, { download: true });
-    });
-  });
-});
+      expect(fetchProductQrBlobMock).toHaveBeenCalledWith(product.id, { download: true })
+    })
+  })
+})
 
-describe("Product inventory alert modal", () => {
-  it("returns the submitted value", async () => {
-    const onSubmit = vi.fn();
-    const onClose = vi.fn();
+describe('Product inventory alert modal', () => {
+  it('returns the submitted value', async () => {
+    const onSubmit = vi.fn()
+    const onClose = vi.fn()
     const product: ProductMock = {
-      id: "prd-alert",
-      sku: "SKU-ALERT",
-      name: "Producto alerta",
+      id: 'prd-alert',
+      sku: 'SKU-ALERT',
+      name: 'Producto alerta',
       criticalStock: 2,
       active: true,
-    };
+    }
 
     renderWithQueryClient(
-      <ProductInventoryAlertModal open product={product as any} onClose={onClose} onSubmit={onSubmit} />,
-    );
+      <ProductInventoryAlertModal
+        open
+        product={product as any}
+        onClose={onClose}
+        onSubmit={onSubmit}
+      />
+    )
 
-    const input = screen.getByRole("spinbutton", { name: /Stock crítico/i });
-    await userEvent.clear(input);
-    await userEvent.type(input, "5");
+    const input = screen.getByRole('spinbutton', { name: /Stock crítico/i })
+    await userEvent.clear(input)
+    await userEvent.type(input, '5')
 
-    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }))
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith(5);
-    });
-  });
-});
+      expect(onSubmit).toHaveBeenCalledWith(5)
+    })
+  })
+})

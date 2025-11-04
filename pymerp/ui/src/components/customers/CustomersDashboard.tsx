@@ -1,47 +1,47 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { listCustomers, getCustomerStats } from "../../services/client";
-import { createCurrencyFormatter } from "../../utils/currency";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listCustomers, getCustomerStats } from '../../services/client'
+import { createCurrencyFormatter } from '../../utils/currency'
 
 export default function CustomersDashboard() {
-  const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
-  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(), [])
+  const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0)
 
   // Obtener todos los clientes activos
   const customersQuery = useQuery({
-    queryKey: ["customers", "dashboard"],
+    queryKey: ['customers', 'dashboard'],
     queryFn: () => listCustomers({ active: true, page: 0, size: 10000 }),
-  });
+  })
 
   // Calcular fecha de hace 30 días para clientes nuevos
   const thirtyDaysAgo = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString();
-  }, []);
+    const date = new Date()
+    date.setDate(date.getDate() - 30)
+    return date.toISOString()
+  }, [])
 
   const stats = useMemo(() => {
-    if (!customersQuery.data) return null;
+    if (!customersQuery.data) return null
 
-    const customers = customersQuery.data.content || [];
-    const totalActive = customers.length;
+    const customers = customersQuery.data.content || []
+    const totalActive = customers.length
 
     // Clientes nuevos (últimos 30 días)
     const newCustomers = customers.filter(
-      (c) => c.createdAt && new Date(c.createdAt) >= new Date(thirtyDaysAgo)
-    ).length;
+      c => c.createdAt && new Date(c.createdAt) >= new Date(thirtyDaysAgo)
+    ).length
 
     return {
       totalActive,
       newCustomers,
       totalCustomers: customersQuery.data.totalElements || totalActive,
-    };
-  }, [customersQuery.data, thirtyDaysAgo]);
+    }
+  }, [customersQuery.data, thirtyDaysAgo])
 
   // Query para obtener ingresos totales y top cliente
   // Usaremos el primer cliente como ejemplo para obtener stats
   const topCustomerQuery = useQuery({
-    queryKey: ["customers", "top-revenue"],
+    queryKey: ['customers', 'top-revenue'],
     queryFn: async () => {
       // En una implementación real, el backend debería proveer un endpoint
       // para obtener el top cliente por ingresos
@@ -49,10 +49,10 @@ export default function CustomersDashboard() {
       return {
         totalRevenue: 0,
         topCustomer: null as { name: string; revenue: number } | null,
-      };
+      }
     },
     enabled: !!customersQuery.data,
-  });
+  })
 
   if (customersQuery.isLoading) {
     return (
@@ -60,13 +60,13 @@ export default function CustomersDashboard() {
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
           <h2 className="text-neutral-100 mb-4">Resumen de Clientes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4].map(i => (
               <div key={i} className="animate-pulse bg-neutral-800 rounded-lg h-32"></div>
             ))}
           </div>
         </div>
       </section>
-    );
+    )
   }
 
   if (customersQuery.isError) {
@@ -78,16 +78,16 @@ export default function CustomersDashboard() {
           </div>
         </div>
       </section>
-    );
+    )
   }
 
-  if (!stats) return null;
+  if (!stats) return null
 
   return (
     <section className="mb-6">
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
         <h2 className="text-neutral-100 mb-4 text-xl font-semibold">Resumen de Clientes</h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Clientes Activos */}
           <article className="bg-neutral-800 border border-neutral-700 rounded-xl shadow p-5">
@@ -96,9 +96,7 @@ export default function CustomersDashboard() {
               <span className="text-2xl">👥</span>
             </div>
             <p className="text-3xl font-bold text-neutral-100 mb-1">{stats.totalActive}</p>
-            <span className="text-neutral-400 text-sm">
-              De {stats.totalCustomers} totales
-            </span>
+            <span className="text-neutral-400 text-sm">De {stats.totalCustomers} totales</span>
           </article>
 
           {/* Clientes Nuevos (Último Mes) */}
@@ -111,7 +109,7 @@ export default function CustomersDashboard() {
             <span className="text-neutral-400 text-sm">
               {stats.totalActive > 0
                 ? `${((stats.newCustomers / stats.totalActive) * 100).toFixed(1)}% del total`
-                : "0% del total"}
+                : '0% del total'}
             </span>
           </article>
 
@@ -152,5 +150,5 @@ export default function CustomersDashboard() {
         </div>
       </div>
     </section>
-  );
+  )
 }

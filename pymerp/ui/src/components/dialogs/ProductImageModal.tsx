@@ -1,24 +1,24 @@
-import { useMemo, useRef } from "react";
-import { Product } from "../../services/client";
-import Modal from "./Modal";
+import { useMemo, useRef } from 'react'
+import { Product } from '../../services/client'
+import Modal from './Modal'
 
 type Props = {
-  open: boolean;
-  product: Product | null;
-  imageUrl: string | null;
-  onClose: () => void;
-};
+  open: boolean
+  product: Product | null
+  imageUrl: string | null
+  onClose: () => void
+}
 
 export default function ProductImageModal({ open, product, imageUrl, onClose }: Props) {
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const title = useMemo(() => {
     if (!product) {
-      return "Imagen del producto";
+      return 'Imagen del producto'
     }
-    return `Imagen - ${product.name}`;
-  }, [product]);
+    return `Imagen - ${product.name}`
+  }, [product])
 
-  const source = imageUrl ?? "";
+  const source = imageUrl ?? ''
 
   return (
     <Modal open={open} title={title} onClose={onClose} initialFocusRef={closeButtonRef}>
@@ -36,5 +36,5 @@ export default function ProductImageModal({ open, product, imageUrl, onClose }: 
         </button>
       </div>
     </Modal>
-  );
+  )
 }

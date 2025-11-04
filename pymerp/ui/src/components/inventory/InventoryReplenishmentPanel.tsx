@@ -1,45 +1,45 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { listProducts } from "../../services/client";
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listProducts } from '../../services/client'
 
 export default function InventoryReplenishmentPanel() {
   const productsQuery = useQuery({
-    queryKey: ["products-replenishment"],
-    queryFn: () => listProducts({ size: 100, status: "all" }),
-  });
+    queryKey: ['products-replenishment'],
+    queryFn: () => listProducts({ size: 100, status: 'all' }),
+  })
 
-  const products = productsQuery.data?.content ?? [];
+  const products = productsQuery.data?.content ?? []
 
   const replenishmentNeeds = useMemo(() => {
     return products
-      .map((p) => {
-        const stock = Number(p.stock ?? 0);
+      .map(p => {
+        const stock = Number(p.stock ?? 0)
         // Simular consumo diario y punto de reorden
-        const dailyConsumption = Math.random() * 5 + 1;
-        const leadTimeDays = 7; // Tiempo de entrega simulado
-        const safetyStock = dailyConsumption * 3;
-        const reorderPoint = dailyConsumption * leadTimeDays + safetyStock;
-        const optimalQty = dailyConsumption * 30; // Stock para 30 días
+        const dailyConsumption = Math.random() * 5 + 1
+        const leadTimeDays = 7 // Tiempo de entrega simulado
+        const safetyStock = dailyConsumption * 3
+        const reorderPoint = dailyConsumption * leadTimeDays + safetyStock
+        const optimalQty = dailyConsumption * 30 // Stock para 30 días
 
-        const needsReplenishment = stock < reorderPoint;
-        const daysOfCoverage = dailyConsumption > 0 ? stock / dailyConsumption : 999;
-        const suggestedOrder = Math.max(0, optimalQty - stock);
+        const needsReplenishment = stock < reorderPoint
+        const daysOfCoverage = dailyConsumption > 0 ? stock / dailyConsumption : 999
+        const suggestedOrder = Math.max(0, optimalQty - stock)
 
         return {
           id: p.id,
-          name: p.name ?? "Sin nombre",
+          name: p.name ?? 'Sin nombre',
           stock,
           reorderPoint,
           daysOfCoverage,
           suggestedOrder,
           needsReplenishment,
-          urgency: daysOfCoverage < 7 ? "critical" : daysOfCoverage < 14 ? "high" : "normal",
-        };
+          urgency: daysOfCoverage < 7 ? 'critical' : daysOfCoverage < 14 ? 'high' : 'normal',
+        }
       })
-      .filter((p) => p.needsReplenishment)
+      .filter(p => p.needsReplenishment)
       .sort((a, b) => a.daysOfCoverage - b.daysOfCoverage)
-      .slice(0, 8);
-  }, [products]);
+      .slice(0, 8)
+  }, [products])
 
   if (productsQuery.isLoading) {
     return (
@@ -47,7 +47,7 @@ export default function InventoryReplenishmentPanel() {
         <h3 className="text-neutral-100 mb-4">Panel de Reabastecimiento</h3>
         <div className="animate-pulse bg-neutral-800 rounded-lg h-80"></div>
       </div>
-    );
+    )
   }
 
   return (
@@ -65,12 +65,32 @@ export default function InventoryReplenishmentPanel() {
         </div>
       ) : (
         <div className="space-y-3">
-          {replenishmentNeeds.map((item) => {
+          {replenishmentNeeds.map(item => {
             const urgencyConfig = {
-              critical: { bg: "bg-red-950", border: "border-red-800", text: "text-red-400", icon: "🔴" },
-              high: { bg: "bg-yellow-950", border: "border-yellow-800", text: "text-yellow-400", icon: "⚠️" },
-              normal: { bg: "bg-blue-950", border: "border-blue-800", text: "text-blue-400", icon: "ℹ️" },
-            }[item.urgency] || { bg: "bg-neutral-950", border: "border-neutral-800", text: "text-neutral-400", icon: "ℹ️" };
+              critical: {
+                bg: 'bg-red-950',
+                border: 'border-red-800',
+                text: 'text-red-400',
+                icon: '🔴',
+              },
+              high: {
+                bg: 'bg-yellow-950',
+                border: 'border-yellow-800',
+                text: 'text-yellow-400',
+                icon: '⚠️',
+              },
+              normal: {
+                bg: 'bg-blue-950',
+                border: 'border-blue-800',
+                text: 'text-blue-400',
+                icon: 'ℹ️',
+              },
+            }[item.urgency] || {
+              bg: 'bg-neutral-950',
+              border: 'border-neutral-800',
+              text: 'text-neutral-400',
+              icon: 'ℹ️',
+            }
 
             return (
               <div
@@ -84,7 +104,8 @@ export default function InventoryReplenishmentPanel() {
                       <h4 className="text-neutral-100 font-medium">{item.name}</h4>
                     </div>
                     <p className="text-neutral-400 text-sm">
-                      Stock actual: <strong className={urgencyConfig.text}>{item.stock} unidades</strong>
+                      Stock actual:{' '}
+                      <strong className={urgencyConfig.text}>{item.stock} unidades</strong>
                     </p>
                     <p className="text-neutral-400 text-sm">
                       Cobertura: <strong>{item.daysOfCoverage.toFixed(0)} días</strong>
@@ -103,14 +124,15 @@ export default function InventoryReplenishmentPanel() {
                   Generar Orden de Compra
                 </button>
               </div>
-            );
+            )
           })}
         </div>
       )}
 
       <div className="mt-4 bg-blue-950 border border-blue-800 rounded-lg p-3 text-blue-400 text-sm">
-        💡 <strong>Sugerencia:</strong> Punto de reorden calculado según consumo + plazo de entrega + stock de seguridad
+        💡 <strong>Sugerencia:</strong> Punto de reorden calculado según consumo + plazo de entrega
+        + stock de seguridad
       </div>
     </div>
-  );
+  )
 }

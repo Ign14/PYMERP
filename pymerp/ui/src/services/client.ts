@@ -1,264 +1,270 @@
-import axios, { type AxiosResponse } from "axios";
+import axios, { type AxiosResponse } from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
-const DEFAULT_COMPANY_ID = import.meta.env.VITE_COMPANY_ID ?? null;
+const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
+const DEFAULT_COMPANY_ID = import.meta.env.VITE_COMPANY_ID ?? null
 
-const DEV_FALLBACK_EMAIL = "admin@dev.local";
-const DEV_FALLBACK_PASSWORD = "Admin1234";
-const DEV_FALLBACK_TOKEN = "dev-session-token";
-const DEV_FALLBACK_REFRESH_TOKEN = "dev-session-refresh-token";
-const DEV_FALLBACK_COMPANY_ID = DEFAULT_COMPANY_ID ?? "dev-company";
-const DEV_FALLBACK_ROLES = ["admin"] as const;
+const DEV_FALLBACK_EMAIL = 'admin@dev.local'
+const DEV_FALLBACK_PASSWORD = 'Admin1234'
+const DEV_FALLBACK_TOKEN = 'dev-session-token'
+const DEV_FALLBACK_REFRESH_TOKEN = 'dev-session-refresh-token'
+const DEV_FALLBACK_COMPANY_ID = DEFAULT_COMPANY_ID ?? 'dev-company'
+const DEV_FALLBACK_ROLES = ['admin'] as const
 const DEV_FALLBACK_MODULES = [
-  "sales",
-  "purchases",
-  "inventory",
-  "customers",
-  "suppliers",
-  "finances",
-  "reports",
-  "settings",
-] as const;
+  'sales',
+  'purchases',
+  'inventory',
+  'customers',
+  'suppliers',
+  'finances',
+  'reports',
+  'settings',
+] as const
 
-type StructuredCloneFn = <T>(value: T) => T;
-const globalStructuredClone: StructuredCloneFn | undefined = (globalThis as typeof globalThis & {
-  structuredClone?: StructuredCloneFn;
-}).structuredClone;
+type StructuredCloneFn = <T>(value: T) => T
+const globalStructuredClone: StructuredCloneFn | undefined = (
+  globalThis as typeof globalThis & {
+    structuredClone?: StructuredCloneFn
+  }
+).structuredClone
 
 function deepClone<T>(value: T): T {
-  if (typeof globalStructuredClone === "function") {
-    return globalStructuredClone(value);
+  if (typeof globalStructuredClone === 'function') {
+    return globalStructuredClone(value)
   }
-  return JSON.parse(JSON.stringify(value)) as T;
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
-let offlineModeEnabled = false;
+let offlineModeEnabled = false
 
 function markOffline(context: string) {
   if (!offlineModeEnabled) {
-    offlineModeEnabled = true;
+    offlineModeEnabled = true
     console.warn(
-      `[API] Network unreachable during ${context}. Switching to in-memory demo data so the workspace keeps working.`,
-    );
+      `[API] Network unreachable during ${context}. Switching to in-memory demo data so the workspace keeps working.`
+    )
   } else {
-    console.info(`[API] Using offline demo data for ${context}.`);
+    console.info(`[API] Using offline demo data for ${context}.`)
   }
 }
 
 function maybeClone<T>(value: T): T {
-  return deepClone(value);
+  return deepClone(value)
 }
 
 function ensureArray<T>(value: T[] | undefined | null): T[] {
-  return Array.isArray(value) ? value : [];
+  return Array.isArray(value) ? value : []
 }
 
 function extractFilenameFromDisposition(header: unknown): string | null {
-  if (typeof header !== "string") {
-    return null;
+  if (typeof header !== 'string') {
+    return null
   }
-  const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
+  const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i)
   if (utfMatch && utfMatch[1]) {
     try {
-      return decodeURIComponent(utfMatch[1]);
+      return decodeURIComponent(utfMatch[1])
     } catch (error) {
-      console.warn("[API] Failed to decode UTF-8 filename", error);
+      console.warn('[API] Failed to decode UTF-8 filename', error)
     }
   }
-  const match = header.match(/filename="?([^";]+)"?/i);
+  const match = header.match(/filename="?([^";]+)"?/i)
   if (match && match[1]) {
-    return match[1];
+    return match[1]
   }
-  return null;
+  return null
 }
 
 export type DocumentFile = {
-  blob: Blob;
-  filename: string;
-  mimeType: string;
-};
+  blob: Blob
+  filename: string
+  mimeType: string
+}
 
-export type DocumentFileVersion = "LOCAL" | "OFFICIAL";
+export type DocumentFileVersion = 'LOCAL' | 'OFFICIAL'
 
 export type DocumentLinkSet = {
-  localPdf?: string | null;
-  officialPdf?: string | null;
-  officialXml?: string | null;
-};
+  localPdf?: string | null
+  officialPdf?: string | null
+  officialXml?: string | null
+}
 
 function createDocumentFileFromResponse(
   response: AxiosResponse<Blob>,
-  fallbackName: string,
+  fallbackName: string
 ): DocumentFile {
-  const blob = response.data;
-  const responseType = typeof blob?.type === "string" && blob.type ? blob.type : undefined;
-  const headerType = typeof response.headers["content-type"] === "string"
-    ? response.headers["content-type"]
-    : undefined;
-  const mimeType = responseType || headerType || "application/octet-stream";
+  const blob = response.data
+  const responseType = typeof blob?.type === 'string' && blob.type ? blob.type : undefined
+  const headerType =
+    typeof response.headers['content-type'] === 'string'
+      ? response.headers['content-type']
+      : undefined
+  const mimeType = responseType || headerType || 'application/octet-stream'
   const filename =
-    extractFilenameFromDisposition(response.headers["content-disposition"]) || fallbackName;
+    extractFilenameFromDisposition(response.headers['content-disposition']) || fallbackName
   return {
     blob,
     filename,
     mimeType,
-  };
+  }
 }
 
-function createFallbackDocumentFile(id: string, action: "preview" | "download"): DocumentFile {
-  const title = action === "preview" ? "Vista previa no disponible" : "Descarga no disponible";
-  const body = action === "preview"
-    ? "No hay contenido disponible sin conexión para mostrar este documento."
-    : "No hay archivo disponible para descargar sin conexión.";
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" /><title>${title}</title></head><body><main style="font-family:system-ui,sans-serif;padding:24px;max-width:640px;margin:auto;"><h1 style="margin-bottom:16px;">${title}</h1><p style="margin-bottom:16px;">${body}</p><p style="color:#555;">Documento: ${id}</p></main></body></html>`;
-  const blob = new Blob([html], { type: "text/html" });
+function createFallbackDocumentFile(id: string, action: 'preview' | 'download'): DocumentFile {
+  const title = action === 'preview' ? 'Vista previa no disponible' : 'Descarga no disponible'
+  const body =
+    action === 'preview'
+      ? 'No hay contenido disponible sin conexión para mostrar este documento.'
+      : 'No hay archivo disponible para descargar sin conexión.'
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" /><title>${title}</title></head><body><main style="font-family:system-ui,sans-serif;padding:24px;max-width:640px;margin:auto;"><h1 style="margin-bottom:16px;">${title}</h1><p style="margin-bottom:16px;">${body}</p><p style="color:#555;">Documento: ${id}</p></main></body></html>`
+  const blob = new Blob([html], { type: 'text/html' })
   return {
     blob,
     filename: `${action}-documento-${id}.html`,
-    mimeType: "text/html",
-  };
+    mimeType: 'text/html',
+  }
 }
 
-const OFFLINE_DOCUMENT_SCHEME = "offline://document";
+const OFFLINE_DOCUMENT_SCHEME = 'offline://document'
 
 function createOfflineDocumentLink(id: string, version: DocumentFileVersion): string {
-  return `${OFFLINE_DOCUMENT_SCHEME}/${version}/${encodeURIComponent(id)}`;
+  return `${OFFLINE_DOCUMENT_SCHEME}/${version}/${encodeURIComponent(id)}`
 }
 
-function parseOfflineDocumentLink(link: string): { id: string; version: DocumentFileVersion } | null {
-  if (typeof link !== "string" || !link.startsWith(OFFLINE_DOCUMENT_SCHEME)) {
-    return null;
+function parseOfflineDocumentLink(
+  link: string
+): { id: string; version: DocumentFileVersion } | null {
+  if (typeof link !== 'string' || !link.startsWith(OFFLINE_DOCUMENT_SCHEME)) {
+    return null
   }
-  const parts = link.split("/");
+  const parts = link.split('/')
   if (parts.length < 4) {
-    return null;
+    return null
   }
-  const version = parts[2] as DocumentFileVersion;
-  const id = decodeURIComponent(parts.slice(3).join("/"));
-  if ((version !== "LOCAL" && version !== "OFFICIAL") || !id) {
-    return null;
+  const version = parts[2] as DocumentFileVersion
+  const id = decodeURIComponent(parts.slice(3).join('/'))
+  if ((version !== 'LOCAL' && version !== 'OFFICIAL') || !id) {
+    return null
   }
-  return { id, version };
+  return { id, version }
 }
 
 function createOfflineDocumentLinks(id: string): DocumentLinkSet {
   return {
-    localPdf: createOfflineDocumentLink(id, "LOCAL"),
-    officialPdf: createOfflineDocumentLink(id, "OFFICIAL"),
-  };
+    localPdf: createOfflineDocumentLink(id, 'LOCAL'),
+    officialPdf: createOfflineDocumentLink(id, 'OFFICIAL'),
+  }
 }
 
-const now = new Date();
-const iso = (date: Date) => date.toISOString();
+const now = new Date()
+const iso = (date: Date) => date.toISOString()
 
 function daysAgo(days: number) {
-  const date = new Date(now);
-  date.setDate(date.getDate() - days);
-  return date;
+  const date = new Date(now)
+  date.setDate(date.getDate() - days)
+  return date
 }
 
-type DemoSaleDetail = SaleDetail & { thermalTicket: string };
+type DemoSaleDetail = SaleDetail & { thermalTicket: string }
 
 type DemoUserAccount = {
-  id: string;
-  email: string;
-  name?: string;
-  role?: string;
-  status: string;
-  roles: string[];
-  createdAt: string;
-  password: string;
-};
+  id: string
+  email: string
+  name?: string
+  role?: string
+  status: string
+  roles: string[]
+  createdAt: string
+  password: string
+}
 
 type DemoState = {
-  companies: Company[];
-  userAccounts: DemoUserAccount[];
-  products: Product[];
-  productPrices: Record<string, PriceHistoryEntry[]>;
-  suppliers: Supplier[];
-  customers: Customer[];
-  sales: SaleSummary[];
-  saleDetails: Record<string, DemoSaleDetail>;
-  purchases: PurchaseSummary[];
-  inventorySummary: InventorySummary;
-  inventoryAlerts: InventoryAlert[];
-  inventorySettings: InventorySettings;
-  salesDaily: SalesDailyPoint[];
-  purchaseDaily: PurchaseDailyPoint[];
-};
+  companies: Company[]
+  userAccounts: DemoUserAccount[]
+  products: Product[]
+  productPrices: Record<string, PriceHistoryEntry[]>
+  suppliers: Supplier[]
+  customers: Customer[]
+  sales: SaleSummary[]
+  saleDetails: Record<string, DemoSaleDetail>
+  purchases: PurchaseSummary[]
+  inventorySummary: InventorySummary
+  inventoryAlerts: InventoryAlert[]
+  inventorySettings: InventorySettings
+  salesDaily: SalesDailyPoint[]
+  purchaseDaily: PurchaseDailyPoint[]
+}
 
 const demoState: DemoState = {
   companies: [
     {
-      id: "cmp-demo-001",
-      businessName: "Demo Comercial SpA",
-      rut: "76.123.456-0",
-      businessActivity: "Retail",
-      address: "Av. Siempre Viva 742, Santiago",
-      commune: "Providencia",
-      phone: "+56 2 2345 6677",
-      email: "contacto@democomercial.cl",
-      receiptFooterMessage: "¡Gracias por tu compra!",
+      id: 'cmp-demo-001',
+      businessName: 'Demo Comercial SpA',
+      rut: '76.123.456-0',
+      businessActivity: 'Retail',
+      address: 'Av. Siempre Viva 742, Santiago',
+      commune: 'Providencia',
+      phone: '+56 2 2345 6677',
+      email: 'contacto@democomercial.cl',
+      receiptFooterMessage: '¡Gracias por tu compra!',
       createdAt: iso(daysAgo(180)),
       updatedAt: iso(daysAgo(20)),
     },
     {
-      id: "cmp-demo-002",
-      businessName: "Servicios Norte Ltda.",
-      rut: "77.987.654-3",
-      businessActivity: "Servicios",
-      address: "Av. Costanera 1200, Antofagasta",
-      commune: "Antofagasta",
-      phone: "+56 55 278 9900",
-      email: "administracion@serviciosnorte.cl",
-      receiptFooterMessage: "Servicio garantizado",
+      id: 'cmp-demo-002',
+      businessName: 'Servicios Norte Ltda.',
+      rut: '77.987.654-3',
+      businessActivity: 'Servicios',
+      address: 'Av. Costanera 1200, Antofagasta',
+      commune: 'Antofagasta',
+      phone: '+56 55 278 9900',
+      email: 'administracion@serviciosnorte.cl',
+      receiptFooterMessage: 'Servicio garantizado',
       createdAt: iso(daysAgo(95)),
       updatedAt: iso(daysAgo(10)),
     },
     {
-      id: "cmp-demo-003",
-      businessName: "Distribuidora Andina",
-      rut: "78.321.654-K",
-      businessActivity: "Logística",
-      address: "Camino a Melipilla 15000, Maipú",
-      commune: "Maipú",
-      phone: "+56 2 2388 1122",
-      email: "ventas@andina.cl",
-      receiptFooterMessage: "Despachos en 24 horas",
+      id: 'cmp-demo-003',
+      businessName: 'Distribuidora Andina',
+      rut: '78.321.654-K',
+      businessActivity: 'Logística',
+      address: 'Camino a Melipilla 15000, Maipú',
+      commune: 'Maipú',
+      phone: '+56 2 2388 1122',
+      email: 'ventas@andina.cl',
+      receiptFooterMessage: 'Despachos en 24 horas',
       createdAt: iso(daysAgo(45)),
       updatedAt: iso(daysAgo(3)),
     },
   ],
   userAccounts: [
     {
-      id: "usr-demo-001",
+      id: 'usr-demo-001',
       email: DEV_FALLBACK_EMAIL,
-      name: "Dev Admin",
-      role: "admin",
-      status: "active",
-      roles: ["ROLE_ADMIN"],
+      name: 'Dev Admin',
+      role: 'admin',
+      status: 'active',
+      roles: ['ROLE_ADMIN'],
       createdAt: iso(daysAgo(120)),
       password: DEV_FALLBACK_PASSWORD,
     },
     {
-      id: "usr-demo-002",
-      email: "ventas@dev.local",
-      name: "Vendedora Demo",
-      role: "sales",
-      status: "active",
-      roles: ["ROLE_SALES", "ROLE_REPORTS"],
+      id: 'usr-demo-002',
+      email: 'ventas@dev.local',
+      name: 'Vendedora Demo',
+      role: 'sales',
+      status: 'active',
+      roles: ['ROLE_SALES', 'ROLE_REPORTS'],
       createdAt: iso(daysAgo(45)),
-      password: "Ventas123",
+      password: 'Ventas123',
     },
   ],
   products: [
     {
-      id: "prd-demo-001",
-      sku: "SKU-1001",
-      name: "Caf en grano premium 1Kg",
-      description: "Tueste medio alto, origen Colombia",
-      category: "Alimentos",
-      barcode: "7800001001002",
+      id: 'prd-demo-001',
+      sku: 'SKU-1001',
+      name: 'Caf en grano premium 1Kg',
+      description: 'Tueste medio alto, origen Colombia',
+      category: 'Alimentos',
+      barcode: '7800001001002',
       currentPrice: 11990,
       imageUrl: undefined,
       qrUrl: undefined,
@@ -267,12 +273,12 @@ const demoState: DemoState = {
       active: true,
     },
     {
-      id: "prd-demo-002",
-      sku: "SKU-1002",
-      name: "Azcar orgánica 1Kg",
-      description: "Certificada comercio justo",
-      category: "Alimentos",
-      barcode: "7800001002001",
+      id: 'prd-demo-002',
+      sku: 'SKU-1002',
+      name: 'Azcar orgánica 1Kg',
+      description: 'Certificada comercio justo',
+      category: 'Alimentos',
+      barcode: '7800001002001',
       currentPrice: 3290,
       imageUrl: undefined,
       qrUrl: undefined,
@@ -281,12 +287,12 @@ const demoState: DemoState = {
       active: true,
     },
     {
-      id: "prd-demo-003",
-      sku: "SKU-2040",
-      name: "Vasos biodegradables 12oz (pack 50)",
-      description: "Pulpa de caña, compostable",
-      category: "Insumos",
-      barcode: "7801234567005",
+      id: 'prd-demo-003',
+      sku: 'SKU-2040',
+      name: 'Vasos biodegradables 12oz (pack 50)',
+      description: 'Pulpa de caña, compostable',
+      category: 'Insumos',
+      barcode: '7801234567005',
       currentPrice: 8990,
       imageUrl: undefined,
       qrUrl: undefined,
@@ -295,12 +301,12 @@ const demoState: DemoState = {
       active: true,
     },
     {
-      id: "prd-demo-004",
-      sku: "SKU-3055",
-      name: "Botella vidrio reusable 600ml",
-      description: "Incluye funda térmica",
-      category: "Retail",
-      barcode: "7801231234568",
+      id: 'prd-demo-004',
+      sku: 'SKU-3055',
+      name: 'Botella vidrio reusable 600ml',
+      description: 'Incluye funda térmica',
+      category: 'Retail',
+      barcode: '7801231234568',
       currentPrice: 7490,
       imageUrl: undefined,
       qrUrl: undefined,
@@ -310,141 +316,141 @@ const demoState: DemoState = {
     },
   ],
   productPrices: {
-    "prd-demo-001": [
-      { id: "pp-001", productId: "prd-demo-001", price: 10990, validFrom: iso(daysAgo(90)) },
-      { id: "pp-002", productId: "prd-demo-001", price: 11990, validFrom: iso(daysAgo(28)) },
+    'prd-demo-001': [
+      { id: 'pp-001', productId: 'prd-demo-001', price: 10990, validFrom: iso(daysAgo(90)) },
+      { id: 'pp-002', productId: 'prd-demo-001', price: 11990, validFrom: iso(daysAgo(28)) },
     ],
-    "prd-demo-002": [
-      { id: "pp-003", productId: "prd-demo-002", price: 2990, validFrom: iso(daysAgo(120)) },
-      { id: "pp-004", productId: "prd-demo-002", price: 3290, validFrom: iso(daysAgo(32)) },
+    'prd-demo-002': [
+      { id: 'pp-003', productId: 'prd-demo-002', price: 2990, validFrom: iso(daysAgo(120)) },
+      { id: 'pp-004', productId: 'prd-demo-002', price: 3290, validFrom: iso(daysAgo(32)) },
     ],
-    "prd-demo-003": [
-      { id: "pp-005", productId: "prd-demo-003", price: 8990, validFrom: iso(daysAgo(62)) },
+    'prd-demo-003': [
+      { id: 'pp-005', productId: 'prd-demo-003', price: 8990, validFrom: iso(daysAgo(62)) },
     ],
-    "prd-demo-004": [
-      { id: "pp-006", productId: "prd-demo-004", price: 7490, validFrom: iso(daysAgo(200)) },
+    'prd-demo-004': [
+      { id: 'pp-006', productId: 'prd-demo-004', price: 7490, validFrom: iso(daysAgo(200)) },
     ],
   },
   suppliers: [
     {
-      id: "sup-demo-001",
-      name: "Proveedor Andes",
-      rut: "76.555.111-1",
-      businessActivity: "Distribución de alimentos",
-      address: "Av. Los Leones 1200, Providencia",
-      commune: "Providencia",
-      phone: "+56 2 2456 7788",
-      email: "ventas@proveedorandes.cl",
+      id: 'sup-demo-001',
+      name: 'Proveedor Andes',
+      rut: '76.555.111-1',
+      businessActivity: 'Distribución de alimentos',
+      address: 'Av. Los Leones 1200, Providencia',
+      commune: 'Providencia',
+      phone: '+56 2 2456 7788',
+      email: 'ventas@proveedorandes.cl',
     },
     {
-      id: "sup-demo-002",
-      name: "Granos Latino",
-      rut: "77.444.333-2",
-      businessActivity: "Importación de granos",
-      address: "Camino a Noviciado 2345, Pudahuel",
-      commune: "Pudahuel",
-      phone: "+56 2 2988 1100",
-      email: "contacto@granoslatino.cl",
+      id: 'sup-demo-002',
+      name: 'Granos Latino',
+      rut: '77.444.333-2',
+      businessActivity: 'Importación de granos',
+      address: 'Camino a Noviciado 2345, Pudahuel',
+      commune: 'Pudahuel',
+      phone: '+56 2 2988 1100',
+      email: 'contacto@granoslatino.cl',
     },
     {
-      id: "sup-demo-003",
-      name: "Eco Packaging",
-      rut: "79.222.888-5",
-      businessActivity: "Envases sustentables",
-      address: "Av. República 980, Santiago",
-      commune: "Santiago",
-      phone: "+56 2 2311 4455",
-      email: "ventas@ecopackaging.cl",
+      id: 'sup-demo-003',
+      name: 'Eco Packaging',
+      rut: '79.222.888-5',
+      businessActivity: 'Envases sustentables',
+      address: 'Av. República 980, Santiago',
+      commune: 'Santiago',
+      phone: '+56 2 2311 4455',
+      email: 'ventas@ecopackaging.cl',
     },
   ],
   customers: [
     {
-      id: "cus-demo-001",
-      name: "Cafetería Plaza",
-      address: "Av. Providencia 1234, Santiago",
+      id: 'cus-demo-001',
+      name: 'Cafetería Plaza',
+      address: 'Av. Providencia 1234, Santiago',
       lat: -33.4263,
       lng: -70.6209,
-      phone: "+56 2 2345 6677",
-      email: "contacto@cafeteriaplaza.cl",
-      segment: "HORECA",
-      document: "76.123.456-0",
-      commune: "Providencia",
+      phone: '+56 2 2345 6677',
+      email: 'contacto@cafeteriaplaza.cl',
+      segment: 'HORECA',
+      document: '76.123.456-0',
+      commune: 'Providencia',
     },
     {
-      id: "cus-demo-002",
-      name: "MiniMarket Central",
-      address: "Av. Alemania 890, Temuco",
-      phone: "+56 45 212 3344",
-      email: "compras@mmcentral.cl",
-      segment: "Retail",
-      document: "77.987.654-3",
-      commune: "Temuco",
+      id: 'cus-demo-002',
+      name: 'MiniMarket Central',
+      address: 'Av. Alemania 890, Temuco',
+      phone: '+56 45 212 3344',
+      email: 'compras@mmcentral.cl',
+      segment: 'Retail',
+      document: '77.987.654-3',
+      commune: 'Temuco',
     },
     {
-      id: "cus-demo-003",
-      name: "Corporación Sur",
-      address: "Los Carrera 450, Concepción",
-      phone: "+56 41 276 0011",
-      email: "abastecimiento@corsur.cl",
-      segment: "Empresas",
-      document: "59.456.789-1",
-      commune: "Concepción",
+      id: 'cus-demo-003',
+      name: 'Corporación Sur',
+      address: 'Los Carrera 450, Concepción',
+      phone: '+56 41 276 0011',
+      email: 'abastecimiento@corsur.cl',
+      segment: 'Empresas',
+      document: '59.456.789-1',
+      commune: 'Concepción',
     },
     {
-      id: "cus-demo-004",
-      name: "Coffeelab Boutique",
-      address: "Av. Peru 345, Antofagasta",
-      phone: "+56 55 284 9988",
-      email: "ventas@coffeelab.cl",
-      segment: "HORECA",
-      document: "65.432.109-4",
-      commune: "Antofagasta",
+      id: 'cus-demo-004',
+      name: 'Coffeelab Boutique',
+      address: 'Av. Peru 345, Antofagasta',
+      phone: '+56 55 284 9988',
+      email: 'ventas@coffeelab.cl',
+      segment: 'HORECA',
+      document: '65.432.109-4',
+      commune: 'Antofagasta',
     },
     {
-      id: "cus-demo-005",
-      name: "Vecinos Gourmet",
-      address: "Av. Italia 987, Santiago",
-      phone: "+56 2 2567 7789",
-      email: "hola@vecinosgourmet.cl",
-      document: "79.321.654-2",
-      commune: "Providencia",
+      id: 'cus-demo-005',
+      name: 'Vecinos Gourmet',
+      address: 'Av. Italia 987, Santiago',
+      phone: '+56 2 2567 7789',
+      email: 'hola@vecinosgourmet.cl',
+      document: '79.321.654-2',
+      commune: 'Providencia',
     },
   ],
   sales: [
     {
-      id: "sal-demo-001",
-      customerId: "cus-demo-001",
-      customerName: "Cafetería Plaza",
-      docNumber: "F-1200",
-      docType: "Factura",
-      paymentMethod: "transferencia",
-      status: "emitida",
+      id: 'sal-demo-001',
+      customerId: 'cus-demo-001',
+      customerName: 'Cafetería Plaza',
+      docNumber: 'F-1200',
+      docType: 'Factura',
+      paymentMethod: 'transferencia',
+      status: 'emitida',
       net: 950000,
       vat: 180500,
       total: 1130500,
       issuedAt: iso(daysAgo(2)),
     },
     {
-      id: "sal-demo-002",
-      customerId: "cus-demo-004",
-      customerName: "Coffeelab Boutique",
-      docNumber: "B-2301",
-      docType: "Boleta",
-      paymentMethod: "tarjeta",
-      status: "emitida",
+      id: 'sal-demo-002',
+      customerId: 'cus-demo-004',
+      customerName: 'Coffeelab Boutique',
+      docNumber: 'B-2301',
+      docType: 'Boleta',
+      paymentMethod: 'tarjeta',
+      status: 'emitida',
       net: 280000,
       vat: 53200,
       total: 333200,
       issuedAt: iso(daysAgo(4)),
     },
     {
-      id: "sal-demo-003",
-      customerId: "cus-demo-002",
-      customerName: "MiniMarket Central",
-      docNumber: "F-4502",
-      docType: "Factura",
-      paymentMethod: "credito",
-      status: "cancelled",
+      id: 'sal-demo-003',
+      customerId: 'cus-demo-002',
+      customerName: 'MiniMarket Central',
+      docNumber: 'F-4502',
+      docType: 'Factura',
+      paymentMethod: 'credito',
+      status: 'cancelled',
       net: 410000,
       vat: 77900,
       total: 487900,
@@ -452,26 +458,26 @@ const demoState: DemoState = {
     },
   ],
   saleDetails: {
-    "sal-demo-001": {
-      id: "sal-demo-001",
+    'sal-demo-001': {
+      id: 'sal-demo-001',
       issuedAt: iso(daysAgo(2)),
-      docType: "Factura",
-      docNumber: "F-1200",
-      paymentMethod: "transferencia",
-      status: "emitida",
-      customer: { id: "cus-demo-001", name: "Cafetería Plaza" },
+      docType: 'Factura',
+      docNumber: 'F-1200',
+      paymentMethod: 'transferencia',
+      status: 'emitida',
+      customer: { id: 'cus-demo-001', name: 'Cafetería Plaza' },
       items: [
         {
-          productId: "prd-demo-001",
-          productName: "Caf en grano premium 1Kg",
+          productId: 'prd-demo-001',
+          productName: 'Caf en grano premium 1Kg',
           qty: 80,
           unitPrice: 11990,
           discount: 0,
           lineTotal: 959200,
         },
         {
-          productId: "prd-demo-003",
-          productName: "Vasos biodegradables 12oz (pack 50)",
+          productId: 'prd-demo-003',
+          productName: 'Vasos biodegradables 12oz (pack 50)',
           qty: 50,
           unitPrice: 8990,
           discount: 0,
@@ -482,28 +488,28 @@ const demoState: DemoState = {
       vat: 180500,
       total: 1130500,
       thermalTicket:
-        "PYMERP\nVenta sal-demo-001\nCliente: Cafetería Plaza\nTotal: $1.130.500\nGracias por su compra",
+        'PYMERP\nVenta sal-demo-001\nCliente: Cafetería Plaza\nTotal: $1.130.500\nGracias por su compra',
     },
-    "sal-demo-002": {
-      id: "sal-demo-002",
+    'sal-demo-002': {
+      id: 'sal-demo-002',
       issuedAt: iso(daysAgo(4)),
-      docType: "Boleta",
-      docNumber: "B-2301",
-      paymentMethod: "tarjeta",
-      status: "emitida",
-      customer: { id: "cus-demo-004", name: "Coffeelab Boutique" },
+      docType: 'Boleta',
+      docNumber: 'B-2301',
+      paymentMethod: 'tarjeta',
+      status: 'emitida',
+      customer: { id: 'cus-demo-004', name: 'Coffeelab Boutique' },
       items: [
         {
-          productId: "prd-demo-001",
-          productName: "Caf en grano premium 1Kg",
+          productId: 'prd-demo-001',
+          productName: 'Caf en grano premium 1Kg',
           qty: 20,
           unitPrice: 11990,
           discount: 0,
           lineTotal: 239800,
         },
         {
-          productId: "prd-demo-002",
-          productName: "Azcar orgánica 1Kg",
+          productId: 'prd-demo-002',
+          productName: 'Azcar orgánica 1Kg',
           qty: 40,
           unitPrice: 3290,
           discount: 0,
@@ -513,28 +519,28 @@ const demoState: DemoState = {
       net: 280000,
       vat: 53200,
       total: 333200,
-      thermalTicket: "PYMERP\nVenta sal-demo-002\nTotal: $333.200\nEmitida con POS",
+      thermalTicket: 'PYMERP\nVenta sal-demo-002\nTotal: $333.200\nEmitida con POS',
     },
-    "sal-demo-003": {
-      id: "sal-demo-003",
+    'sal-demo-003': {
+      id: 'sal-demo-003',
       issuedAt: iso(daysAgo(9)),
-      docType: "Factura",
-      docNumber: "F-4502",
-      paymentMethod: "credito",
-      status: "cancelled",
-      customer: { id: "cus-demo-002", name: "MiniMarket Central" },
+      docType: 'Factura',
+      docNumber: 'F-4502',
+      paymentMethod: 'credito',
+      status: 'cancelled',
+      customer: { id: 'cus-demo-002', name: 'MiniMarket Central' },
       items: [
         {
-          productId: "prd-demo-003",
-          productName: "Vasos biodegradables 12oz (pack 50)",
+          productId: 'prd-demo-003',
+          productName: 'Vasos biodegradables 12oz (pack 50)',
           qty: 25,
           unitPrice: 8990,
           discount: 0,
           lineTotal: 224750,
         },
         {
-          productId: "prd-demo-002",
-          productName: "Azcar orgánica 1Kg",
+          productId: 'prd-demo-002',
+          productName: 'Azcar orgánica 1Kg',
           qty: 60,
           unitPrice: 3290,
           discount: 0,
@@ -544,41 +550,41 @@ const demoState: DemoState = {
       net: 410000,
       vat: 77900,
       total: 487900,
-      thermalTicket: "PYMERP\nVenta sal-demo-003\nESTADO: Cancelada",
+      thermalTicket: 'PYMERP\nVenta sal-demo-003\nESTADO: Cancelada',
     },
   },
   purchases: [
     {
-      id: "pur-demo-001",
-      supplierId: "sup-demo-001",
-      supplierName: "Proveedor Andes",
-      docType: "Factura",
-      docNumber: "F-4432",
-      status: "received",
+      id: 'pur-demo-001',
+      supplierId: 'sup-demo-001',
+      supplierName: 'Proveedor Andes',
+      docType: 'Factura',
+      docNumber: 'F-4432',
+      status: 'received',
       net: 540000,
       vat: 102600,
       total: 642600,
       issuedAt: iso(daysAgo(6)),
     },
     {
-      id: "pur-demo-002",
-      supplierId: "sup-demo-003",
-      supplierName: "Eco Packaging",
-      docType: "Factura",
-      docNumber: "F-8891",
-      status: "received",
+      id: 'pur-demo-002',
+      supplierId: 'sup-demo-003',
+      supplierName: 'Eco Packaging',
+      docType: 'Factura',
+      docNumber: 'F-8891',
+      status: 'received',
       net: 215000,
       vat: 40850,
       total: 255850,
       issuedAt: iso(daysAgo(11)),
     },
     {
-      id: "pur-demo-003",
-      supplierId: "sup-demo-002",
-      supplierName: "Granos Latino",
-      docType: "Factura",
-      docNumber: "F-5501",
-      status: "cancelled",
+      id: 'pur-demo-003',
+      supplierId: 'sup-demo-002',
+      supplierName: 'Granos Latino',
+      docType: 'Factura',
+      docNumber: 'F-5501',
+      status: 'cancelled',
       net: 180000,
       vat: 34200,
       total: 214200,
@@ -595,15 +601,15 @@ const demoState: DemoState = {
   },
   inventoryAlerts: [
     {
-      lotId: "lot-demo-001",
-      productId: "prd-demo-002",
+      lotId: 'lot-demo-001',
+      productId: 'prd-demo-002',
       qtyAvailable: 8,
       createdAt: iso(daysAgo(1)),
       expDate: iso(daysAgo(-60)),
     },
     {
-      lotId: "lot-demo-002",
-      productId: "prd-demo-003",
+      lotId: 'lot-demo-002',
+      productId: 'prd-demo-003',
       qtyAvailable: 5,
       createdAt: iso(daysAgo(3)),
       expDate: iso(daysAgo(-120)),
@@ -614,49 +620,54 @@ const demoState: DemoState = {
     updatedAt: iso(daysAgo(5)),
   },
   salesDaily: Array.from({ length: 14 }).map((_, index) => {
-    const daysBack = 13 - index;
-    const total = 350000 + (index % 5) * 42000;
+    const daysBack = 13 - index
+    const total = 350000 + (index % 5) * 42000
     return {
       date: iso(daysAgo(daysBack)).slice(0, 10),
       total,
       count: 4 + (index % 3),
-    };
+    }
   }),
   purchaseDaily: Array.from({ length: 14 }).map((_, index) => {
-    const daysBack = 13 - index;
-    const total = 220000 + (index % 4) * 38000;
+    const daysBack = 13 - index
+    const total = 220000 + (index % 4) * 38000
     return {
       date: iso(daysAgo(daysBack)).slice(0, 10),
       total,
       count: 2 + (index % 2),
-    };
+    }
   }),
-};
+}
 
 function nextId(prefix: string): string {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function normalizeString(value?: string | null) {
-  return value?.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "") ?? "";
+  return (
+    value
+      ?.toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '') ?? ''
+  )
 }
 
 function matchesQuery(target: string | undefined | null, query: string) {
   if (!query) {
-    return true;
+    return true
   }
   if (!target) {
-    return false;
+    return false
   }
-  return normalizeString(target).includes(query);
+  return normalizeString(target).includes(query)
 }
 
 function paginate<T>(items: T[], page = 0, size = 20): Page<T> {
-  const safeSize = size > 0 ? size : 20;
-  const start = page * safeSize;
-  const content = items.slice(start, start + safeSize);
-  const totalElements = items.length;
-  const totalPages = safeSize > 0 ? Math.ceil(totalElements / safeSize) : 0;
+  const safeSize = size > 0 ? size : 20
+  const start = page * safeSize
+  const content = items.slice(start, start + safeSize)
+  const totalElements = items.length
+  const totalPages = safeSize > 0 ? Math.ceil(totalElements / safeSize) : 0
   return {
     content,
     totalElements,
@@ -664,39 +675,47 @@ function paginate<T>(items: T[], page = 0, size = 20): Page<T> {
     size: safeSize,
     number: page,
     hasNext: totalPages > 0 ? page + 1 < totalPages : false,
-  } as Page<T> & { hasNext: boolean };
+  } as Page<T> & { hasNext: boolean }
 }
 
-function withOfflineFallback<T>(context: string, operation: () => Promise<T>, fallback: () => T): Promise<T> {
+function withOfflineFallback<T>(
+  context: string,
+  operation: () => Promise<T>,
+  fallback: () => T
+): Promise<T> {
   if (offlineModeEnabled) {
-    return Promise.resolve(maybeClone(fallback()));
+    return Promise.resolve(maybeClone(fallback()))
   }
-  return operation().catch((error) => {
+  return operation().catch(error => {
     if (isNetworkError(error)) {
-      markOffline(context);
-      return maybeClone(fallback());
+      markOffline(context)
+      return maybeClone(fallback())
     }
-    throw error;
-  });
+    throw error
+  })
 }
 
-function withOfflineVoid(context: string, operation: () => Promise<void>, fallback: () => void): Promise<void> {
+function withOfflineVoid(
+  context: string,
+  operation: () => Promise<void>,
+  fallback: () => void
+): Promise<void> {
   if (offlineModeEnabled) {
-    fallback();
-    return Promise.resolve();
+    fallback()
+    return Promise.resolve()
   }
-  return operation().catch((error) => {
+  return operation().catch(error => {
     if (isNetworkError(error)) {
-      markOffline(context);
-      fallback();
-      return;
+      markOffline(context)
+      fallback()
+      return
     }
-    throw error;
-  });
+    throw error
+  })
 }
 
 function recalcInventorySummary() {
-  const activeProducts = demoState.products.filter((product) => product.active).length;
+  const activeProducts = demoState.products.filter(product => product.active).length
   demoState.inventorySummary = {
     totalValue: Number(demoState.inventorySummary.totalValue) || 0,
     activeProducts,
@@ -704,34 +723,34 @@ function recalcInventorySummary() {
     totalProducts: demoState.products.length,
     lowStockAlerts: demoState.inventoryAlerts.length,
     lowStockThreshold: demoState.inventorySettings.lowStockThreshold,
-  };
+  }
 }
 
 const fallbackHealth: HealthResponse = {
-  status: "UP",
-  components: { database: { status: "UP" }, disk: { status: "UP", free: "32GB" } },
+  status: 'UP',
+  components: { database: { status: 'UP' }, disk: { status: 'UP', free: '32GB' } },
   details: {
-    environment: "demo",
+    environment: 'demo',
     lastSync: iso(daysAgo(0)),
   },
-};
+}
 
 function fallbackListCompanies() {
-  return demoState.companies;
+  return demoState.companies
 }
 
 function fallbackGetCompany(id: string) {
-  const company = demoState.companies.find((item) => item.id === id);
+  const company = demoState.companies.find(item => item.id === id)
   if (!company) {
-    throw new Error("Company not found");
+    throw new Error('Company not found')
   }
-  return company;
+  return company
 }
 
 function fallbackCreateCompany(payload: CreateCompanyPayload): Company {
-  const nowIso = new Date().toISOString();
+  const nowIso = new Date().toISOString()
   const company: Company = {
-    id: nextId("cmp-demo"),
+    id: nextId('cmp-demo'),
     businessName: payload.businessName,
     rut: payload.rut,
     businessActivity: payload.businessActivity,
@@ -742,17 +761,17 @@ function fallbackCreateCompany(payload: CreateCompanyPayload): Company {
     receiptFooterMessage: payload.receiptFooterMessage,
     createdAt: nowIso,
     updatedAt: nowIso,
-  };
-  demoState.companies = [...demoState.companies, company];
-  return company;
+  }
+  demoState.companies = [...demoState.companies, company]
+  return company
 }
 
 function fallbackUpdateCompany(id: string, payload: UpdateCompanyPayload): Company {
-  const index = demoState.companies.findIndex((company) => company.id === id);
+  const index = demoState.companies.findIndex(company => company.id === id)
   if (index === -1) {
-    throw new Error("Company not found");
+    throw new Error('Company not found')
   }
-  const existing = demoState.companies[index];
+  const existing = demoState.companies[index]
   const updated: Company = {
     ...existing,
     businessName: payload.businessName,
@@ -764,30 +783,30 @@ function fallbackUpdateCompany(id: string, payload: UpdateCompanyPayload): Compa
     email: payload.email?.toLowerCase(),
     receiptFooterMessage: payload.receiptFooterMessage,
     updatedAt: new Date().toISOString(),
-  };
+  }
   demoState.companies = [
     ...demoState.companies.slice(0, index),
     updated,
     ...demoState.companies.slice(index + 1),
-  ];
-  return updated;
+  ]
+  return updated
 }
 
 function fallbackDeleteCompany(id: string) {
-  demoState.companies = demoState.companies.filter((company) => company.id !== id);
+  demoState.companies = demoState.companies.filter(company => company.id !== id)
 }
 
 const ALLOWED_USER_ACCOUNT_ROLES = [
-  "ROLE_ADMIN",
-  "ROLE_SALES",
-  "ROLE_SELLER",
-  "ROLE_PURCHASES",
-  "ROLE_BUYER",
-  "ROLE_INVENTORY",
-  "ROLE_FINANCE",
-  "ROLE_REPORTS",
-  "ROLE_SETTINGS",
-] as const;
+  'ROLE_ADMIN',
+  'ROLE_SALES',
+  'ROLE_SELLER',
+  'ROLE_PURCHASES',
+  'ROLE_BUYER',
+  'ROLE_INVENTORY',
+  'ROLE_FINANCE',
+  'ROLE_REPORTS',
+  'ROLE_SETTINGS',
+] as const
 
 function stripDemoUserAccount(user: DemoUserAccount): UserAccount {
   return {
@@ -798,99 +817,103 @@ function stripDemoUserAccount(user: DemoUserAccount): UserAccount {
     status: user.status,
     roles: [...user.roles],
     createdAt: user.createdAt,
-  };
+  }
 }
 
 function normalizeUserAccountEmail(email: string): string {
   if (!email || !email.trim()) {
-    throw new Error("Email is required");
+    throw new Error('Email is required')
   }
-  return email.trim().toLowerCase();
+  return email.trim().toLowerCase()
 }
 
 function normalizeUserAccountName(name: string): string {
   if (!name || !name.trim()) {
-    throw new Error("Name is required");
+    throw new Error('Name is required')
   }
-  return name.trim();
+  return name.trim()
 }
 
 function normalizeUserAccountStatus(status?: string | null): string {
   if (!status || !status.trim()) {
-    return "active";
+    return 'active'
   }
-  const normalized = status.trim().toLowerCase();
-  if (normalized === "active") {
-    return "active";
+  const normalized = status.trim().toLowerCase()
+  if (normalized === 'active') {
+    return 'active'
   }
-  if (normalized === "disabled" || normalized === "inactive") {
-    return "disabled";
+  if (normalized === 'disabled' || normalized === 'inactive') {
+    return 'disabled'
   }
-  throw new Error(`Unsupported status: ${status}`);
+  throw new Error(`Unsupported status: ${status}`)
 }
 
 function normalizeUserAccountRoles(roles?: string[] | null): string[] {
-  const source = Array.isArray(roles) && roles.length > 0 ? roles : ["ROLE_ADMIN"];
-  const normalized: string[] = [];
+  const source = Array.isArray(roles) && roles.length > 0 ? roles : ['ROLE_ADMIN']
+  const normalized: string[] = []
   for (const role of source) {
     if (!role || !role.trim()) {
-      continue;
+      continue
     }
-    let candidate = role.trim().toUpperCase();
-    if (!candidate.startsWith("ROLE_")) {
-      candidate = `ROLE_${candidate}`;
+    let candidate = role.trim().toUpperCase()
+    if (!candidate.startsWith('ROLE_')) {
+      candidate = `ROLE_${candidate}`
     }
-    if (!ALLOWED_USER_ACCOUNT_ROLES.includes(candidate as typeof ALLOWED_USER_ACCOUNT_ROLES[number])) {
-      throw new Error(`Unsupported role: ${role}`);
+    if (
+      !ALLOWED_USER_ACCOUNT_ROLES.includes(candidate as (typeof ALLOWED_USER_ACCOUNT_ROLES)[number])
+    ) {
+      throw new Error(`Unsupported role: ${role}`)
     }
     if (!normalized.includes(candidate)) {
-      normalized.push(candidate);
+      normalized.push(candidate)
     }
   }
   if (normalized.length === 0) {
-    normalized.push("ROLE_ADMIN");
+    normalized.push('ROLE_ADMIN')
   }
-  return normalized;
+  return normalized
 }
 
 function resolvePrimaryUserAccountRole(role: string | null | undefined, roles: string[]): string {
   if (role && role.trim()) {
-    return role.trim();
+    return role.trim()
   }
-  const first = roles[0] ?? "ROLE_ADMIN";
-  if (first.startsWith("ROLE_") && first.length > 5) {
-    return first.substring(5).toLowerCase();
+  const first = roles[0] ?? 'ROLE_ADMIN'
+  if (first.startsWith('ROLE_') && first.length > 5) {
+    return first.substring(5).toLowerCase()
   }
-  return first.toLowerCase();
+  return first.toLowerCase()
 }
 
 function ensureDemoUserEmailAvailable(email: string, currentId?: string) {
-  const existing = demoState.userAccounts.find((user) => user.email.toLowerCase() === email.toLowerCase());
+  const existing = demoState.userAccounts.find(
+    user => user.email.toLowerCase() === email.toLowerCase()
+  )
   if (existing && existing.id !== currentId) {
-    throw new Error("Email already registered");
+    throw new Error('Email already registered')
   }
 }
 
 function ensureDemoUserPasswordValid(password: string) {
   if (!password || password.trim().length < 8) {
-    throw new Error("Password must be at least 8 characters long");
+    throw new Error('Password must be at least 8 characters long')
   }
 }
 
 function fallbackListUserAccounts(): UserAccount[] {
-  return demoState.userAccounts.map((user) => stripDemoUserAccount(user));
+  return demoState.userAccounts.map(user => stripDemoUserAccount(user))
 }
 
 function fallbackCreateUserAccount(payload: CreateUserAccountPayload): UserAccount {
-  const email = normalizeUserAccountEmail(payload.email);
-  ensureDemoUserEmailAvailable(email);
-  const name = normalizeUserAccountName(payload.name);
-  const roles = normalizeUserAccountRoles(payload.roles ?? undefined);
-  const status = normalizeUserAccountStatus(payload.status ?? undefined);
-  ensureDemoUserPasswordValid(payload.password);
+  const email = normalizeUserAccountEmail(payload.email)
+  ensureDemoUserEmailAvailable(email)
+  const name = normalizeUserAccountName(payload.name)
+  const roles = normalizeUserAccountRoles(payload.roles ?? undefined)
+  const status = normalizeUserAccountStatus(payload.status ?? undefined)
+  ensureDemoUserPasswordValid(payload.password)
 
   const user: DemoUserAccount = {
-    id: nextId("usr-demo"),
+    id: nextId('usr-demo'),
     email,
     name,
     role: resolvePrimaryUserAccountRole(payload.role ?? null, roles),
@@ -898,23 +921,23 @@ function fallbackCreateUserAccount(payload: CreateUserAccountPayload): UserAccou
     roles,
     createdAt: new Date().toISOString(),
     password: payload.password,
-  };
-  demoState.userAccounts = [...demoState.userAccounts, user];
-  return stripDemoUserAccount(user);
+  }
+  demoState.userAccounts = [...demoState.userAccounts, user]
+  return stripDemoUserAccount(user)
 }
 
 function fallbackUpdateUserAccount(id: string, payload: UpdateUserAccountPayload): UserAccount {
-  const index = demoState.userAccounts.findIndex((user) => user.id === id);
+  const index = demoState.userAccounts.findIndex(user => user.id === id)
   if (index === -1) {
-    throw new Error("User not found");
+    throw new Error('User not found')
   }
-  const email = normalizeUserAccountEmail(payload.email);
-  ensureDemoUserEmailAvailable(email, id);
-  const name = normalizeUserAccountName(payload.name);
-  const roles = normalizeUserAccountRoles(payload.roles ?? undefined);
-  const status = normalizeUserAccountStatus(payload.status ?? undefined);
+  const email = normalizeUserAccountEmail(payload.email)
+  ensureDemoUserEmailAvailable(email, id)
+  const name = normalizeUserAccountName(payload.name)
+  const roles = normalizeUserAccountRoles(payload.roles ?? undefined)
+  const status = normalizeUserAccountStatus(payload.status ?? undefined)
 
-  const existing = demoState.userAccounts[index];
+  const existing = demoState.userAccounts[index]
   const updated: DemoUserAccount = {
     ...existing,
     email,
@@ -922,69 +945,76 @@ function fallbackUpdateUserAccount(id: string, payload: UpdateUserAccountPayload
     role: resolvePrimaryUserAccountRole(payload.role ?? null, roles),
     status,
     roles,
-  };
+  }
   demoState.userAccounts = [
     ...demoState.userAccounts.slice(0, index),
     updated,
     ...demoState.userAccounts.slice(index + 1),
-  ];
-  return stripDemoUserAccount(updated);
+  ]
+  return stripDemoUserAccount(updated)
 }
 
 function fallbackUpdateUserPassword(id: string, payload: UpdateUserPasswordPayload) {
-  const index = demoState.userAccounts.findIndex((user) => user.id === id);
+  const index = demoState.userAccounts.findIndex(user => user.id === id)
   if (index === -1) {
-    throw new Error("User not found");
+    throw new Error('User not found')
   }
-  ensureDemoUserPasswordValid(payload.password);
-  const existing = demoState.userAccounts[index];
-  demoState.userAccounts[index] = { ...existing, password: payload.password };
+  ensureDemoUserPasswordValid(payload.password)
+  const existing = demoState.userAccounts[index]
+  demoState.userAccounts[index] = { ...existing, password: payload.password }
 }
 
-function fallbackListProducts(params?: { q?: string; page?: number; size?: number; status?: "active" | "inactive" | "all" }) {
-  const query = normalizeString(params?.q ?? "");
-  const status = params?.status ?? "active";
-  const filtered = demoState.products.filter((product) => {
-    if (status !== "all" && product.active !== (status === "active")) {
-      return false;
+function fallbackListProducts(params?: {
+  q?: string
+  page?: number
+  size?: number
+  status?: 'active' | 'inactive' | 'all'
+}) {
+  const query = normalizeString(params?.q ?? '')
+  const status = params?.status ?? 'active'
+  const filtered = demoState.products.filter(product => {
+    if (status !== 'all' && product.active !== (status === 'active')) {
+      return false
     }
     if (!query) {
-      return true;
+      return true
     }
-    return [product.name, product.sku, product.barcode, product.description].some((value) => matchesQuery(value, query));
-  });
-  const page = params?.page ?? 0;
-  const size = params?.size ?? 20;
-  return paginate(filtered, page, size);
+    return [product.name, product.sku, product.barcode, product.description].some(value =>
+      matchesQuery(value, query)
+    )
+  })
+  const page = params?.page ?? 0
+  const size = params?.size ?? 20
+  return paginate(filtered, page, size)
 }
 
 function fallbackLookupProduct(query: string, type: ProductLookupType): Product | null {
-  const normalized = normalizeString(query);
+  const normalized = normalizeString(query)
   if (!normalized) {
-    return null;
+    return null
   }
 
-  const matcher = (value?: string | null) => normalizeString(value ?? "") === normalized;
+  const matcher = (value?: string | null) => normalizeString(value ?? '') === normalized
 
   return (
-    demoState.products.find((product) => {
-      if (type === "barcode") {
-        return matcher(product.barcode ?? null);
+    demoState.products.find(product => {
+      if (type === 'barcode') {
+        return matcher(product.barcode ?? null)
       }
-      if (type === "sku") {
-        return matcher(product.sku);
+      if (type === 'sku') {
+        return matcher(product.sku)
       }
-      if (type === "qr") {
-        return matcher(product.qrUrl ?? null);
+      if (type === 'qr') {
+        return matcher(product.qrUrl ?? null)
       }
-      return false;
+      return false
     }) ?? null
-  );
+  )
 }
 
 function fallbackCreateProduct(payload: ProductPayload): Product {
   const product: Product = {
-    id: nextId("prd-demo"),
+    id: nextId('prd-demo'),
     sku: payload.sku || `SKU-${Math.floor(Math.random() * 9999)}`,
     name: payload.name,
     description: payload.description,
@@ -996,50 +1026,50 @@ function fallbackCreateProduct(payload: ProductPayload): Product {
     criticalStock: 0,
     currentPrice: 0,
     active: true,
-  };
-  demoState.products = [product, ...demoState.products];
-  demoState.productPrices[product.id] = [];
-  recalcInventorySummary();
-  return product;
+  }
+  demoState.products = [product, ...demoState.products]
+  demoState.productPrices[product.id] = []
+  recalcInventorySummary()
+  return product
 }
 
 function fallbackUpdateProduct(id: string, payload: ProductPayload): Product {
-  const index = demoState.products.findIndex((product) => product.id === id);
+  const index = demoState.products.findIndex(product => product.id === id)
   if (index === -1) {
-    throw new Error("Producto no encontrado");
+    throw new Error('Producto no encontrado')
   }
   const updated: Product = {
     ...demoState.products[index],
     ...payload,
-  };
-  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
-  recalcInventorySummary();
-  return updated;
+  }
+  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product))
+  recalcInventorySummary()
+  return updated
 }
 
 function fallbackUpdateProductStatus(id: string, active: boolean): Product {
-  const index = demoState.products.findIndex((product) => product.id === id);
+  const index = demoState.products.findIndex(product => product.id === id)
   if (index === -1) {
-    throw new Error("Producto no encontrado");
+    throw new Error('Producto no encontrado')
   }
-  const updated: Product = { ...demoState.products[index], active };
-  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
-  recalcInventorySummary();
-  return updated;
+  const updated: Product = { ...demoState.products[index], active }
+  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product))
+  recalcInventorySummary()
+  return updated
 }
 
 function fallbackDeleteProduct(id: string) {
-  demoState.products = demoState.products.filter((product) => product.id !== id);
-  delete demoState.productPrices[id];
-  recalcInventorySummary();
+  demoState.products = demoState.products.filter(product => product.id !== id)
+  delete demoState.productPrices[id]
+  recalcInventorySummary()
 }
 
 function cleanupOptional(value?: string | null): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
+  if (typeof value !== 'string') {
+    return undefined
   }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 function toProductPayload(form: ProductFormData): ProductPayload {
@@ -1049,30 +1079,30 @@ function toProductPayload(form: ProductFormData): ProductPayload {
     description: cleanupOptional(form.description),
     category: cleanupOptional(form.category),
     barcode: cleanupOptional(form.barcode),
-  };
-  if (form.imageFile) {
-    payload.imageUrl = null;
-  } else if (form.imageUrl === null) {
-    payload.imageUrl = null;
-  } else if (typeof form.imageUrl === "string") {
-    const trimmed = form.imageUrl.trim();
-    payload.imageUrl = trimmed.length > 0 ? trimmed : null;
   }
-  return payload;
+  if (form.imageFile) {
+    payload.imageUrl = null
+  } else if (form.imageUrl === null) {
+    payload.imageUrl = null
+  } else if (typeof form.imageUrl === 'string') {
+    const trimmed = form.imageUrl.trim()
+    payload.imageUrl = trimmed.length > 0 ? trimmed : null
+  }
+  return payload
 }
 
 function buildProductFormData(payload: ProductPayload, imageFile?: File | null): FormData {
-  const body = new FormData();
+  const body = new FormData()
   body.append(
-    "product",
+    'product',
     new Blob([JSON.stringify(payload)], {
-      type: "application/json",
-    }),
-  );
+      type: 'application/json',
+    })
+  )
   if (imageFile instanceof File) {
-    body.append("image", imageFile);
+    body.append('image', imageFile)
   }
-  return body;
+  return body
 }
 
 function fallbackProductStock(productId: string): ProductStock {
@@ -1080,78 +1110,81 @@ function fallbackProductStock(productId: string): ProductStock {
     {
       lotId: `${productId}-lot-1`,
       quantity: 42,
-      location: "Bodega central",
+      location: 'Bodega central',
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 120).toISOString(),
     },
     {
       lotId: `${productId}-lot-2`,
       quantity: 18,
-      location: "Tienda principal",
+      location: 'Tienda principal',
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString(),
     },
-  ];
-  const total = lots.reduce((sum, lot) => sum + lot.quantity, 0);
-  const productIndex = demoState.products.findIndex((product) => product.id === productId);
+  ]
+  const total = lots.reduce((sum, lot) => sum + lot.quantity, 0)
+  const productIndex = demoState.products.findIndex(product => product.id === productId)
   if (productIndex !== -1) {
     demoState.products = demoState.products.map((product, index) =>
-      index === productIndex ? { ...product, stock: total } : product,
-    );
+      index === productIndex ? { ...product, stock: total } : product
+    )
   }
-  return { productId, total, lots };
+  return { productId, total, lots }
 }
 
 function fallbackUpdateProductInventoryAlert(id: string, criticalStock: number): Product {
-  const index = demoState.products.findIndex((product) => product.id === id);
+  const index = demoState.products.findIndex(product => product.id === id)
   if (index === -1) {
-    throw new Error("Producto no encontrado");
+    throw new Error('Producto no encontrado')
   }
   const updated: Product = {
     ...demoState.products[index],
     criticalStock,
-  };
-  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
-  return updated;
+  }
+  demoState.products = demoState.products.map((product, i) => (i === index ? updated : product))
+  return updated
 }
 
 function fallbackFetchProductQrBlob(productId: string): Blob {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
     <rect width="120" height="120" fill="#0b0d17" />
     <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-size="18">${productId.slice(-4)}</text>
-  </svg>`;
-  return new Blob([svg], { type: "image/svg+xml" });
+  </svg>`
+  return new Blob([svg], { type: 'image/svg+xml' })
 }
 
 function fallbackListProductPrices(productId: string, params?: { page?: number; size?: number }) {
   const entries = ensureArray(demoState.productPrices[productId]).sort((a, b) =>
-    b.validFrom.localeCompare(a.validFrom),
-  );
-  return paginate(entries, params?.page ?? 0, params?.size ?? entries.length);
+    b.validFrom.localeCompare(a.validFrom)
+  )
+  return paginate(entries, params?.page ?? 0, params?.size ?? entries.length)
 }
 
-function fallbackCreateProductPrice(productId: string, payload: PriceChangePayload): PriceHistoryEntry {
+function fallbackCreateProductPrice(
+  productId: string,
+  payload: PriceChangePayload
+): PriceHistoryEntry {
   const entry: PriceHistoryEntry = {
-    id: nextId("pp-demo"),
+    id: nextId('pp-demo'),
     productId,
     price: payload.price,
     validFrom: payload.validFrom ?? new Date().toISOString(),
-  };
-  const prices = ensureArray(demoState.productPrices[productId]);
-  demoState.productPrices[productId] = [entry, ...prices];
-  const index = demoState.products.findIndex((product) => product.id === productId);
-  if (index !== -1) {
-    const updated = { ...demoState.products[index], currentPrice: payload.price };
-    demoState.products = demoState.products.map((product, i) => (i === index ? updated : product));
   }
-  return entry;
+  const prices = ensureArray(demoState.productPrices[productId])
+  demoState.productPrices[productId] = [entry, ...prices]
+  const index = demoState.products.findIndex(product => product.id === productId)
+  if (index !== -1) {
+    const updated = { ...demoState.products[index], currentPrice: payload.price }
+    demoState.products = demoState.products.map((product, i) => (i === index ? updated : product))
+  }
+  return entry
 }
 
 function fallbackListSuppliers() {
-  return demoState.suppliers;
+  return demoState.suppliers
 }
 
 function fallbackCreateSupplier(payload: SupplierPayload): Supplier {
   const supplier: Supplier = {
-    id: nextId("sup-demo"),
+    id: nextId('sup-demo'),
     name: payload.name,
     rut: payload.rut,
     address: payload.address ?? null,
@@ -1159,40 +1192,40 @@ function fallbackCreateSupplier(payload: SupplierPayload): Supplier {
     businessActivity: payload.businessActivity ?? null,
     phone: payload.phone ?? null,
     email: payload.email ?? null,
-  };
-  demoState.suppliers = [...demoState.suppliers, supplier];
-  return supplier;
+  }
+  demoState.suppliers = [...demoState.suppliers, supplier]
+  return supplier
 }
 
 function fallbackUpdateSupplier(id: string, payload: SupplierPayload): Supplier {
-  const index = demoState.suppliers.findIndex((supplier) => supplier.id === id);
+  const index = demoState.suppliers.findIndex(supplier => supplier.id === id)
   if (index === -1) {
-    throw new Error("Proveedor no encontrado");
+    throw new Error('Proveedor no encontrado')
   }
-  const updated: Supplier = { ...demoState.suppliers[index], ...payload };
-  demoState.suppliers = demoState.suppliers.map((supplier, i) => (i === index ? updated : supplier));
-  return updated;
+  const updated: Supplier = { ...demoState.suppliers[index], ...payload }
+  demoState.suppliers = demoState.suppliers.map((supplier, i) => (i === index ? updated : supplier))
+  return updated
 }
 
 function fallbackDeleteSupplier(id: string) {
-  demoState.suppliers = demoState.suppliers.filter((supplier) => supplier.id !== id);
+  demoState.suppliers = demoState.suppliers.filter(supplier => supplier.id !== id)
 }
 
 function fallbackListCustomers(params: ListCustomersParams = {}): Page<Customer> {
-  const query = normalizeString(params.q ?? "");
-  const segment = params.segment?.trim();
-  const filtered = demoState.customers.filter((customer) => {
+  const query = normalizeString(params.q ?? '')
+  const segment = params.segment?.trim()
+  const filtered = demoState.customers.filter(customer => {
     if (segment && segment.length > 0) {
       if (segment === UNASSIGNED_SEGMENT_CODE) {
         if (customer.segment && customer.segment.trim()) {
-          return false;
+          return false
         }
       } else if (normalizeString(customer.segment) !== normalizeString(segment)) {
-        return false;
+        return false
       }
     }
     if (!query) {
-      return true;
+      return true
     }
     return [
       customer.name,
@@ -1201,14 +1234,14 @@ function fallbackListCustomers(params: ListCustomersParams = {}): Page<Customer>
       customer.address,
       customer.document,
       customer.commune,
-    ].some((value) => matchesQuery(value, query));
-  });
-  return paginate(filtered, params.page ?? 0, params.size ?? 20);
+    ].some(value => matchesQuery(value, query))
+  })
+  return paginate(filtered, params.page ?? 0, params.size ?? 20)
 }
 
 function fallbackCreateCustomer(payload: CustomerPayload): Customer {
   const customer: Customer = {
-    id: nextId("cus-demo"),
+    id: nextId('cus-demo'),
     name: payload.name,
     address: payload.address,
     lat: payload.lat ?? null,
@@ -1218,143 +1251,149 @@ function fallbackCreateCustomer(payload: CustomerPayload): Customer {
     segment: payload.segment,
     document: payload.document ?? null,
     commune: payload.commune ?? null,
-  };
-  demoState.customers = [customer, ...demoState.customers];
-  return customer;
+  }
+  demoState.customers = [customer, ...demoState.customers]
+  return customer
 }
 
 function fallbackUpdateCustomer(id: string, payload: CustomerPayload): Customer {
-  const index = demoState.customers.findIndex((customer) => customer.id === id);
+  const index = demoState.customers.findIndex(customer => customer.id === id)
   if (index === -1) {
-    throw new Error("Cliente no encontrado");
+    throw new Error('Cliente no encontrado')
   }
   const updated: Customer = {
     ...demoState.customers[index],
     ...payload,
     lat: payload.lat ?? null,
     lng: payload.lng ?? null,
-  };
-  demoState.customers = demoState.customers.map((customer, i) => (i === index ? updated : customer));
-  return updated;
+  }
+  demoState.customers = demoState.customers.map((customer, i) => (i === index ? updated : customer))
+  return updated
 }
 
 function fallbackDeleteCustomer(id: string) {
-  demoState.customers = demoState.customers.filter((customer) => customer.id !== id);
+  demoState.customers = demoState.customers.filter(customer => customer.id !== id)
 }
 
 function fallbackListCustomerSegments(): CustomerSegmentSummary[] {
-  const summary = new Map<string, CustomerSegmentSummary>();
+  const summary = new Map<string, CustomerSegmentSummary>()
   for (const customer of demoState.customers) {
-    const code = customer.segment && customer.segment.trim() ? customer.segment : UNASSIGNED_SEGMENT_CODE;
-    const normalizedCode = code;
+    const code =
+      customer.segment && customer.segment.trim() ? customer.segment : UNASSIGNED_SEGMENT_CODE
+    const normalizedCode = code
     if (!summary.has(normalizedCode)) {
-      const segmentName = code === UNASSIGNED_SEGMENT_CODE ? "Sin segmentar" : customer.segment ?? "Sin segmentar";
+      const segmentName =
+        code === UNASSIGNED_SEGMENT_CODE ? 'Sin segmentar' : (customer.segment ?? 'Sin segmentar')
       summary.set(normalizedCode, {
         code: normalizedCode,
         name: segmentName,
         segment: segmentName, // Deprecated, but keep for compatibility
         total: 0,
         color: null,
-      });
+      })
     }
-    summary.get(normalizedCode)!.total += 1;
+    summary.get(normalizedCode)!.total += 1
   }
-  return Array.from(summary.values());
+  return Array.from(summary.values())
 }
 
 function generateSaleThermalTicket(sale: SaleDetail): string {
   return [
-    "PYMERP DEMO",
+    'PYMERP DEMO',
     `Documento: ${sale.docType}`,
     `Venta: ${sale.id}`,
-    `Cliente: ${sale.customer?.name ?? "Mostrador"}`,
-    `Total: $${Number(sale.total).toLocaleString("es-CL")}`,
-    "Gracias por utilizar el modo demo",
-  ].join("\n");
+    `Cliente: ${sale.customer?.name ?? 'Mostrador'}`,
+    `Total: $${Number(sale.total).toLocaleString('es-CL')}`,
+    'Gracias por utilizar el modo demo',
+  ].join('\n')
 }
 
 function fallbackListSales(params: ListSalesParams = {}): Page<SaleSummary> {
-  const query = normalizeString(params.search ?? "");
-  const filtered = demoState.sales.filter((sale) => {
+  const query = normalizeString(params.search ?? '')
+  const filtered = demoState.sales.filter(sale => {
     if (params.status && params.status.trim()) {
       if (normalizeString(sale.status) !== normalizeString(params.status)) {
-        return false;
+        return false
       }
     }
     if (params.docType && params.docType.trim()) {
       if (normalizeString(sale.docType) !== normalizeString(params.docType)) {
-        return false;
+        return false
       }
     }
     if (params.paymentMethod && params.paymentMethod.trim()) {
       if (normalizeString(sale.paymentMethod) !== normalizeString(params.paymentMethod)) {
-        return false;
+        return false
       }
     }
     if (params.from && sale.issuedAt < params.from) {
-      return false;
+      return false
     }
     if (params.to && sale.issuedAt > params.to) {
-      return false;
+      return false
     }
     if (!query) {
-      return true;
+      return true
     }
     return [sale.docType, sale.paymentMethod, sale.customerName, sale.customerId, sale.id]
       .filter(Boolean)
-      .some((value) => matchesQuery(String(value), query));
-  });
-  return paginate(filtered, params.page ?? 0, params.size ?? 20);
+      .some(value => matchesQuery(String(value), query))
+  })
+  return paginate(filtered, params.page ?? 0, params.size ?? 20)
 }
 
 function fallbackGetSaleDetail(id: string): SaleDetail {
-  const detail = demoState.saleDetails[id];
+  const detail = demoState.saleDetails[id]
   if (!detail) {
-    throw new Error("Venta no encontrada");
+    throw new Error('Venta no encontrada')
   }
-  return detail;
+  return detail
 }
 
 function fallbackCreateSale(payload: SalePayload): SaleRes {
-  const id = nextId("sal-demo");
-  const total = payload.items.reduce((acc, item) => acc + item.qty * item.unitPrice - (item.discount ?? 0), 0);
-  const vat = Math.round(total * 0.19);
-  const net = total - vat;
-  const docPrefix = (payload.docType || "DOC").slice(0, 3).toUpperCase();
-  const docNumber = `${docPrefix}-${id.slice(-4).toUpperCase()}`;
+  const id = nextId('sal-demo')
+  const total = payload.items.reduce(
+    (acc, item) => acc + item.qty * item.unitPrice - (item.discount ?? 0),
+    0
+  )
+  const vat = Math.round(total * 0.19)
+  const net = total - vat
+  const docPrefix = (payload.docType || 'DOC').slice(0, 3).toUpperCase()
+  const docNumber = `${docPrefix}-${id.slice(-4).toUpperCase()}`
   const summary: SaleSummary = {
     id,
     customerId: payload.customerId,
-    customerName: demoState.customers.find((customer) => customer.id === payload.customerId)?.name,
+    customerName: demoState.customers.find(customer => customer.id === payload.customerId)?.name,
     docNumber,
     docType: payload.docType,
-    paymentMethod: payload.paymentMethod ?? "transferencia",
-    status: "emitida",
+    paymentMethod: payload.paymentMethod ?? 'transferencia',
+    status: 'emitida',
     net,
     vat,
     total,
     issuedAt: new Date().toISOString(),
-  };
-  demoState.sales = [summary, ...demoState.sales];
+  }
+  demoState.sales = [summary, ...demoState.sales]
   const detail: SaleDetail = {
     ...summary,
     docType: payload.docType,
-    paymentMethod: summary.paymentMethod ?? "transferencia",
+    paymentMethod: summary.paymentMethod ?? 'transferencia',
     customer: summary.customerId
-      ? { id: summary.customerId, name: summary.customerName ?? "Cliente" }
+      ? { id: summary.customerId, name: summary.customerName ?? 'Cliente' }
       : null,
-    items: payload.items.map((item) => ({
+    items: payload.items.map(item => ({
       productId: item.productId,
-      productName: demoState.products.find((product) => product.id === item.productId)?.name ?? item.productId,
+      productName:
+        demoState.products.find(product => product.id === item.productId)?.name ?? item.productId,
       qty: item.qty,
       unitPrice: item.unitPrice,
       discount: item.discount ?? 0,
       lineTotal: item.qty * item.unitPrice - (item.discount ?? 0),
     })),
-    thermalTicket: "",
-  };
-  detail.thermalTicket = generateSaleThermalTicket(detail);
-  demoState.saleDetails[id] = detail as DemoSaleDetail;
+    thermalTicket: '',
+  }
+  detail.thermalTicket = generateSaleThermalTicket(detail)
+  demoState.saleDetails[id] = detail as DemoSaleDetail
   return {
     id,
     customerId: summary.customerId,
@@ -1364,20 +1403,20 @@ function fallbackCreateSale(payload: SalePayload): SaleRes {
     vat: summary.vat,
     total: summary.total,
     issuedAt: summary.issuedAt,
-    docType: summary.docType ?? "Factura",
-    paymentMethod: summary.paymentMethod ?? "transferencia",
+    docType: summary.docType ?? 'Factura',
+    paymentMethod: summary.paymentMethod ?? 'transferencia',
     docNumber: summary.docNumber,
-  };
+  }
 }
 
 function fallbackUpdateSale(id: string, payload: SaleUpdatePayload): SaleRes {
-  const index = demoState.sales.findIndex((sale) => sale.id === id);
+  const index = demoState.sales.findIndex(sale => sale.id === id)
   if (index === -1) {
-    throw new Error("Venta no encontrada");
+    throw new Error('Venta no encontrada')
   }
-  const updated: SaleSummary = { ...demoState.sales[index], ...payload };
-  demoState.sales = demoState.sales.map((sale, i) => (i === index ? updated : sale));
-  const detail = demoState.saleDetails[id];
+  const updated: SaleSummary = { ...demoState.sales[index], ...payload }
+  demoState.sales = demoState.sales.map((sale, i) => (i === index ? updated : sale))
+  const detail = demoState.saleDetails[id]
   if (detail) {
     demoState.saleDetails[id] = {
       ...detail,
@@ -1386,7 +1425,7 @@ function fallbackUpdateSale(id: string, payload: SaleUpdatePayload): SaleRes {
       paymentMethod: updated.paymentMethod ?? detail.paymentMethod,
       status: updated.status ?? detail.status,
       thermalTicket: generateSaleThermalTicket({ ...detail, ...updated }),
-    };
+    }
   }
   return {
     id: updated.id,
@@ -1397,286 +1436,291 @@ function fallbackUpdateSale(id: string, payload: SaleUpdatePayload): SaleRes {
     vat: updated.vat,
     total: updated.total,
     issuedAt: updated.issuedAt,
-    docType: updated.docType ?? "Factura",
-    paymentMethod: updated.paymentMethod ?? "transferencia",
+    docType: updated.docType ?? 'Factura',
+    paymentMethod: updated.paymentMethod ?? 'transferencia',
     docNumber: updated.docNumber,
-  };
+  }
 }
 
 function fallbackCancelSale(id: string): SaleRes {
-  return fallbackUpdateSale(id, { status: "cancelled" });
+  return fallbackUpdateSale(id, { status: 'cancelled' })
 }
 
 function fallbackListSalesDaily(days = 14): SalesDailyPoint[] {
-  return demoState.salesDaily.slice(-days);
+  return demoState.salesDaily.slice(-days)
 }
 
 function fallbackListSalesDailyByDateRange(from: string, to: string): SalesDailyPoint[] {
   if (!from || !to || from > to) {
-    return [];
+    return []
   }
-  return demoState.salesDaily.filter((point) => point.date >= from && point.date <= to);
+  return demoState.salesDaily.filter(point => point.date >= from && point.date <= to)
 }
 
 function parseWindowToDays(window: string): number {
-  const trimmed = window.trim();
-  const match = /^(\d+)\s*d$/i.exec(trimmed);
+  const trimmed = window.trim()
+  const match = /^(\d+)\s*d$/i.exec(trimmed)
   if (!match) {
-    return 14;
+    return 14
   }
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isNaN(parsed) ? 14 : Math.max(1, parsed);
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isNaN(parsed) ? 14 : Math.max(1, parsed)
 }
 
 function fallbackListSalesTrend({ from, to }: SalesTrendParams): SalesDailyPoint[] {
   if (!from || !to || from > to) {
-    return [];
+    return []
   }
-  return demoState.salesDaily.filter((point) => point.date >= from && point.date <= to);
+  return demoState.salesDaily.filter(point => point.date >= from && point.date <= to)
 }
 
-type DateRangeBounds = { start: number; end: number };
+type DateRangeBounds = { start: number; end: number }
 
 function createRangeBounds(from: string, to: string): DateRangeBounds | null {
   if (!from || !to) {
-    return null;
+    return null
   }
-  const startDate = new Date(`${from}T00:00:00Z`);
-  const endDate = new Date(`${to}T00:00:00Z`);
+  const startDate = new Date(`${from}T00:00:00Z`)
+  const endDate = new Date(`${to}T00:00:00Z`)
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    return null;
+    return null
   }
-  const start = startDate.getTime();
-  const end = endDate.getTime() + 86_399_999; // include full end day
-  return start <= end ? { start, end } : { start: end, end: start };
+  const start = startDate.getTime()
+  const end = endDate.getTime() + 86_399_999 // include full end day
+  return start <= end ? { start, end } : { start: end, end: start }
 }
 
-function fallbackGetDashboardSalesMetrics({ from, to }: DashboardSalesMetricsParams): DashboardSalesMetrics {
-  const bounds = createRangeBounds(from, to);
+function fallbackGetDashboardSalesMetrics({
+  from,
+  to,
+}: DashboardSalesMetricsParams): DashboardSalesMetrics {
+  const bounds = createRangeBounds(from, to)
   if (!bounds) {
-    return { totalDay: 0, topProduct: null, topPaymentMethods: [] };
+    return { totalDay: 0, topProduct: null, topPaymentMethods: [] }
   }
 
-  const allowed = new Set(["boleta", "factura"]);
-  const salesInRange = demoState.sales.filter((sale) => {
-    if (!sale.issuedAt || sale.status === "cancelled") {
-      return false;
+  const allowed = new Set(['boleta', 'factura'])
+  const salesInRange = demoState.sales.filter(sale => {
+    if (!sale.issuedAt || sale.status === 'cancelled') {
+      return false
     }
     // Filtramos solo Boleta/Factura para métricas acumuladas
-    const docNorm = normalizeString(sale.docType);
+    const docNorm = normalizeString(sale.docType)
     if (docNorm && !allowed.has(docNorm)) {
-      return false;
+      return false
     }
-    const issuedAt = new Date(sale.issuedAt).getTime();
-    return issuedAt >= bounds.start && issuedAt <= bounds.end;
-  });
+    const issuedAt = new Date(sale.issuedAt).getTime()
+    return issuedAt >= bounds.start && issuedAt <= bounds.end
+  })
 
-  const dayBounds = createRangeBounds(to, to);
+  const dayBounds = createRangeBounds(to, to)
   const totalDay = salesInRange.reduce((acc, sale) => {
     if (!dayBounds) {
-      return acc;
+      return acc
     }
-    const issuedAt = new Date(sale.issuedAt).getTime();
+    const issuedAt = new Date(sale.issuedAt).getTime()
     if (issuedAt >= dayBounds.start && issuedAt <= dayBounds.end) {
-      return acc + (sale.total ?? 0);
+      return acc + (sale.total ?? 0)
     }
-    return acc;
-  }, 0);
+    return acc
+  }, 0)
 
-  const productAggregates = new Map<string, { id: string; name: string; qty: number }>();
-  salesInRange.forEach((sale) => {
-    const detail = demoState.saleDetails[sale.id];
-    const items = detail?.items ?? [];
-    items.forEach((item) => {
-      const productId = item.productId ?? item.productName;
+  const productAggregates = new Map<string, { id: string; name: string; qty: number }>()
+  salesInRange.forEach(sale => {
+    const detail = demoState.saleDetails[sale.id]
+    const items = detail?.items ?? []
+    items.forEach(item => {
+      const productId = item.productId ?? item.productName
       if (!productId) {
-        return;
+        return
       }
       const aggregate = productAggregates.get(productId) ?? {
         id: productId,
         name: item.productName,
         qty: 0,
-      };
-      aggregate.qty += item.qty ?? 0;
-      aggregate.name = item.productName;
-      productAggregates.set(productId, aggregate);
-    });
-  });
+      }
+      aggregate.qty += item.qty ?? 0
+      aggregate.name = item.productName
+      productAggregates.set(productId, aggregate)
+    })
+  })
 
-  let topProduct: DashboardSalesMetrics["topProduct"] = null;
-  productAggregates.forEach((aggregate) => {
+  let topProduct: DashboardSalesMetrics['topProduct'] = null
+  productAggregates.forEach(aggregate => {
     if (!topProduct || aggregate.qty > topProduct.qty) {
-      topProduct = aggregate;
+      topProduct = aggregate
     }
-  });
+  })
 
-  const paymentCounts = new Map<string, number>();
-  salesInRange.forEach((sale) => {
-    const method = sale.paymentMethod?.trim().length ? sale.paymentMethod : "Sin método";
-    paymentCounts.set(method, (paymentCounts.get(method) ?? 0) + 1);
-  });
+  const paymentCounts = new Map<string, number>()
+  salesInRange.forEach(sale => {
+    const method = sale.paymentMethod?.trim().length ? sale.paymentMethod : 'Sin método'
+    paymentCounts.set(method, (paymentCounts.get(method) ?? 0) + 1)
+  })
 
   const topPaymentMethods = Array.from(paymentCounts.entries())
     .sort((a, b) => b[1] - a[1])
-    .map(([method, count]) => ({ method, count }));
+    .map(([method, count]) => ({ method, count }))
 
   return {
     totalDay,
     topProduct,
     topPaymentMethods,
-  };
+  }
 }
 
 function fallbackGetPurchaseSaleTrend({ from, to }: TrendSeriesParams): TrendSeriesResponse {
   if (!from || !to || from > to) {
-    return { purchase: [], sale: [] };
+    return { purchase: [], sale: [] }
   }
 
   const purchase = demoState.purchaseDaily
-    .filter((point) => point.date >= from && point.date <= to)
-    .map((point) => ({ date: point.date, value: point.total }));
+    .filter(point => point.date >= from && point.date <= to)
+    .map(point => ({ date: point.date, value: point.total }))
 
   const sale = demoState.salesDaily
-    .filter((point) => point.date >= from && point.date <= to)
-    .map((point) => ({ date: point.date, value: point.total }));
+    .filter(point => point.date >= from && point.date <= to)
+    .map(point => ({ date: point.date, value: point.total }))
 
-  return { purchase, sale };
+  return { purchase, sale }
 }
 
 function fallbackGetSalesWindowMetrics(window: string): SalesWindowMetrics {
-  const days = parseWindowToDays(window);
-  const data = fallbackListSalesDaily(days);
-  const totalWithTax = data.reduce((acc, point) => acc + (point.total ?? 0), 0);
-  const documentCount = data.reduce((acc, point) => acc + (point.count ?? 0), 0);
-  const dailyAverage = days > 0 ? totalWithTax / days : 0;
+  const days = parseWindowToDays(window)
+  const data = fallbackListSalesDaily(days)
+  const totalWithTax = data.reduce((acc, point) => acc + (point.total ?? 0), 0)
+  const documentCount = data.reduce((acc, point) => acc + (point.count ?? 0), 0)
+  const dailyAverage = days > 0 ? totalWithTax / days : 0
   return {
     window,
     totalWithTax,
     dailyAverage,
     documentCount,
-  };
+  }
 }
 
 function fallbackGetSalesSummary(period: SalesPeriod): SalesPeriodSummary {
-  const now = new Date();
-  const end = new Date(now);
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
+  const now = new Date()
+  const end = new Date(now)
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
   switch (period) {
-    case "week":
-      start.setDate(start.getDate() - 6);
-      break;
-    case "month":
-      start.setDate(1);
-      break;
+    case 'week':
+      start.setDate(start.getDate() - 6)
+      break
+    case 'month':
+      start.setDate(1)
+      break
     default:
-      break;
+      break
   }
-  const endTime = end.getTime();
-  const startTime = start.getTime();
-  const allowed = new Set(["boleta", "factura"]);
-  const filtered = demoState.sales.filter((sale) => {
+  const endTime = end.getTime()
+  const startTime = start.getTime()
+  const allowed = new Set(['boleta', 'factura'])
+  const filtered = demoState.sales.filter(sale => {
     if (!sale.issuedAt) {
-      return false;
+      return false
     }
-    if (sale.status?.toLowerCase() === "cancelled") {
-      return false;
+    if (sale.status?.toLowerCase() === 'cancelled') {
+      return false
     }
     // Solo Boleta/Factura
-    const docNorm = normalizeString(sale.docType);
+    const docNorm = normalizeString(sale.docType)
     if (docNorm && !allowed.has(docNorm)) {
-      return false;
+      return false
     }
-    const issuedTime = new Date(sale.issuedAt).getTime();
+    const issuedTime = new Date(sale.issuedAt).getTime()
     if (Number.isNaN(issuedTime)) {
-      return false;
+      return false
     }
-    return issuedTime >= startTime && issuedTime <= endTime;
-  });
-  const total = filtered.reduce((acc, sale) => acc + (sale.total ?? 0), 0);
-  const net = filtered.reduce((acc, sale) => acc + (sale.net ?? 0), 0);
+    return issuedTime >= startTime && issuedTime <= endTime
+  })
+  const total = filtered.reduce((acc, sale) => acc + (sale.total ?? 0), 0)
+  const net = filtered.reduce((acc, sale) => acc + (sale.net ?? 0), 0)
   return {
     period,
     total,
     net,
     count: filtered.length,
-  };
+  }
 }
 
 function fallbackGetFrequentProducts(customerId: string, limit = 20): FrequentProduct[] {
   if (!customerId) {
-    return [];
+    return []
   }
 
-  const normalizedLimit = limit > 0 ? limit : 20;
-  const productIndex = new Map(demoState.products.map((product) => [product.id, product]));
+  const normalizedLimit = limit > 0 ? limit : 20
+  const productIndex = new Map(demoState.products.map(product => [product.id, product]))
   const stats = new Map<
     string,
     {
-      productId: string;
-      name: string;
-      sku: string;
-      totalPurchases: number;
-      totalQty: number;
-      lastPurchasedAt: string;
-      lastUnitPrice?: number;
-      lastQty?: number;
+      productId: string
+      name: string
+      sku: string
+      totalPurchases: number
+      totalQty: number
+      lastPurchasedAt: string
+      lastUnitPrice?: number
+      lastQty?: number
     }
-  >();
+  >()
 
-  Object.values(demoState.saleDetails).forEach((detail) => {
+  Object.values(demoState.saleDetails).forEach(detail => {
     if (detail.customer?.id !== customerId) {
-      return;
+      return
     }
-    if (detail.status?.toLowerCase() === "cancelled") {
-      return;
+    if (detail.status?.toLowerCase() === 'cancelled') {
+      return
     }
-    const issuedAt = detail.issuedAt ?? new Date().toISOString();
-    detail.items.forEach((item) => {
+    const issuedAt = detail.issuedAt ?? new Date().toISOString()
+    detail.items.forEach(item => {
       if (!item.productId) {
-        return;
+        return
       }
-      const product = productIndex.get(item.productId);
+      const product = productIndex.get(item.productId)
       const current = stats.get(item.productId) ?? {
         productId: item.productId,
         name: product?.name ?? item.productName ?? item.productId,
-        sku: product?.sku ?? "",
+        sku: product?.sku ?? '',
         totalPurchases: 0,
         totalQty: 0,
         lastPurchasedAt: issuedAt,
         lastUnitPrice: undefined as number | undefined,
         lastQty: undefined as number | undefined,
-      };
-
-      const qty = Number(item.qty) || 0;
-      current.totalPurchases += 1;
-      current.totalQty += qty;
-
-      const currentTime = new Date(current.lastPurchasedAt).getTime();
-      const issuedTime = new Date(issuedAt).getTime();
-      if (!current.lastPurchasedAt || Number.isNaN(currentTime) || issuedTime >= currentTime) {
-        current.lastPurchasedAt = issuedAt;
-        current.lastUnitPrice = Number(item.unitPrice) || (product?.currentPrice ? Number(product.currentPrice) : undefined);
-        current.lastQty = qty > 0 ? qty : current.lastQty;
-        current.name = product?.name ?? item.productName ?? current.name;
-        current.sku = product?.sku ?? current.sku;
       }
 
-      stats.set(item.productId, current);
-    });
-  });
+      const qty = Number(item.qty) || 0
+      current.totalPurchases += 1
+      current.totalQty += qty
+
+      const currentTime = new Date(current.lastPurchasedAt).getTime()
+      const issuedTime = new Date(issuedAt).getTime()
+      if (!current.lastPurchasedAt || Number.isNaN(currentTime) || issuedTime >= currentTime) {
+        current.lastPurchasedAt = issuedAt
+        current.lastUnitPrice =
+          Number(item.unitPrice) ||
+          (product?.currentPrice ? Number(product.currentPrice) : undefined)
+        current.lastQty = qty > 0 ? qty : current.lastQty
+        current.name = product?.name ?? item.productName ?? current.name
+        current.sku = product?.sku ?? current.sku
+      }
+
+      stats.set(item.productId, current)
+    })
+  })
 
   return Array.from(stats.values())
     .sort((a, b) => {
       if (b.totalPurchases !== a.totalPurchases) {
-        return b.totalPurchases - a.totalPurchases;
+        return b.totalPurchases - a.totalPurchases
       }
-      const timeA = new Date(a.lastPurchasedAt).getTime();
-      const timeB = new Date(b.lastPurchasedAt).getTime();
-      return timeB - timeA;
+      const timeA = new Date(a.lastPurchasedAt).getTime()
+      const timeB = new Date(b.lastPurchasedAt).getTime()
+      return timeB - timeA
     })
     .slice(0, normalizedLimit)
-    .map((entry) => ({
+    .map(entry => ({
       productId: entry.productId,
       name: entry.name,
       sku: entry.sku,
@@ -1685,262 +1729,274 @@ function fallbackGetFrequentProducts(customerId: string, limit = 20): FrequentPr
       avgQty: entry.totalPurchases > 0 ? entry.totalQty / entry.totalPurchases : undefined,
       lastUnitPrice: entry.lastUnitPrice,
       lastQty: entry.lastQty,
-    }));
+    }))
 }
 
 function fallbackListDocuments(params: ListDocumentsParams): Page<DocumentSummary> {
-  const size = params.size && params.size > 0 ? params.size : 10;
-  const page = params.page ?? 0;
-  const type = params.type;
+  const size = params.size && params.size > 0 ? params.size : 10
+  const page = params.page ?? 0
+  const type = params.type
 
   const salesDocuments: DocumentSummary[] = [...demoState.sales]
-    .map((sale) => ({
+    .map(sale => ({
       id: sale.id,
-      direction: "sales" as const,
-      type: sale.docType ?? "Documento",
+      direction: 'sales' as const,
+      type: sale.docType ?? 'Documento',
       number: resolveSaleDocumentNumber(sale),
       issuedAt: sale.issuedAt,
       total: sale.total,
       status: sale.status,
       links: createOfflineDocumentLinks(sale.id),
     }))
-    .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
+    .sort((a, b) => (b.issuedAt ?? '').localeCompare(a.issuedAt ?? ''))
 
   const purchaseDocuments: DocumentSummary[] = [...demoState.purchases]
-    .map((purchase) => ({
+    .map(purchase => ({
       id: purchase.id,
-      direction: "purchases" as const,
-      type: purchase.docType ?? "Documento",
+      direction: 'purchases' as const,
+      type: purchase.docType ?? 'Documento',
       number: purchase.docNumber ?? purchase.id,
       issuedAt: purchase.issuedAt,
       total: purchase.total,
       status: purchase.status,
       links: createOfflineDocumentLinks(purchase.id),
     }))
-    .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
+    .sort((a, b) => (b.issuedAt ?? '').localeCompare(a.issuedAt ?? ''))
 
-  const source: DocumentSummary[] = type === "PURCHASE" ? purchaseDocuments : salesDocuments;
-  return paginate(source, page, size);
+  const source: DocumentSummary[] = type === 'PURCHASE' ? purchaseDocuments : salesDocuments
+  return paginate(source, page, size)
 }
 
 function resolveSaleDocumentNumber(sale: SaleSummary): string {
   if (sale.documentNumber && sale.documentNumber.trim()) {
-    return sale.documentNumber;
+    return sale.documentNumber
   }
   if (sale.docNumber && sale.docNumber.trim()) {
-    return sale.docNumber;
+    return sale.docNumber
   }
-  if (sale.series && (sale.folio ?? "") !== "") {
-    return `${sale.series}-${sale.folio}`;
+  if (sale.series && (sale.folio ?? '') !== '') {
+    return `${sale.series}-${sale.folio}`
   }
-  return sale.id;
+  return sale.id
 }
 
 function fallbackListSaleDocuments(params: ListSaleDocumentsParams = {}): Page<SaleDocument> {
-  const size = params.size && params.size > 0 ? params.size : 10;
-  const page = params.page ?? 0;
-  const sortParam = params.sort?.toLowerCase() ?? "date,desc";
+  const size = params.size && params.size > 0 ? params.size : 10
+  const page = params.page ?? 0
+  const sortParam = params.sort?.toLowerCase() ?? 'date,desc'
 
   const sorted = [...demoState.sales].sort((a, b) => {
-    const left = a.issuedAt ?? "";
-    const right = b.issuedAt ?? "";
-    if (sortParam === "date,asc") {
-      return left.localeCompare(right);
+    const left = a.issuedAt ?? ''
+    const right = b.issuedAt ?? ''
+    if (sortParam === 'date,asc') {
+      return left.localeCompare(right)
     }
-    return right.localeCompare(left);
-  });
+    return right.localeCompare(left)
+  })
 
-  const mapped: SaleDocument[] = sorted.map((sale) => ({
+  const mapped: SaleDocument[] = sorted.map(sale => ({
     id: sale.id,
     documentNumber: resolveSaleDocumentNumber(sale),
     docNumber: sale.docNumber,
     series: sale.series,
     folio: sale.folio,
     date: sale.issuedAt,
-    customerName: sale.customerName ?? sale.customerId ?? "",
+    customerName: sale.customerName ?? sale.customerId ?? '',
     total: sale.total,
     status: sale.status,
     docType: sale.docType,
     links: createOfflineDocumentLinks(sale.id),
-  }));
+  }))
 
-  return paginate(mapped, page, size);
+  return paginate(mapped, page, size)
 }
 
 function fallbackGetDocumentPreview(id: string): DocumentFile {
-  return createFallbackDocumentFile(id, "preview");
+  return createFallbackDocumentFile(id, 'preview')
 }
 
-
 function fallbackGetBillingDocument(id: string): BillingDocumentDetail {
-  const sale = demoState.sales.find((entry) => entry.id === id);
+  const sale = demoState.sales.find(entry => entry.id === id)
   if (sale) {
     return {
       id,
-      category: "FISCAL",
+      category: 'FISCAL',
       fiscalDocumentType: sale.docType ?? null,
       nonFiscalDocumentType: null,
       status: sale.status ?? null,
-      taxMode: (sale as Record<string, unknown>).taxMode as string | null ?? null,
+      taxMode: ((sale as Record<string, unknown>).taxMode as string | null) ?? null,
       number: resolveSaleDocumentNumber(sale),
-      provisionalNumber: (sale as Record<string, unknown>).provisionalNumber as string | null ?? null,
-      provider: "OFFLINE",
-      trackId: (sale as Record<string, unknown>).trackId as string | null ?? null,
+      provisionalNumber:
+        ((sale as Record<string, unknown>).provisionalNumber as string | null) ?? null,
+      provider: 'OFFLINE',
+      trackId: ((sale as Record<string, unknown>).trackId as string | null) ?? null,
       offline: true,
       createdAt: sale.issuedAt ?? iso(new Date()),
       updatedAt: sale.issuedAt ?? iso(new Date()),
       links: createOfflineDocumentLinks(id),
       files: [],
-    };
+    }
   }
   return {
     id,
-    category: "NON_FISCAL",
+    category: 'NON_FISCAL',
     fiscalDocumentType: null,
     nonFiscalDocumentType: null,
     status: null,
     taxMode: null,
     number: null,
     provisionalNumber: null,
-    provider: "OFFLINE",
+    provider: 'OFFLINE',
     trackId: null,
     offline: true,
     createdAt: iso(new Date()),
     updatedAt: iso(new Date()),
     links: createOfflineDocumentLinks(id),
     files: [],
-  };
+  }
 }
 
-function fallbackDownloadDocument(id: string, version: DocumentFileVersion = "OFFICIAL"): DocumentFile {
-  const action = version === "LOCAL" ? "preview" : "download";
-  const reference = `${id}-${version.toLowerCase()}`;
-  return createFallbackDocumentFile(reference, action);
+function fallbackDownloadDocument(
+  id: string,
+  version: DocumentFileVersion = 'OFFICIAL'
+): DocumentFile {
+  const action = version === 'LOCAL' ? 'preview' : 'download'
+  const reference = `${id}-${version.toLowerCase()}`
+  return createFallbackDocumentFile(reference, action)
 }
 
 function fallbackListPurchases(params: ListPurchasesParams = {}): Page<PurchaseSummary> {
-  const query = normalizeString(params.search ?? "");
-  const filtered = demoState.purchases.filter((purchase) => {
+  const query = normalizeString(params.search ?? '')
+  const filtered = demoState.purchases.filter(purchase => {
     if (params.status && params.status.trim()) {
       if (normalizeString(purchase.status) !== normalizeString(params.status)) {
-        return false;
+        return false
       }
     }
     if (params.docType && params.docType.trim()) {
       if (normalizeString(purchase.docType) !== normalizeString(params.docType)) {
-        return false;
+        return false
       }
     }
     if (params.from && purchase.issuedAt < params.from) {
-      return false;
+      return false
     }
     if (params.to && purchase.issuedAt > params.to) {
-      return false;
+      return false
     }
     if (!query) {
-      return true;
+      return true
     }
-    return [purchase.docNumber, purchase.supplierName, purchase.supplierId].some((value) => matchesQuery(value, query));
-  });
-  return paginate(filtered, params.page ?? 0, params.size ?? 20);
+    return [purchase.docNumber, purchase.supplierName, purchase.supplierId].some(value =>
+      matchesQuery(value, query)
+    )
+  })
+  return paginate(filtered, params.page ?? 0, params.size ?? 20)
 }
 
 function fallbackUpdatePurchase(id: string, payload: PurchaseUpdatePayload): PurchaseSummary {
-  const index = demoState.purchases.findIndex((purchase) => purchase.id === id);
+  const index = demoState.purchases.findIndex(purchase => purchase.id === id)
   if (index === -1) {
-    throw new Error("Compra no encontrada");
+    throw new Error('Compra no encontrada')
   }
-  const updated: PurchaseSummary = { ...demoState.purchases[index], ...payload };
-  demoState.purchases = demoState.purchases.map((purchase, i) => (i === index ? updated : purchase));
-  return updated;
+  const updated: PurchaseSummary = { ...demoState.purchases[index], ...payload }
+  demoState.purchases = demoState.purchases.map((purchase, i) => (i === index ? updated : purchase))
+  return updated
 }
 
 function fallbackCancelPurchase(id: string): PurchaseSummary {
-  return fallbackUpdatePurchase(id, { status: "cancelled" });
+  return fallbackUpdatePurchase(id, { status: 'cancelled' })
 }
 
 function fallbackCreatePurchase(payload: PurchasePayload): { id: string } {
-  const id = nextId("pur-demo");
+  const id = nextId('pur-demo')
   const summary: PurchaseSummary = {
     id,
     supplierId: payload.supplierId,
-    supplierName: demoState.suppliers.find((supplier) => supplier.id === payload.supplierId)?.name,
+    supplierName: demoState.suppliers.find(supplier => supplier.id === payload.supplierId)?.name,
     docType: payload.docType,
     docNumber: payload.docNumber,
-    status: "received",
+    status: 'received',
     net: payload.net,
     vat: payload.vat,
     total: payload.total,
     issuedAt: payload.issuedAt,
-  };
-  demoState.purchases = [summary, ...demoState.purchases];
-  return { id };
+  }
+  demoState.purchases = [summary, ...demoState.purchases]
+  return { id }
 }
 
 function fallbackListPurchaseDaily(days = 14): PurchaseDailyPoint[] {
-  return demoState.purchaseDaily.slice(-days);
+  return demoState.purchaseDaily.slice(-days)
 }
 
 function fallbackListInventoryAlerts(threshold?: number): InventoryAlert[] {
-  if (typeof threshold === "number") {
-    return demoState.inventoryAlerts.filter((alert) => Number(alert.qtyAvailable) <= threshold);
+  if (typeof threshold === 'number') {
+    return demoState.inventoryAlerts.filter(alert => Number(alert.qtyAvailable) <= threshold)
   }
-  return demoState.inventoryAlerts;
+  return demoState.inventoryAlerts
 }
 
 function fallbackGetInventorySummary(): InventorySummary {
-  recalcInventorySummary();
-  return demoState.inventorySummary;
+  recalcInventorySummary()
+  return demoState.inventorySummary
 }
 
 function fallbackGetInventorySettings(): InventorySettings {
-  return demoState.inventorySettings;
+  return demoState.inventorySettings
 }
 
-function fallbackUpdateInventorySettings(payload: { lowStockThreshold: number }): InventorySettings {
+function fallbackUpdateInventorySettings(payload: {
+  lowStockThreshold: number
+}): InventorySettings {
   demoState.inventorySettings = {
     lowStockThreshold: payload.lowStockThreshold,
     updatedAt: new Date().toISOString(),
-  };
-  recalcInventorySummary();
-  return demoState.inventorySettings;
+  }
+  recalcInventorySummary()
+  return demoState.inventorySettings
 }
 
-function fallbackCreateInventoryAdjustment(payload: InventoryAdjustmentPayload): InventoryAdjustmentResponse {
-  const direction = payload.direction ?? "increase";
-  const quantity = direction === "decrease" ? -Math.abs(payload.quantity) : Math.abs(payload.quantity);
-  const alertIndex = demoState.inventoryAlerts.findIndex((alert) => alert.productId === payload.productId);
+function fallbackCreateInventoryAdjustment(
+  payload: InventoryAdjustmentPayload
+): InventoryAdjustmentResponse {
+  const direction = payload.direction ?? 'increase'
+  const quantity =
+    direction === 'decrease' ? -Math.abs(payload.quantity) : Math.abs(payload.quantity)
+  const alertIndex = demoState.inventoryAlerts.findIndex(
+    alert => alert.productId === payload.productId
+  )
   if (alertIndex !== -1) {
-    const alert = demoState.inventoryAlerts[alertIndex];
-    const updatedQty = Number(alert.qtyAvailable) + quantity;
+    const alert = demoState.inventoryAlerts[alertIndex]
+    const updatedQty = Number(alert.qtyAvailable) + quantity
     demoState.inventoryAlerts[alertIndex] = {
       ...alert,
       qtyAvailable: updatedQty,
       createdAt: new Date().toISOString(),
       expDate: payload.expDate ?? alert.expDate ?? null,
-    };
-  } else if (direction === "decrease") {
+    }
+  } else if (direction === 'decrease') {
     demoState.inventoryAlerts = [
       ...demoState.inventoryAlerts,
       {
-        lotId: nextId("lot-demo"),
+        lotId: nextId('lot-demo'),
         productId: payload.productId,
         qtyAvailable: Math.max(0, payload.quantity),
         createdAt: new Date().toISOString(),
         expDate: payload.expDate ?? null,
       },
-    ];
+    ]
   }
-  recalcInventorySummary();
+  recalcInventorySummary()
   return {
     productId: payload.productId,
     appliedQuantity: payload.quantity,
     direction,
-  };
+  }
 }
 
 function isNetworkError(error: unknown): boolean {
-  return axios.isAxiosError(error) && !error.response;
+  return axios.isAxiosError(error) && !error.response
 }
 
 function createDevFallbackResponse(): LoginResponse {
@@ -1951,978 +2007,995 @@ function createDevFallbackResponse(): LoginResponse {
     refreshExpiresIn: 2_592_000,
     companyId: DEV_FALLBACK_COMPANY_ID,
     email: DEV_FALLBACK_EMAIL,
-    name: "Administrador Demo",
+    name: 'Administrador Demo',
     roles: [...DEV_FALLBACK_ROLES],
     modules: [...DEV_FALLBACK_MODULES],
-  };
+  }
 }
 
-let authToken: string | null = null;
-let activeCompanyId: string | null = DEFAULT_COMPANY_ID;
-let currentRefreshToken: string | null = null;
+let authToken: string | null = null
+let activeCompanyId: string | null = DEFAULT_COMPANY_ID
+let currentRefreshToken: string | null = null
 
 export const api = axios.create({
   baseURL: API_BASE,
   timeout: 10000,
-});
+})
 
-api.interceptors.request.use((config) => {
-  const headers = config.headers ?? {};
+api.interceptors.request.use(config => {
+  const headers = config.headers ?? {}
   if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
+    headers['Authorization'] = `Bearer ${authToken}`
   }
   if (activeCompanyId) {
-    headers["X-Company-Id"] = activeCompanyId;
+    headers['X-Company-Id'] = activeCompanyId
   }
-  config.headers = headers;
-  return config;
-});
+  config.headers = headers
+  return config
+})
 
 export type Page<T> = {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
-};
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
+}
 
 export type HealthResponse = {
-  status: string;
-  components?: Record<string, unknown>;
-  details?: Record<string, unknown>;
-};
+  status: string
+  components?: Record<string, unknown>
+  details?: Record<string, unknown>
+}
 
 export type Company = {
-  id: string;
-  businessName: string;
-  rut: string;
-  businessActivity?: string;
-  address?: string;
-  commune?: string;
-  phone?: string;
-  email?: string;
-  receiptFooterMessage?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
+  id: string
+  businessName: string
+  rut: string
+  businessActivity?: string
+  address?: string
+  commune?: string
+  phone?: string
+  email?: string
+  receiptFooterMessage?: string
+  createdAt?: string
+  updatedAt?: string
+}
 
 export type UserAccount = {
-  id: string;
-  email: string;
-  name?: string;
-  role?: string;
-  status: string;
-  roles: string[];
-  createdAt?: string;
-};
+  id: string
+  email: string
+  name?: string
+  role?: string
+  status: string
+  roles: string[]
+  createdAt?: string
+}
 
 export type CreateUserAccountPayload = {
-  email: string;
-  name: string;
-  role?: string | null;
-  roles?: string[] | null;
-  password: string;
-  status?: string | null;
-};
+  email: string
+  name: string
+  role?: string | null
+  roles?: string[] | null
+  password: string
+  status?: string | null
+}
 
 export type UpdateUserAccountPayload = {
-  email: string;
-  name: string;
-  role?: string | null;
-  roles?: string[] | null;
-  status?: string | null;
-};
+  email: string
+  name: string
+  role?: string | null
+  roles?: string[] | null
+  status?: string | null
+}
 
 export type UpdateUserPasswordPayload = {
-  password: string;
-};
+  password: string
+}
 
 export type Product = {
-  id: string;
-  sku: string;
-  name: string;
-  description?: string;
-  category?: string;
-  barcode?: string;
-  imageUrl?: string | null;
-  qrUrl?: string;
-  stock?: number | string | null;
-  criticalStock?: number | string;
-  currentPrice?: number | string;
-  active: boolean;
-};
+  id: string
+  sku: string
+  name: string
+  description?: string
+  category?: string
+  barcode?: string
+  imageUrl?: string | null
+  qrUrl?: string
+  stock?: number | string | null
+  criticalStock?: number | string
+  currentPrice?: number | string
+  active: boolean
+}
 
-export type ProductLookupType = "barcode" | "sku" | "qr";
+export type ProductLookupType = 'barcode' | 'sku' | 'qr'
 
 export type ProductPayload = {
-  sku: string;
-  name: string;
-  description?: string;
-  category?: string;
-  barcode?: string;
-  imageUrl?: string | null;
-};
+  sku: string
+  name: string
+  description?: string
+  category?: string
+  barcode?: string
+  imageUrl?: string | null
+}
 
 export type ProductFormData = ProductPayload & {
-  imageFile?: File | null;
-};
+  imageFile?: File | null
+}
 
 export type ProductStockLot = {
-  lotId: string;
-  quantity: number;
-  location?: string | null;
-  expiresAt?: string | null;
-};
+  lotId: string
+  quantity: number
+  location?: string | null
+  expiresAt?: string | null
+}
 
 export type ProductStock = {
-  productId: string;
-  total: number;
-  lots: ProductStockLot[];
-};
+  productId: string
+  total: number
+  lots: ProductStockLot[]
+}
 
 export type Supplier = {
-  id: string;
-  name: string;
-  rut?: string;
-  address?: string | null;
-  commune?: string | null;
-  businessActivity?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  active?: boolean;
-};
+  id: string
+  name: string
+  rut?: string
+  address?: string | null
+  commune?: string | null
+  businessActivity?: string | null
+  phone?: string | null
+  email?: string | null
+  active?: boolean
+}
 
 export type SupplierPayload = {
-  name: string;
-  rut: string;
-  address?: string | null;
-  commune?: string | null;
-  businessActivity?: string | null;
-  phone?: string | null;
-  email?: string | null;
-};
+  name: string
+  rut: string
+  address?: string | null
+  commune?: string | null
+  businessActivity?: string | null
+  phone?: string | null
+  email?: string | null
+}
 
 export type SupplierContact = {
-  id: string;
-  supplierId: string;
-  name: string;
-  title?: string | null;
-  phone?: string | null;
-  email?: string | null;
-};
+  id: string
+  supplierId: string
+  name: string
+  title?: string | null
+  phone?: string | null
+  email?: string | null
+}
 
 export type SupplierContactPayload = {
-  name: string;
-  title?: string | null;
-  phone?: string | null;
-  email?: string | null;
-};
+  name: string
+  title?: string | null
+  phone?: string | null
+  email?: string | null
+}
 
 export type SupplierMetrics = {
-  totalPurchases: number;
-  totalAmount: number;
-  averageOrderValue: number;
-  lastPurchaseDate: string | null;
-  purchasesLastMonth: number;
-  amountLastMonth: number;
-  purchasesPreviousMonth: number;
-  amountPreviousMonth: number;
-};
+  totalPurchases: number
+  totalAmount: number
+  averageOrderValue: number
+  lastPurchaseDate: string | null
+  purchasesLastMonth: number
+  amountLastMonth: number
+  purchasesPreviousMonth: number
+  amountPreviousMonth: number
+}
 
 export type SupplierAlert = {
-  supplierId: string | null;
-  supplierName: string;
-  type: "NO_RECENT_PURCHASES" | "INACTIVE_SUPPLIER" | "HIGH_CONCENTRATION" | "SINGLE_SOURCE";
-  severity: "INFO" | "WARNING" | "CRITICAL";
-  message: string;
-  actionLabel: string;
-  daysWithoutPurchases: number | null;
-  concentrationPercentage: number | null;
-};
+  supplierId: string | null
+  supplierName: string
+  type: 'NO_RECENT_PURCHASES' | 'INACTIVE_SUPPLIER' | 'HIGH_CONCENTRATION' | 'SINGLE_SOURCE'
+  severity: 'INFO' | 'WARNING' | 'CRITICAL'
+  message: string
+  actionLabel: string
+  daysWithoutPurchases: number | null
+  concentrationPercentage: number | null
+}
 
 export type SupplierRanking = {
-  supplierId: string;
-  supplierName: string;
-  rank: number;
-  score: number;
-  totalPurchases: number;
-  totalAmount: number;
-  reliability: number;
-  category: string;
-};
+  supplierId: string
+  supplierName: string
+  rank: number
+  score: number
+  totalPurchases: number
+  totalAmount: number
+  reliability: number
+  category: string
+}
 
 export type SupplierCategory = {
-  supplierId: string;
-  supplierName: string;
-  purchaseAmount: number;
-  percentage: number;
-};
+  supplierId: string
+  supplierName: string
+  purchaseAmount: number
+  percentage: number
+}
 
 export type SupplierRiskAnalysis = {
-  categoryA: SupplierCategory[];
-  categoryB: SupplierCategory[];
-  categoryC: SupplierCategory[];
-  concentrationIndex: number;
-  singleSourceProductsCount: number;
-  totalPurchaseVolume: number;
-};
+  categoryA: SupplierCategory[]
+  categoryB: SupplierCategory[]
+  categoryC: SupplierCategory[]
+  concentrationIndex: number
+  singleSourceProductsCount: number
+  totalPurchaseVolume: number
+}
 
 export type PricePoint = {
-  date: string;
-  unitPrice: number;
-  quantity: number;
-};
+  date: string
+  unitPrice: number
+  quantity: number
+}
 
 export type SupplierPriceHistory = {
-  supplierId: string;
-  supplierName: string;
-  productId: string;
-  productName: string;
-  priceHistory: PricePoint[];
-  currentPrice: number;
-  averagePrice: number;
-  minPrice: number;
-  maxPrice: number;
-  trend: "UP" | "DOWN" | "STABLE";
-  trendPercentage: number;
-};
+  supplierId: string
+  supplierName: string
+  productId: string
+  productName: string
+  priceHistory: PricePoint[]
+  currentPrice: number
+  averagePrice: number
+  minPrice: number
+  maxPrice: number
+  trend: 'UP' | 'DOWN' | 'STABLE'
+  trendPercentage: number
+}
 
 export type NegotiationOpportunity = {
-  supplierId: string;
-  supplierName: string;
-  productId: string;
-  productName: string;
-  currentPrice: number;
-  marketAverage: number;
-  priceDifference: number;
-  pricePercentageAboveMarket: number;
-  purchasesLast12Months: number;
-  totalSpentLast12Months: number;
-  potentialSavings: number;
-  priority: "HIGH" | "MEDIUM" | "LOW";
-  recommendation: string;
-};
+  supplierId: string
+  supplierName: string
+  productId: string
+  productName: string
+  currentPrice: number
+  marketAverage: number
+  priceDifference: number
+  pricePercentageAboveMarket: number
+  purchasesLast12Months: number
+  totalSpentLast12Months: number
+  potentialSavings: number
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+  recommendation: string
+}
 
 export type SingleSourceProduct = {
-  productId: string;
-  productName: string;
-  supplierId: string;
-  supplierName: string;
-  currentPrice: number;
-  purchasesLast12Months: number;
-  totalSpentLast12Months: number;
-  lastPurchaseDate: string;
-  riskLevel: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  recommendation: string;
-};
+  productId: string
+  productName: string
+  supplierId: string
+  supplierName: string
+  currentPrice: number
+  purchasesLast12Months: number
+  totalSpentLast12Months: number
+  lastPurchaseDate: string
+  riskLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  recommendation: string
+}
 
 export type MonthlyForecast = {
-  month: string;
-  monthDate: string;
-  actualSpend: number | null;
-  forecastSpend: number | null;
-  actualOrders: number | null;
-  forecastOrders: number | null;
-  isForecast: boolean;
-};
+  month: string
+  monthDate: string
+  actualSpend: number | null
+  forecastSpend: number | null
+  actualOrders: number | null
+  forecastOrders: number | null
+  isForecast: boolean
+}
 
 export type PurchaseForecast = {
-  supplierId: string;
-  supplierName: string;
-  monthlyForecasts: MonthlyForecast[];
-  averageMonthlySpend: number;
-  projectedNextMonthSpend: number;
-  averageMonthlyOrders: number;
-  trend: "INCREASING" | "DECREASING" | "STABLE";
-  recommendation: string;
-};
+  supplierId: string
+  supplierName: string
+  monthlyForecasts: MonthlyForecast[]
+  averageMonthlySpend: number
+  projectedNextMonthSpend: number
+  averageMonthlyOrders: number
+  trend: 'INCREASING' | 'DECREASING' | 'STABLE'
+  recommendation: string
+}
 
 export type Customer = {
-  id: string;
-  name: string;
-  rut?: string;
-  address?: string;
-  lat?: number | string | null;
-  lng?: number | string | null;
-  phone?: string;
-  email?: string;
-  segment?: string;
-  contactPerson?: string;
-  notes?: string;
-  active?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  document?: string | null;
-  commune?: string | null;
-};
+  id: string
+  name: string
+  rut?: string
+  address?: string
+  lat?: number | string | null
+  lng?: number | string | null
+  phone?: string
+  email?: string
+  segment?: string
+  contactPerson?: string
+  notes?: string
+  active?: boolean
+  createdAt?: string
+  updatedAt?: string
+  document?: string | null
+  commune?: string | null
+}
 
 export type CompanyPayload = {
-  businessName: string;
-  rut: string;
-  businessActivity?: string;
-  address?: string;
-  commune?: string;
-  phone?: string;
-  email?: string;
-  receiptFooterMessage?: string;
-};
+  businessName: string
+  rut: string
+  businessActivity?: string
+  address?: string
+  commune?: string
+  phone?: string
+  email?: string
+  receiptFooterMessage?: string
+}
 
-export type CreateCompanyPayload = CompanyPayload;
+export type CreateCompanyPayload = CompanyPayload
 
-export type UpdateCompanyPayload = CompanyPayload;
+export type UpdateCompanyPayload = CompanyPayload
 
 export type ListCustomersParams = {
-  q?: string;
-  segment?: string;
-  active?: boolean;
-  page?: number;
-  size?: number;
-  sort?: string;
-};
+  q?: string
+  segment?: string
+  active?: boolean
+  page?: number
+  size?: number
+  sort?: string
+}
 
 export type CustomerPayload = {
-  name: string;
-  rut?: string;
-  address?: string;
-  lat?: number | null;
-  lng?: number | null;
-  phone?: string;
-  email?: string;
-  segment?: string;
-  contactPerson?: string;
-  notes?: string;
-  active?: boolean;
-  document?: string | null;
-  commune?: string | null;
-};
+  name: string
+  rut?: string
+  address?: string
+  lat?: number | null
+  lng?: number | null
+  phone?: string
+  email?: string
+  segment?: string
+  contactPerson?: string
+  notes?: string
+  active?: boolean
+  document?: string | null
+  commune?: string | null
+}
 
-export const UNASSIGNED_SEGMENT_CODE = "__UNASSIGNED__";
+export const UNASSIGNED_SEGMENT_CODE = '__UNASSIGNED__'
 
 export type CustomerSegmentSummary = {
-  segment?: string; // Deprecated: use 'name' instead
-  code: string;
-  name: string;
-  color?: string | null;
-  total: number;
-};
+  segment?: string // Deprecated: use 'name' instead
+  code: string
+  name: string
+  color?: string | null
+  total: number
+}
 
 export type PriceHistoryEntry = {
-  id: string;
-  productId: string;
-  price: number;
-  validFrom: string;
-};
+  id: string
+  productId: string
+  price: number
+  validFrom: string
+}
 
 export type PriceChangePayload = {
-  price: number;
-  validFrom?: string;
-};
+  price: number
+  validFrom?: string
+}
 
 export type SimpleCaptchaPayload = {
-  a: number;
-  b: number;
-  answer: string;
-};
+  a: number
+  b: number
+  answer: string
+}
 
 export type LoginPayload = {
-  email: string;
-  password: string;
-};
+  email: string
+  password: string
+}
 
 export type RefreshPayload = {
-  refreshToken: string;
-};
+  refreshToken: string
+}
 
 export type LoginResponse = {
-  token: string;
-  expiresIn: number;
-  refreshToken: string;
-  refreshExpiresIn: number;
-  companyId: string;
-  email: string;
-  name: string;
-  roles: string[];
-  modules: string[];
-};
+  token: string
+  expiresIn: number
+  refreshToken: string
+  refreshExpiresIn: number
+  companyId: string
+  email: string
+  name: string
+  roles: string[]
+  modules: string[]
+}
 
 export type AuthSession = LoginResponse & {
-  expiresAt: number;
-  refreshExpiresAt: number;
-};
+  expiresAt: number
+  refreshExpiresAt: number
+}
 
 export type AccountRequestPayload = {
-  rut: string;
-  fullName: string;
-  address: string;
-  email: string;
-  companyName: string;
-  password: string;
-  confirmPassword: string;
-  captcha: SimpleCaptchaPayload;
-};
+  rut: string
+  fullName: string
+  address: string
+  email: string
+  companyName: string
+  password: string
+  confirmPassword: string
+  captcha: SimpleCaptchaPayload
+}
 
 export type AccountRequestResponse = {
-  id: string;
-  status: string;
-  createdAt: string;
-  message: string;
-};
+  id: string
+  status: string
+  createdAt: string
+  message: string
+}
 
 export type SaleItemPayload = {
-  productId: string;
-  qty: number;
-  unitPrice: number;
-  discount?: number;
-  locationId?: string;
-  lotId?: string;
-};
+  productId: string
+  qty: number
+  unitPrice: number
+  discount?: number
+  locationId?: string
+  lotId?: string
+}
 
 export type SalePayload = {
-  customerId: string;
-  paymentMethod?: string;
-  docType: string;
-  discount?: number;
-  vatRate?: number;
-  items: SaleItemPayload[];
-};
+  customerId: string
+  paymentMethod?: string
+  docType: string
+  discount?: number
+  vatRate?: number
+  items: SaleItemPayload[]
+}
 
 export type SaleRes = {
-  id: string;
-  customerId?: string;
-  customerName?: string;
-  status: string;
-  net: number;
-  vat: number;
-  total: number;
-  issuedAt: string;
-  docType: string;
-  paymentMethod: string;
-  docNumber?: string;
-  documentNumber?: string;
-};
+  id: string
+  customerId?: string
+  customerName?: string
+  status: string
+  net: number
+  vat: number
+  total: number
+  issuedAt: string
+  docType: string
+  paymentMethod: string
+  docNumber?: string
+  documentNumber?: string
+}
 
 export type SaleSummary = {
-  id: string;
-  customerId?: string;
-  customerName?: string;
-  docType?: string;
-  paymentMethod?: string;
-  status: string;
-  net: number;
-  vat: number;
-  total: number;
-  issuedAt: string;
-  docNumber?: string;
-  documentNumber?: string;
-  series?: string;
-  folio?: string | number;
-};
+  id: string
+  customerId?: string
+  customerName?: string
+  docType?: string
+  paymentMethod?: string
+  status: string
+  net: number
+  vat: number
+  total: number
+  issuedAt: string
+  docNumber?: string
+  documentNumber?: string
+  series?: string
+  folio?: string | number
+}
 
 export type SaleDetailLine = {
-  productId?: string;
-  productName: string;
-  qty: number;
-  unitPrice: number;
-  discount: number;
-  tax?: number;
-  lineTotal: number;
-};
+  productId?: string
+  productName: string
+  qty: number
+  unitPrice: number
+  discount: number
+  tax?: number
+  lineTotal: number
+}
 
 export type SaleDetail = {
-  id: string;
-  issuedAt: string;
-  docType: string;
-  docNumber?: string;
-  documentNumber?: string;
-  series?: string;
-  folio?: string | number;
-  paymentMethod: string;
-  status: string;
-  customer?: { id: string; name: string } | null;
-  supplier?: { id: string; name: string } | null;
-  items: SaleDetailLine[];
-  net: number;
-  vat: number;
-  total: number;
-  thermalTicket: string;
-};
+  id: string
+  issuedAt: string
+  docType: string
+  docNumber?: string
+  documentNumber?: string
+  series?: string
+  folio?: string | number
+  paymentMethod: string
+  status: string
+  customer?: { id: string; name: string } | null
+  supplier?: { id: string; name: string } | null
+  items: SaleDetailLine[]
+  net: number
+  vat: number
+  total: number
+  thermalTicket: string
+}
 
 export type SaleUpdatePayload = {
-  docType?: string;
-  paymentMethod?: string;
-  status?: string;
-};
+  docType?: string
+  paymentMethod?: string
+  status?: string
+}
 
 export type SalesDailyPoint = {
-  date: string;
-  total: number;
-  count: number;
-};
+  date: string
+  total: number
+  count: number
+}
 
 export type SalesTrendParams = {
-  from: string;
-  to: string;
-};
+  from: string
+  to: string
+}
 
 export type DashboardSalesMetricsParams = {
-  from: string;
-  to: string;
-};
+  from: string
+  to: string
+}
 
 export type DashboardSalesMetrics = {
-  totalDay: number;
-  topProduct: { id: string; name: string; qty: number } | null;
-  topPaymentMethods: { method: string; count: number }[];
-};
+  totalDay: number
+  topProduct: { id: string; name: string; qty: number } | null
+  topPaymentMethods: { method: string; count: number }[]
+}
 
-export type TrendSeriesPoint = { date: string; value: number };
+export type TrendSeriesPoint = { date: string; value: number }
 
 export type TrendSeriesResponse = {
-  purchase: TrendSeriesPoint[];
-  sale: TrendSeriesPoint[];
-};
+  purchase: TrendSeriesPoint[]
+  sale: TrendSeriesPoint[]
+}
 
 export type TrendSeriesParams = {
-  from: string;
-  to: string;
-  series: string;
-};
+  from: string
+  to: string
+  series: string
+}
 
 export type SalesWindowMetrics = {
-  window: string;
-  totalWithTax: number;
-  dailyAverage: number;
-  documentCount: number;
-};
+  window: string
+  totalWithTax: number
+  dailyAverage: number
+  documentCount: number
+}
 
-export type SalesPeriod = "today" | "week" | "month";
+export type SalesPeriod = 'today' | 'week' | 'month'
 
 export type SalesPeriodSummary = {
-  period: SalesPeriod;
-  total: number;
-  net: number;
-  count: number;
-};
+  period: SalesPeriod
+  total: number
+  net: number
+  count: number
+}
 
 export type FrequentProduct = {
-  productId: string;
-  name: string;
-  sku: string;
-  lastPurchasedAt: string;
-  totalPurchases: number;
-  avgQty?: number;
-  lastUnitPrice?: number;
-  lastQty?: number;
-};
+  productId: string
+  name: string
+  sku: string
+  lastPurchasedAt: string
+  totalPurchases: number
+  avgQty?: number
+  lastUnitPrice?: number
+  lastQty?: number
+}
 
-export type DocumentType = "SALE" | "PURCHASE";
+export type DocumentType = 'SALE' | 'PURCHASE'
 
 export type ListDocumentsParams = {
-  page?: number;
-  size?: number;
-  type: DocumentType;
-};
+  page?: number
+  size?: number
+  type: DocumentType
+}
 
 export type DocumentSummary = {
-  id: string;
-  direction: "sales" | "purchases";
-  type: string;
-  number?: string;
-  issuedAt?: string;
-  total: number;
-  status: string;
-  links?: DocumentLinkSet;
-};
+  id: string
+  direction: 'sales' | 'purchases'
+  type: string
+  number?: string
+  issuedAt?: string
+  total: number
+  status: string
+  links?: DocumentLinkSet
+}
 
 export type BillingDocumentDetail = {
-  id: string;
-  category: "FISCAL" | "NON_FISCAL";
-  fiscalDocumentType?: string | null;
-  nonFiscalDocumentType?: string | null;
-  status?: string | null;
-  taxMode?: string | null;
-  number?: string | null;
-  provisionalNumber?: string | null;
-  provider?: string | null;
-  trackId?: string | null;
-  offline: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  links: DocumentLinkSet;
+  id: string
+  category: 'FISCAL' | 'NON_FISCAL'
+  fiscalDocumentType?: string | null
+  nonFiscalDocumentType?: string | null
+  status?: string | null
+  taxMode?: string | null
+  number?: string | null
+  provisionalNumber?: string | null
+  provider?: string | null
+  trackId?: string | null
+  offline: boolean
+  createdAt?: string
+  updatedAt?: string
+  links: DocumentLinkSet
   files: Array<{
-    id: string;
-    kind: string;
-    version: DocumentFileVersion;
-    contentType: string;
-    storageKey: string;
-    checksum?: string | null;
-    createdAt?: string;
-  }>;
-};
+    id: string
+    kind: string
+    version: DocumentFileVersion
+    contentType: string
+    storageKey: string
+    checksum?: string | null
+    createdAt?: string
+  }>
+}
 
 export type SaleDocument = {
-  id: string;
-  documentNumber?: string;
-  docNumber?: string;
-  series?: string;
-  folio?: string | number;
-  date: string;
-  customerName: string;
-  total: number;
-  status?: string;
-  docType?: string;
-  links?: DocumentLinkSet;
-};
+  id: string
+  documentNumber?: string
+  docNumber?: string
+  series?: string
+  folio?: string | number
+  date: string
+  customerName: string
+  total: number
+  status?: string
+  docType?: string
+  links?: DocumentLinkSet
+}
 
 export type ListSaleDocumentsParams = {
-  page?: number;
-  size?: number;
-  sort?: string;
-};
+  page?: number
+  size?: number
+  sort?: string
+}
 
 export type PurchaseItemPayload = {
-  productId?: string;  // Opcional: para productos
-  serviceId?: string;  // Opcional: para servicios
-  qty: number;
-  unitCost: number;
-  vatRate?: number;
-  mfgDate?: string;
-  expDate?: string;
-  locationId?: string;
-};
+  productId?: string // Opcional: para productos
+  serviceId?: string // Opcional: para servicios
+  qty: number
+  unitCost: number
+  vatRate?: number
+  mfgDate?: string
+  expDate?: string
+  locationId?: string
+}
 
 export type PurchasePayload = {
-  supplierId: string;
-  docType: string;
-  docNumber: string;
-  net: number;
-  vat: number;
-  total: number;
-  pdfUrl?: string;
-  issuedAt: string;
-  receivedAt?: string;
-  items: PurchaseItemPayload[];
-};
+  supplierId: string
+  docType: string
+  docNumber: string
+  net: number
+  vat: number
+  total: number
+  pdfUrl?: string
+  issuedAt: string
+  receivedAt?: string
+  items: PurchaseItemPayload[]
+}
 
-export type LocationType = "WAREHOUSE" | "SHELF" | "BIN";
+export type LocationType = 'WAREHOUSE' | 'SHELF' | 'BIN'
 
 export type Location = {
-  id: string;
-  companyId: string;
-  code: string;
-  name: string;
-  description?: string;
-  type: LocationType;
-  parentLocationId?: string;
-  createdAt: string;
-  updatedAt: string;
-};
+  id: string
+  companyId: string
+  code: string
+  name: string
+  description?: string
+  type: LocationType
+  parentLocationId?: string
+  createdAt: string
+  updatedAt: string
+}
 
 export type LocationPayload = {
-  code: string;
-  name: string;
-  description?: string;
-  type: LocationType;
-  parentLocationId?: string;
-};
+  code: string
+  name: string
+  description?: string
+  type: LocationType
+  parentLocationId?: string
+}
 
 export type PurchaseSummary = {
-  id: string;
-  supplierId?: string;
-  supplierName?: string;
-  docType?: string;
-  docNumber?: string;
-  status: string;
-  net: number;
-  vat: number;
-  total: number;
-  issuedAt: string;
-};
-
+  id: string
+  supplierId?: string
+  supplierName?: string
+  docType?: string
+  docNumber?: string
+  status: string
+  net: number
+  vat: number
+  total: number
+  issuedAt: string
+}
 
 export type PurchaseUpdatePayload = {
-  docType?: string;
-  docNumber?: string;
-  status?: string;
-};
+  docType?: string
+  docNumber?: string
+  status?: string
+}
 
 export type PurchaseDailyPoint = {
-  date: string;
-  total: number;
-  count: number;
-};
+  date: string
+  total: number
+  count: number
+}
 
 export type InventoryAlert = {
-  lotId: string;
-  productId: string;
-  qtyAvailable: number;
-  createdAt: string;
-  expDate?: string | null;
-};
+  lotId: string
+  productId: string
+  qtyAvailable: number
+  createdAt: string
+  expDate?: string | null
+}
 
 export type InventorySummary = {
-  totalValue: number | string;
-  activeProducts: number;
-  inactiveProducts: number;
-  totalProducts: number;
-  lowStockAlerts: number;
-  lowStockThreshold: number | string;
-};
+  totalValue: number | string
+  activeProducts: number
+  inactiveProducts: number
+  totalProducts: number
+  lowStockAlerts: number
+  lowStockThreshold: number | string
+}
 
 export type InventorySettings = {
-  lowStockThreshold: number | string;
-  updatedAt: string;
-};
+  lowStockThreshold: number | string
+  updatedAt: string
+}
 
 export type InventoryAdjustmentPayload = {
-  productId: string;
-  quantity: number;
-  reason: string;
-  direction: "increase" | "decrease";
-  unitCost?: number;
-  lotId?: string;
-  mfgDate?: string;
-  expDate?: string;
-};
+  productId: string
+  quantity: number
+  reason: string
+  direction: 'increase' | 'decrease'
+  unitCost?: number
+  lotId?: string
+  mfgDate?: string
+  expDate?: string
+}
 
 export type InventoryAdjustmentResponse = {
-  productId: string;
-  appliedQuantity: number | string;
-  direction: string;
-};
+  productId: string
+  appliedQuantity: number | string
+  direction: string
+}
 
 export type ProductMovement = {
-  productId: string;
-  productName: string;
-  quantity: number;
-  value: number;
-  transactionCount: number;
-};
+  productId: string
+  productName: string
+  quantity: number
+  value: number
+  transactionCount: number
+}
 
 export type CategoryVelocity = {
-  category: string;
-  averageDailyOutflow: number;
-  turnoverRate: number;
-  productCount: number;
-};
+  category: string
+  averageDailyOutflow: number
+  turnoverRate: number
+  productCount: number
+}
 
 export type StockMovementStats = {
-  totalInflows: number;
-  totalOutflows: number;
-  inflowTransactions: number;
-  outflowTransactions: number;
-  topInflowProducts: ProductMovement[];
-  topOutflowProducts: ProductMovement[];
-  categoryVelocities: CategoryVelocity[];
-};
+  totalInflows: number
+  totalOutflows: number
+  inflowTransactions: number
+  outflowTransactions: number
+  topInflowProducts: ProductMovement[]
+  topOutflowProducts: ProductMovement[]
+  categoryVelocities: CategoryVelocity[]
+}
 
 export type InventoryKPIs = {
-  stockCoverageDays: number | null;
-  turnoverRatio: number;
-  deadStockValue: number;
-  deadStockCount: number;
-  averageLeadTimeDays: number;
-  totalInventoryValue: number;
-  activeProducts: number;
-  criticalStockProducts: number;
-  daysInventoryOnHand: number | null;
-  overstockValue: number;
-  overstockCount: number;
-};
+  stockCoverageDays: number | null
+  turnoverRatio: number
+  deadStockValue: number
+  deadStockCount: number
+  averageLeadTimeDays: number
+  totalInventoryValue: number
+  activeProducts: number
+  criticalStockProducts: number
+  daysInventoryOnHand: number | null
+  overstockValue: number
+  overstockCount: number
+}
 
 export type ProductABCClassification = {
-  productId: number;
-  productName: string;
-  category: string;
-  classification: "A" | "B" | "C";
-  totalValue: number;
-  totalQuantity: number;
-  percentageOfTotalValue: number;
-  cumulativePercentage: number;
-  salesFrequency: number;
-  lastMovementDate: string | null;
-};
+  productId: number
+  productName: string
+  category: string
+  classification: 'A' | 'B' | 'C'
+  totalValue: number
+  totalQuantity: number
+  percentageOfTotalValue: number
+  cumulativePercentage: number
+  salesFrequency: number
+  lastMovementDate: string | null
+}
 
 export type InventoryForecast = {
-  productId: number;
-  productName: string;
-  category: string;
-  forecastDate: string;
-  predictedDemand: number;
-  confidence: number;
-  historicalAverage: number;
-  trend: "increasing" | "decreasing" | "stable";
-  recommendedOrderQty: number;
-  stockStatus: "understocked" | "optimal" | "overstocked";
-  currentStock: number;
-  daysOfStock: number;
-};
+  productId: number
+  productName: string
+  category: string
+  forecastDate: string
+  predictedDemand: number
+  confidence: number
+  historicalAverage: number
+  trend: 'increasing' | 'decreasing' | 'stable'
+  recommendedOrderQty: number
+  stockStatus: 'understocked' | 'optimal' | 'overstocked'
+  currentStock: number
+  daysOfStock: number
+}
 
 export type ListSalesParams = {
-  page?: number;
-  size?: number;
-  status?: string;
-  docType?: string;
-  paymentMethod?: string;
-  search?: string;
-  from?: string;
-  to?: string;
-};
+  page?: number
+  size?: number
+  status?: string
+  docType?: string
+  paymentMethod?: string
+  search?: string
+  from?: string
+  to?: string
+}
 
 export type SalesKPIs = {
-  totalRevenue: number;
-  totalCost: number;
-  grossProfit: number;
-  profitMargin: number;
-  totalOrders: number;
-  averageTicket: number;
-  salesGrowth: number;
-  uniqueCustomers: number;
-  customerRetentionRate: number;
-  topProductName: string;
-  topProductRevenue: number;
-  topCustomerName: string;
-  topCustomerRevenue: number;
-  conversionRate: number;
-  periodStart: string;
-  periodEnd: string;
-};
+  totalRevenue: number
+  totalCost: number
+  grossProfit: number
+  profitMargin: number
+  totalOrders: number
+  averageTicket: number
+  salesGrowth: number
+  uniqueCustomers: number
+  customerRetentionRate: number
+  topProductName: string
+  topProductRevenue: number
+  topCustomerName: string
+  topCustomerRevenue: number
+  conversionRate: number
+  periodStart: string
+  periodEnd: string
+}
 
 export type SaleABCClassification = {
-  productId: string;
-  productName: string;
-  totalRevenue: number;
-  salesCount: number;
-  percentageOfTotal: number;
-  classification: string;
-  cumulativePercentage: number;
-  averagePrice: number;
-  lastSaleDate: string;
-  recommendedAction: string;
-};
+  productId: string
+  productName: string
+  totalRevenue: number
+  salesCount: number
+  percentageOfTotal: number
+  classification: string
+  cumulativePercentage: number
+  averagePrice: number
+  lastSaleDate: string
+  recommendedAction: string
+}
 
 export type SaleProductForecast = {
-  productId: string;
-  productName: string;
-  historicalAverage: number;
-  trend: string;
-  forecastedDemand: number;
-  confidence: number;
-  nextSaleDate: string | null;
-  recommendedStock: number;
-  seasonalityFactor: number;
-};
+  productId: string
+  productName: string
+  historicalAverage: number
+  trend: string
+  forecastedDemand: number
+  confidence: number
+  nextSaleDate: string | null
+  recommendedStock: number
+  seasonalityFactor: number
+}
 
 export type ListPurchasesParams = {
-  page?: number;
-  size?: number;
-  status?: string;
-  docType?: string;
-  search?: string;
-  from?: string;
-  to?: string;
-};
+  page?: number
+  size?: number
+  status?: string
+  docType?: string
+  search?: string
+  from?: string
+  to?: string
+}
 
 export type PurchaseKPIs = {
-  totalSpent: number;
-  totalQuantity: number;
-  totalOrders: number;
-  averageOrderValue: number;
-  purchaseGrowth: number;
-  uniqueSuppliers: number;
-  supplierConcentration: number;
-  topSupplierName: string;
-  topSupplierSpent: number;
-  topCategoryName: string;
-  topCategorySpent: number;
-  onTimeDeliveryRate: number;
-  costPerUnit: number;
-  pendingOrders: number;
-  periodStart: string;
-  periodEnd: string;
-};
+  totalSpent: number
+  totalQuantity: number
+  totalOrders: number
+  averageOrderValue: number
+  purchaseGrowth: number
+  uniqueSuppliers: number
+  supplierConcentration: number
+  topSupplierName: string
+  topSupplierSpent: number
+  topCategoryName: string
+  topCategorySpent: number
+  onTimeDeliveryRate: number
+  costPerUnit: number
+  pendingOrders: number
+  periodStart: string
+  periodEnd: string
+}
 
 export type PurchaseABCClassification = {
-  supplierId: string;
-  supplierName: string;
-  totalSpent: number;
-  purchaseCount: number;
-  percentageOfTotal: number;
-  classification: "A" | "B" | "C";
-  cumulativePercentage: number;
-  averageOrderValue: number;
-  lastPurchaseDate: string;
-  recommendedAction: string;
-};
+  supplierId: string
+  supplierName: string
+  totalSpent: number
+  purchaseCount: number
+  percentageOfTotal: number
+  classification: 'A' | 'B' | 'C'
+  cumulativePercentage: number
+  averageOrderValue: number
+  lastPurchaseDate: string
+  recommendedAction: string
+}
 
 export type PurchaseSupplierForecast = {
-  supplierId: string;
-  supplierName: string;
-  historicalAverage: number;
-  trend: "increasing" | "stable" | "decreasing";
-  forecastedSpending: number;
-  confidence: number;
-  nextPurchaseDate: string;
-  recommendedOrderQuantity: number;
-  seasonalityFactor: number;
-};
+  supplierId: string
+  supplierName: string
+  historicalAverage: number
+  trend: 'increasing' | 'stable' | 'decreasing'
+  forecastedSpending: number
+  confidence: number
+  nextPurchaseDate: string
+  recommendedOrderQuantity: number
+  seasonalityFactor: number
+}
 
-export function setSession(session: { token?: string | null; companyId?: string | null; refreshToken?: string | null }) {
-  if (Object.prototype.hasOwnProperty.call(session, "token")) {
-    authToken = session.token ?? null;
+export function setSession(session: {
+  token?: string | null
+  companyId?: string | null
+  refreshToken?: string | null
+}) {
+  if (Object.prototype.hasOwnProperty.call(session, 'token')) {
+    authToken = session.token ?? null
   }
-  if (Object.prototype.hasOwnProperty.call(session, "companyId")) {
-    activeCompanyId = session.companyId ?? DEFAULT_COMPANY_ID;
+  if (Object.prototype.hasOwnProperty.call(session, 'companyId')) {
+    activeCompanyId = session.companyId ?? DEFAULT_COMPANY_ID
   }
-  if (Object.prototype.hasOwnProperty.call(session, "refreshToken")) {
-    currentRefreshToken = session.refreshToken ?? null;
+  if (Object.prototype.hasOwnProperty.call(session, 'refreshToken')) {
+    currentRefreshToken = session.refreshToken ?? null
   }
 }
 
 export function clearSession() {
-  authToken = null;
-  activeCompanyId = DEFAULT_COMPANY_ID;
-  currentRefreshToken = null;
+  authToken = null
+  activeCompanyId = DEFAULT_COMPANY_ID
+  currentRefreshToken = null
 }
 
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
   try {
-    const { data } = await api.post<LoginResponse>("/v1/auth/login", payload);
-    setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken });
-    return data;
+    const { data } = await api.post<LoginResponse>('/v1/auth/login', payload)
+    setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken })
+    return data
   } catch (error) {
-    if (isNetworkError(error) && payload.email === DEV_FALLBACK_EMAIL && payload.password === DEV_FALLBACK_PASSWORD) {
-      const fallback = createDevFallbackResponse();
-      console.warn("Login API unreachable. Using local development session.");
-      setSession({ token: fallback.token, companyId: fallback.companyId, refreshToken: fallback.refreshToken });
-      return fallback;
+    if (
+      isNetworkError(error) &&
+      payload.email === DEV_FALLBACK_EMAIL &&
+      payload.password === DEV_FALLBACK_PASSWORD
+    ) {
+      const fallback = createDevFallbackResponse()
+      console.warn('Login API unreachable. Using local development session.')
+      setSession({
+        token: fallback.token,
+        companyId: fallback.companyId,
+        refreshToken: fallback.refreshToken,
+      })
+      return fallback
     }
-    throw error;
+    throw error
   }
 }
 
 export async function refreshAuth(payload: RefreshPayload): Promise<LoginResponse> {
   if (!payload.refreshToken) {
-    throw new Error("Refresh token is required");
+    throw new Error('Refresh token is required')
   }
   try {
-    const { data } = await api.post<LoginResponse>("/v1/auth/refresh", null, {
-      headers: { ["X-Refresh-Token"]: payload.refreshToken },
-    });
-    setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken });
-    return data;
+    const { data } = await api.post<LoginResponse>('/v1/auth/refresh', null, {
+      headers: { ['X-Refresh-Token']: payload.refreshToken },
+    })
+    setSession({ token: data.token, companyId: data.companyId, refreshToken: data.refreshToken })
+    return data
   } catch (error) {
     if (isNetworkError(error) && payload.refreshToken === DEV_FALLBACK_REFRESH_TOKEN) {
-      const fallback = createDevFallbackResponse();
-      console.warn("Refresh API unreachable. Keeping local development session active.");
-      setSession({ token: fallback.token, companyId: fallback.companyId, refreshToken: fallback.refreshToken });
-      return fallback;
+      const fallback = createDevFallbackResponse()
+      console.warn('Refresh API unreachable. Keeping local development session active.')
+      setSession({
+        token: fallback.token,
+        companyId: fallback.companyId,
+        refreshToken: fallback.refreshToken,
+      })
+      return fallback
     }
-    throw error;
+    throw error
   }
 }
 
-export async function submitAccountRequest(payload: AccountRequestPayload): Promise<AccountRequestResponse> {
+export async function submitAccountRequest(
+  payload: AccountRequestPayload
+): Promise<AccountRequestResponse> {
   const body = {
     rut: payload.rut,
     fullName: payload.fullName,
@@ -2932,341 +3005,363 @@ export async function submitAccountRequest(payload: AccountRequestPayload): Prom
     password: payload.password,
     confirmPassword: payload.confirmPassword,
     captcha: payload.captcha,
-  };
-  const { data } = await api.post<AccountRequestResponse>("/v1/requests", body);
-  return data;
+  }
+  const { data } = await api.post<AccountRequestResponse>('/v1/requests', body)
+  return data
 }
 
 export function getCurrentRefreshToken() {
-  return currentRefreshToken;
+  return currentRefreshToken
 }
 
 export function fetchHealth(): Promise<HealthResponse> {
   return withOfflineFallback(
-    "fetchHealth",
+    'fetchHealth',
     async () => {
-      const { data } = await api.get<HealthResponse>("/actuator/health");
-      return data;
+      const { data } = await api.get<HealthResponse>('/actuator/health')
+      return data
     },
-    () => fallbackHealth,
-  );
+    () => fallbackHealth
+  )
 }
 
 export function listCompanies(): Promise<Company[]> {
   return withOfflineFallback(
-    "listCompanies",
+    'listCompanies',
     async () => {
-      const { data } = await api.get<Company[]>("/v1/companies");
-      return data;
+      const { data } = await api.get<Company[]>('/v1/companies')
+      return data
     },
-    () => fallbackListCompanies(),
-  );
+    () => fallbackListCompanies()
+  )
 }
 
 export function fetchCompany(id: string): Promise<Company> {
   return withOfflineFallback(
-    "fetchCompany",
+    'fetchCompany',
     async () => {
-      const { data } = await api.get<Company>(`/v1/companies/${id}`);
-      return data;
+      const { data } = await api.get<Company>(`/v1/companies/${id}`)
+      return data
     },
-    () => fallbackGetCompany(id),
-  );
+    () => fallbackGetCompany(id)
+  )
 }
 
 export function createCompany(payload: CreateCompanyPayload): Promise<Company> {
   return withOfflineFallback(
-    "createCompany",
+    'createCompany',
     async () => {
-      const { data } = await api.post<Company>("/v1/companies", payload);
-      return data;
+      const { data } = await api.post<Company>('/v1/companies', payload)
+      return data
     },
-    () => fallbackCreateCompany(payload),
-  );
+    () => fallbackCreateCompany(payload)
+  )
 }
 
 export function updateCompany(id: string, payload: UpdateCompanyPayload): Promise<Company> {
   return withOfflineFallback(
-    "updateCompany",
+    'updateCompany',
     async () => {
-      const { data } = await api.put<Company>(`/v1/companies/${id}`, payload);
-      return data;
+      const { data } = await api.put<Company>(`/v1/companies/${id}`, payload)
+      return data
     },
-    () => fallbackUpdateCompany(id, payload),
-  );
+    () => fallbackUpdateCompany(id, payload)
+  )
 }
 
 export function deleteCompany(id: string): Promise<void> {
   return withOfflineVoid(
-    "deleteCompany",
+    'deleteCompany',
     async () => {
-      await api.delete(`/v1/companies/${id}`);
+      await api.delete(`/v1/companies/${id}`)
     },
-    () => fallbackDeleteCompany(id),
-  );
+    () => fallbackDeleteCompany(id)
+  )
 }
 
 export function listUserAccounts(): Promise<UserAccount[]> {
   return withOfflineFallback(
-    "listUserAccounts",
+    'listUserAccounts',
     async () => {
-      const { data } = await api.get<UserAccount[]>("/v1/users");
-      return data;
+      const { data } = await api.get<UserAccount[]>('/v1/users')
+      return data
     },
-    () => fallbackListUserAccounts(),
-  );
+    () => fallbackListUserAccounts()
+  )
 }
 
 export function createUserAccount(payload: CreateUserAccountPayload): Promise<UserAccount> {
   return withOfflineFallback(
-    "createUserAccount",
+    'createUserAccount',
     async () => {
-      const { data } = await api.post<UserAccount>("/v1/users", payload);
-      return data;
+      const { data } = await api.post<UserAccount>('/v1/users', payload)
+      return data
     },
-    () => fallbackCreateUserAccount(payload),
-  );
+    () => fallbackCreateUserAccount(payload)
+  )
 }
 
-export function updateUserAccount(id: string, payload: UpdateUserAccountPayload): Promise<UserAccount> {
+export function updateUserAccount(
+  id: string,
+  payload: UpdateUserAccountPayload
+): Promise<UserAccount> {
   return withOfflineFallback(
-    "updateUserAccount",
+    'updateUserAccount',
     async () => {
-      const { data } = await api.put<UserAccount>(`/v1/users/${id}`, payload);
-      return data;
+      const { data } = await api.put<UserAccount>(`/v1/users/${id}`, payload)
+      return data
     },
-    () => fallbackUpdateUserAccount(id, payload),
-  );
+    () => fallbackUpdateUserAccount(id, payload)
+  )
 }
 
 export function updateUserPassword(id: string, payload: UpdateUserPasswordPayload): Promise<void> {
   return withOfflineVoid(
-    "updateUserPassword",
+    'updateUserPassword',
     async () => {
-      await api.post(`/v1/users/${id}/password`, payload);
+      await api.post(`/v1/users/${id}/password`, payload)
     },
-    () => fallbackUpdateUserPassword(id, payload),
-  );
+    () => fallbackUpdateUserPassword(id, payload)
+  )
 }
 
-export function listProducts(
-  params?: { q?: string; page?: number; size?: number; status?: "active" | "inactive" | "all" },
-): Promise<Page<Product>> {
+export function listProducts(params?: {
+  q?: string
+  page?: number
+  size?: number
+  status?: 'active' | 'inactive' | 'all'
+}): Promise<Page<Product>> {
   return withOfflineFallback(
-    "listProducts",
+    'listProducts',
     async () => {
-      const { data } = await api.get<Page<Product>>(`/v1/products`, { params });
-      return data;
+      const { data } = await api.get<Page<Product>>(`/v1/products`, { params })
+      return data
     },
-    () => fallbackListProducts(params),
-  );
+    () => fallbackListProducts(params)
+  )
 }
 
-export function lookupProduct(params: { query: string; type: ProductLookupType }): Promise<Product | null> {
+export function lookupProduct(params: {
+  query: string
+  type: ProductLookupType
+}): Promise<Product | null> {
   return withOfflineFallback(
-    "lookupProduct",
+    'lookupProduct',
     async () => {
       try {
         const { data } = await api.get<Product>(`/v1/products/lookup`, {
           params: { q: params.query, type: params.type },
-        });
-        return data ?? null;
+        })
+        return data ?? null
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 404) {
-          return null;
+          return null
         }
-        throw error;
+        throw error
       }
     },
-    () => fallbackLookupProduct(params.query, params.type),
-  );
+    () => fallbackLookupProduct(params.query, params.type)
+  )
 }
 
 export function createProduct(form: ProductFormData): Promise<Product> {
-  const payload = toProductPayload(form);
+  const payload = toProductPayload(form)
   return withOfflineFallback(
-    "createProduct",
+    'createProduct',
     async () => {
-      const body = buildProductFormData(payload, form.imageFile ?? null);
-      const { data } = await api.post<Product>("/v1/products", body, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return data;
+      const body = buildProductFormData(payload, form.imageFile ?? null)
+      const { data } = await api.post<Product>('/v1/products', body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
     },
-    () => fallbackCreateProduct(payload),
-  );
+    () => fallbackCreateProduct(payload)
+  )
 }
 
 export function updateProduct(id: string, form: ProductFormData): Promise<Product> {
-  const payload = toProductPayload(form);
+  const payload = toProductPayload(form)
   return withOfflineFallback(
-    "updateProduct",
+    'updateProduct',
     async () => {
-      const body = buildProductFormData(payload, form.imageFile ?? null);
+      const body = buildProductFormData(payload, form.imageFile ?? null)
       const { data } = await api.put<Product>(`/v1/products/${id}`, body, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return data;
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
     },
-    () => fallbackUpdateProduct(id, payload),
-  );
+    () => fallbackUpdateProduct(id, payload)
+  )
 }
 
 export function updateProductStatus(id: string, active: boolean): Promise<Product> {
   return withOfflineFallback(
-    "updateProductStatus",
+    'updateProductStatus',
     async () => {
-      const { data } = await api.patch<Product>(`/v1/products/${id}/status`, { active });
-      return data;
+      const { data } = await api.patch<Product>(`/v1/products/${id}/status`, { active })
+      return data
     },
-    () => fallbackUpdateProductStatus(id, active),
-  );
+    () => fallbackUpdateProductStatus(id, active)
+  )
 }
 
 export function fetchProductStock(id: string): Promise<ProductStock> {
   return withOfflineFallback(
-    "fetchProductStock",
+    'fetchProductStock',
     async () => {
-      const { data } = await api.get<ProductStock>(`/v1/products/${id}/stock`);
-      return data;
+      const { data } = await api.get<ProductStock>(`/v1/products/${id}/stock`)
+      return data
     },
-    () => fallbackProductStock(id),
-  );
+    () => fallbackProductStock(id)
+  )
 }
 
 export function updateProductInventoryAlert(id: string, criticalStock: number): Promise<Product> {
   return withOfflineFallback(
-    "updateProductInventoryAlert",
+    'updateProductInventoryAlert',
     async () => {
-      const { data } = await api.patch<Product>(`/v1/products/${id}/inventory-alert`, { criticalStock });
-      return data;
+      const { data } = await api.patch<Product>(`/v1/products/${id}/inventory-alert`, {
+        criticalStock,
+      })
+      return data
     },
-    () => fallbackUpdateProductInventoryAlert(id, criticalStock),
-  );
+    () => fallbackUpdateProductInventoryAlert(id, criticalStock)
+  )
 }
 
 export function fetchProductQrBlob(id: string, options?: { download?: boolean }): Promise<Blob> {
   return withOfflineFallback(
-    "fetchProductQrBlob",
+    'fetchProductQrBlob',
     async () => {
       const { data } = await api.get<Blob>(`/v1/products/${id}/qr`, {
-        responseType: "blob",
+        responseType: 'blob',
         params: options?.download ? { download: true } : undefined,
-      });
-      return data;
+      })
+      return data
     },
-    () => fallbackFetchProductQrBlob(id),
-  );
+    () => fallbackFetchProductQrBlob(id)
+  )
 }
 
 export function deleteProduct(id: string): Promise<void> {
   return withOfflineVoid(
-    "deleteProduct",
+    'deleteProduct',
     () => api.delete(`/v1/products/${id}`),
-    () => fallbackDeleteProduct(id),
-  );
+    () => fallbackDeleteProduct(id)
+  )
 }
 
 export function listSuppliers(query?: string, active?: boolean): Promise<Supplier[]> {
   return withOfflineFallback(
-    "listSuppliers",
+    'listSuppliers',
     async () => {
-      const params: Record<string, string | boolean> = {};
-      if (query) params.query = query;
-      if (active !== undefined) params.active = active;
-      const { data } = await api.get<Supplier[]>("/v1/suppliers", { params: Object.keys(params).length > 0 ? params : undefined });
-      return data;
+      const params: Record<string, string | boolean> = {}
+      if (query) params.query = query
+      if (active !== undefined) params.active = active
+      const { data } = await api.get<Supplier[]>('/v1/suppliers', {
+        params: Object.keys(params).length > 0 ? params : undefined,
+      })
+      return data
     },
-    () => fallbackListSuppliers(),
-  );
+    () => fallbackListSuppliers()
+  )
 }
 
 export function createSupplier(payload: SupplierPayload): Promise<Supplier> {
   return withOfflineFallback(
-    "createSupplier",
+    'createSupplier',
     async () => {
-      const { data } = await api.post<Supplier>("/v1/suppliers", payload);
-      return data;
+      const { data } = await api.post<Supplier>('/v1/suppliers', payload)
+      return data
     },
-    () => fallbackCreateSupplier(payload),
-  );
+    () => fallbackCreateSupplier(payload)
+  )
 }
 
 export function updateSupplier(id: string, payload: SupplierPayload): Promise<Supplier> {
   return withOfflineFallback(
-    "updateSupplier",
+    'updateSupplier',
     async () => {
-      const { data } = await api.put<Supplier>(`/v1/suppliers/${id}`, payload);
-      return data;
+      const { data } = await api.put<Supplier>(`/v1/suppliers/${id}`, payload)
+      return data
     },
-    () => fallbackUpdateSupplier(id, payload),
-  );
+    () => fallbackUpdateSupplier(id, payload)
+  )
 }
 
 export function deleteSupplier(id: string): Promise<void> {
   return withOfflineVoid(
-    "deleteSupplier",
+    'deleteSupplier',
     () => api.delete(`/v1/suppliers/${id}`),
-    () => fallbackDeleteSupplier(id),
-  );
+    () => fallbackDeleteSupplier(id)
+  )
 }
 
 export function listSupplierContacts(supplierId: string): Promise<SupplierContact[]> {
   return withOfflineFallback(
-    "listSupplierContacts",
+    'listSupplierContacts',
     async () => {
-      const { data } = await api.get<SupplierContact[]>(`/v1/suppliers/${supplierId}/contacts`);
-      return data;
+      const { data } = await api.get<SupplierContact[]>(`/v1/suppliers/${supplierId}/contacts`)
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
-export function createSupplierContact(supplierId: string, payload: SupplierContactPayload): Promise<SupplierContact> {
+export function createSupplierContact(
+  supplierId: string,
+  payload: SupplierContactPayload
+): Promise<SupplierContact> {
   return withOfflineFallback(
-    "createSupplierContact",
+    'createSupplierContact',
     async () => {
-      const { data } = await api.post<SupplierContact>(`/v1/suppliers/${supplierId}/contacts`, payload);
-      return data;
+      const { data } = await api.post<SupplierContact>(
+        `/v1/suppliers/${supplierId}/contacts`,
+        payload
+      )
+      return data
     },
-    () => ({ id: crypto.randomUUID(), supplierId, ...payload }),
-  );
+    () => ({ id: crypto.randomUUID(), supplierId, ...payload })
+  )
 }
 
 export function exportSuppliersToCSV(query?: string, active?: boolean): Promise<Blob> {
-  const params: Record<string, string | boolean> = {};
-  if (query) params.query = query;
-  if (active !== undefined) params.active = active;
-  
-  return api.get("/v1/suppliers/export", {
-    params: Object.keys(params).length > 0 ? params : undefined,
-    responseType: "blob"
-  }).then(response => response.data);
+  const params: Record<string, string | boolean> = {}
+  if (query) params.query = query
+  if (active !== undefined) params.active = active
+
+  return api
+    .get('/v1/suppliers/export', {
+      params: Object.keys(params).length > 0 ? params : undefined,
+      responseType: 'blob',
+    })
+    .then(response => response.data)
 }
 
-export async function importSuppliersFromCSV(file: File): Promise<{ created: number; errors: Array<{ line: number; error: string }> }> {
-  const formData = new FormData();
-  formData.append("file", file);
-  
-  const { data } = await api.post<{ created: number; errors: Array<{ line: number; error: string }> }>(
-    "/v1/suppliers/import",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data"
-      }
-    }
-  );
-  
-  return data;
+export async function importSuppliersFromCSV(
+  file: File
+): Promise<{ created: number; errors: Array<{ line: number; error: string }> }> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const { data } = await api.post<{
+    created: number
+    errors: Array<{ line: number; error: string }>
+  }>('/v1/suppliers/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+
+  return data
 }
 
 export function getSupplierMetrics(supplierId: string): Promise<SupplierMetrics> {
   return withOfflineFallback(
-    "getSupplierMetrics",
+    'getSupplierMetrics',
     async () => {
-      const { data } = await api.get<SupplierMetrics>(`/v1/suppliers/${supplierId}/metrics`);
-      return data;
+      const { data } = await api.get<SupplierMetrics>(`/v1/suppliers/${supplierId}/metrics`)
+      return data
     },
     () => ({
       totalPurchases: 0,
@@ -3277,40 +3372,40 @@ export function getSupplierMetrics(supplierId: string): Promise<SupplierMetrics>
       amountLastMonth: 0,
       purchasesPreviousMonth: 0,
       amountPreviousMonth: 0,
-    }),
-  );
+    })
+  )
 }
 
 export function getSupplierAlerts(): Promise<SupplierAlert[]> {
   return withOfflineFallback(
-    "getSupplierAlerts",
+    'getSupplierAlerts',
     async () => {
-      const { data } = await api.get<SupplierAlert[]>("/v1/suppliers/alerts");
-      return data;
+      const { data } = await api.get<SupplierAlert[]>('/v1/suppliers/alerts')
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
-export function getSupplierRanking(criteria: string = "volume"): Promise<SupplierRanking[]> {
+export function getSupplierRanking(criteria: string = 'volume'): Promise<SupplierRanking[]> {
   return withOfflineFallback(
-    "getSupplierRanking",
+    'getSupplierRanking',
     async () => {
-      const { data } = await api.get<SupplierRanking[]>("/v1/suppliers/ranking", {
+      const { data } = await api.get<SupplierRanking[]>('/v1/suppliers/ranking', {
         params: { criteria },
-      });
-      return data;
+      })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export function getSupplierRiskAnalysis(): Promise<SupplierRiskAnalysis> {
   return withOfflineFallback(
-    "getSupplierRiskAnalysis",
+    'getSupplierRiskAnalysis',
     async () => {
-      const { data } = await api.get<SupplierRiskAnalysis>("/v1/suppliers/risk-analysis");
-      return data;
+      const { data } = await api.get<SupplierRiskAnalysis>('/v1/suppliers/risk-analysis')
+      return data
     },
     () => ({
       categoryA: [],
@@ -3319,123 +3414,133 @@ export function getSupplierRiskAnalysis(): Promise<SupplierRiskAnalysis> {
       concentrationIndex: 0,
       singleSourceProductsCount: 0,
       totalPurchaseVolume: 0,
-    }),
-  );
+    })
+  )
 }
 
-export function getSupplierPriceHistory(supplierId: string, productId: string): Promise<SupplierPriceHistory> {
+export function getSupplierPriceHistory(
+  supplierId: string,
+  productId: string
+): Promise<SupplierPriceHistory> {
   return withOfflineFallback(
-    "getSupplierPriceHistory",
+    'getSupplierPriceHistory',
     async () => {
       const { data } = await api.get<SupplierPriceHistory>(
         `/v1/suppliers/${supplierId}/price-history`,
         { params: { productId } }
-      );
-      return data;
+      )
+      return data
     },
     () => ({
       supplierId,
-      supplierName: "Proveedor",
+      supplierName: 'Proveedor',
       productId,
-      productName: "Producto",
+      productName: 'Producto',
       priceHistory: [],
       currentPrice: 0,
       averagePrice: 0,
       minPrice: 0,
       maxPrice: 0,
-      trend: "STABLE",
+      trend: 'STABLE',
       trendPercentage: 0,
-    }),
-  );
+    })
+  )
 }
 
 export function getNegotiationOpportunities(): Promise<NegotiationOpportunity[]> {
   return withOfflineFallback(
-    "getNegotiationOpportunities",
+    'getNegotiationOpportunities',
     async () => {
-      const { data } = await api.get<NegotiationOpportunity[]>("/v1/suppliers/negotiation-opportunities");
-      return data;
+      const { data } = await api.get<NegotiationOpportunity[]>(
+        '/v1/suppliers/negotiation-opportunities'
+      )
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export function getSingleSourceProducts(): Promise<SingleSourceProduct[]> {
   return withOfflineFallback(
-    "getSingleSourceProducts",
+    'getSingleSourceProducts',
     async () => {
-      const { data } = await api.get<SingleSourceProduct[]>("/v1/suppliers/single-source-products");
-      return data;
+      const { data } = await api.get<SingleSourceProduct[]>('/v1/suppliers/single-source-products')
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export function getSupplierForecast(supplierId: string): Promise<PurchaseForecast> {
   return withOfflineFallback(
     `getSupplierForecast-${supplierId}`,
     async () => {
-      const { data } = await api.get<PurchaseForecast>(`/v1/suppliers/${supplierId}/forecast`);
-      return data;
+      const { data } = await api.get<PurchaseForecast>(`/v1/suppliers/${supplierId}/forecast`)
+      return data
     },
     () => ({
       supplierId,
-      supplierName: "Proveedor",
+      supplierName: 'Proveedor',
       monthlyForecasts: [],
       averageMonthlySpend: 0,
       projectedNextMonthSpend: 0,
       averageMonthlyOrders: 0,
-      trend: "STABLE",
-      recommendation: "",
-    }),
-  );
+      trend: 'STABLE',
+      recommendation: '',
+    })
+  )
 }
 
 export function listCustomers(params: ListCustomersParams = {}): Promise<Page<Customer>> {
   return withOfflineFallback(
-    "listCustomers",
+    'listCustomers',
     async () => {
-      const requestedPage = params.page ?? 0;
-      const requestedSize = params.size ?? 20;
+      const requestedPage = params.page ?? 0
+      const requestedSize = params.size ?? 20
       const queryParams: Record<string, unknown> = {
         page: requestedPage,
         size: requestedSize,
-        sort: params.sort ?? "createdAt,desc",
-      };
+        sort: params.sort ?? 'createdAt,desc',
+      }
       if (params.q && params.q.trim()) {
-        queryParams.q = params.q.trim();
+        queryParams.q = params.q.trim()
       }
       if (params.segment && params.segment.trim()) {
-        queryParams.segment = params.segment.trim();
+        queryParams.segment = params.segment.trim()
       }
-      const { data } = await api.get<Page<Customer>>("/v1/customers", { params: queryParams });
-      const raw = data as Page<Customer> & { page?: number; items?: Customer[]; total?: number; hasNext?: boolean };
-      const content = raw.content ?? raw.items ?? [];
-      const size = raw.size ?? requestedSize;
+      const { data } = await api.get<Page<Customer>>('/v1/customers', { params: queryParams })
+      const raw = data as Page<Customer> & {
+        page?: number
+        items?: Customer[]
+        total?: number
+        hasNext?: boolean
+      }
+      const content = raw.content ?? raw.items ?? []
+      const size = raw.size ?? requestedSize
       const totalElements =
-        typeof raw.totalElements === "number"
+        typeof raw.totalElements === 'number'
           ? raw.totalElements
-          : typeof raw.total === "number"
-          ? raw.total
-          : content.length;
+          : typeof raw.total === 'number'
+            ? raw.total
+            : content.length
       const number =
-        typeof raw.number === "number"
+        typeof raw.number === 'number'
           ? raw.number
-          : typeof raw.page === "number"
-          ? raw.page
-          : requestedPage;
+          : typeof raw.page === 'number'
+            ? raw.page
+            : requestedPage
       const totalPages =
-        typeof raw.totalPages === "number"
+        typeof raw.totalPages === 'number'
           ? raw.totalPages
           : size > 0
-          ? Math.ceil(totalElements / size)
-          : 0;
+            ? Math.ceil(totalElements / size)
+            : 0
       const hasNext =
-        typeof raw.hasNext === "boolean"
+        typeof raw.hasNext === 'boolean'
           ? raw.hasNext
           : totalPages > 0
-          ? number + 1 < totalPages
-          : content.length === size;
+            ? number + 1 < totalPages
+            : content.length === size
 
       return {
         ...raw,
@@ -3445,77 +3550,77 @@ export function listCustomers(params: ListCustomersParams = {}): Promise<Page<Cu
         totalPages,
         number,
         hasNext,
-      };
+      }
     },
-    () => fallbackListCustomers(params),
-  );
+    () => fallbackListCustomers(params)
+  )
 }
 
 export function listCustomerSegments(): Promise<CustomerSegmentSummary[]> {
   return withOfflineFallback(
-    "listCustomerSegments",
+    'listCustomerSegments',
     async () => {
-      const { data } = await api.get<CustomerSegmentSummary[]>("/v1/customer-segments/stats");
-      return data;
+      const { data } = await api.get<CustomerSegmentSummary[]>('/v1/customer-segments/stats')
+      return data
     },
-    () => fallbackListCustomerSegments(),
-  );
+    () => fallbackListCustomerSegments()
+  )
 }
 
 export function createCustomer(payload: CustomerPayload): Promise<Customer> {
   return withOfflineFallback(
-    "createCustomer",
+    'createCustomer',
     async () => {
-      const { data } = await api.post<Customer>("/v1/customers", payload);
-      return data;
+      const { data } = await api.post<Customer>('/v1/customers', payload)
+      return data
     },
-    () => fallbackCreateCustomer(payload),
-  );
+    () => fallbackCreateCustomer(payload)
+  )
 }
 
 export function updateCustomer(id: string, payload: CustomerPayload): Promise<Customer> {
   return withOfflineFallback(
-    "updateCustomer",
+    'updateCustomer',
     async () => {
-      const { data } = await api.put<Customer>(`/v1/customers/${id}`, payload);
-      return data;
+      const { data } = await api.put<Customer>(`/v1/customers/${id}`, payload)
+      return data
     },
-    () => fallbackUpdateCustomer(id, payload),
-  );
+    () => fallbackUpdateCustomer(id, payload)
+  )
 }
 
 export function deleteCustomer(id: string): Promise<void> {
   return withOfflineVoid(
-    "deleteCustomer",
+    'deleteCustomer',
     () => api.delete(`/v1/customers/${id}`),
-    () => fallbackDeleteCustomer(id),
-  );
+    () => fallbackDeleteCustomer(id)
+  )
 }
 
 export type CustomerStats = {
-  totalSales: number;
-  totalRevenue: number;
-  lastSaleDate?: string;
+  totalSales: number
+  totalRevenue: number
+  lastSaleDate?: string
   topProducts: Array<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    revenue: number;
-  }>;
-};
+    productId: string
+    productName: string
+    quantity: number
+    revenue: number
+  }>
+}
 
 export type CustomerSaleHistoryItem = {
-  saleId: string;
-  saleDate: string;
-  docType: string;
-  docNumber: string;
-  total: number;
-  itemCount: number;
-};
+  saleId: string
+  saleDate: string
+  docType: string
+  docNumber: string
+  total: number
+  itemCount: number
+}
 
 export async function getCustomerStats(customerId: string): Promise<CustomerStats> {
-  const { data } = await api.get<CustomerStats>(`/v1/customers/${customerId}/stats`);
-  return data;
+  const { data } = await api.get<CustomerStats>(`/v1/customers/${customerId}/stats`)
+  return data
 }
 
 export async function getCustomerSaleHistory(
@@ -3526,289 +3631,300 @@ export async function getCustomerSaleHistory(
   const { data } = await api.get<Page<CustomerSaleHistoryItem>>(
     `/v1/customers/${customerId}/sales`,
     { params: { page, size } }
-  );
-  return data;
+  )
+  return data
 }
 
 export function listProductPrices(
   productId: string,
-  params?: { page?: number; size?: number },
+  params?: { page?: number; size?: number }
 ): Promise<Page<PriceHistoryEntry>> {
   return withOfflineFallback(
-    "listProductPrices",
+    'listProductPrices',
     async () => {
-      const { data } = await api.get<Page<PriceHistoryEntry>>(`/v1/products/${productId}/prices`, { params });
-      return data;
+      const { data } = await api.get<Page<PriceHistoryEntry>>(`/v1/products/${productId}/prices`, {
+        params,
+      })
+      return data
     },
-    () => fallbackListProductPrices(productId, params),
-  );
+    () => fallbackListProductPrices(productId, params)
+  )
 }
 
-export function createProductPrice(productId: string, payload: PriceChangePayload): Promise<PriceHistoryEntry> {
+export function createProductPrice(
+  productId: string,
+  payload: PriceChangePayload
+): Promise<PriceHistoryEntry> {
   return withOfflineFallback(
-    "createProductPrice",
+    'createProductPrice',
     async () => {
-      const { data } = await api.post<PriceHistoryEntry>(`/v1/products/${productId}/prices`, payload);
-      return data;
+      const { data } = await api.post<PriceHistoryEntry>(
+        `/v1/products/${productId}/prices`,
+        payload
+      )
+      return data
     },
-    () => fallbackCreateProductPrice(productId, payload),
-  );
+    () => fallbackCreateProductPrice(productId, payload)
+  )
 }
 
 export function listSales(params: ListSalesParams = {}): Promise<Page<SaleSummary>> {
   return withOfflineFallback(
-    "listSales",
+    'listSales',
     async () => {
-      const { data } = await api.get<Page<SaleSummary>>("/v1/sales", { params });
-      return data;
+      const { data } = await api.get<Page<SaleSummary>>('/v1/sales', { params })
+      return data
     },
-    () => fallbackListSales(params),
-  );
+    () => fallbackListSales(params)
+  )
 }
 
 export function updateSale(id: string, payload: SaleUpdatePayload): Promise<SaleRes> {
   return withOfflineFallback(
-    "updateSale",
+    'updateSale',
     async () => {
-      const { data } = await api.put<SaleRes>(`/v1/sales/${id}`, payload);
-      return data;
+      const { data } = await api.put<SaleRes>(`/v1/sales/${id}`, payload)
+      return data
     },
-    () => fallbackUpdateSale(id, payload),
-  );
+    () => fallbackUpdateSale(id, payload)
+  )
 }
 
 export function cancelSale(id: string): Promise<SaleRes> {
   return withOfflineFallback(
-    "cancelSale",
+    'cancelSale',
     async () => {
-      const { data } = await api.post<SaleRes>(`/v1/sales/${id}/cancel`, {});
-      return data;
+      const { data } = await api.post<SaleRes>(`/v1/sales/${id}/cancel`, {})
+      return data
     },
-    () => fallbackCancelSale(id),
-  );
+    () => fallbackCancelSale(id)
+  )
 }
 
 export function getSaleDetail(id: string): Promise<SaleDetail> {
   return withOfflineFallback(
-    "getSaleDetail",
+    'getSaleDetail',
     async () => {
-      const { data } = await api.get<SaleDetail>(`/v1/sales/${id}`);
-      return data;
+      const { data } = await api.get<SaleDetail>(`/v1/sales/${id}`)
+      return data
     },
-    () => fallbackGetSaleDetail(id),
-  );
+    () => fallbackGetSaleDetail(id)
+  )
 }
 
 export function listSalesTrend(params: SalesTrendParams): Promise<SalesDailyPoint[]> {
   return withOfflineFallback(
-    "listSalesTrend",
+    'listSalesTrend',
     async () => {
-      const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/trend", { params });
-      return data;
+      const { data } = await api.get<SalesDailyPoint[]>('/v1/sales/trend', { params })
+      return data
     },
-    () => fallbackListSalesTrend(params),
-  );
+    () => fallbackListSalesTrend(params)
+  )
 }
 
 export function getDashboardSalesMetrics(
-  params: DashboardSalesMetricsParams,
+  params: DashboardSalesMetricsParams
 ): Promise<DashboardSalesMetrics> {
   return withOfflineFallback(
-    "getDashboardSalesMetrics",
+    'getDashboardSalesMetrics',
     async () => {
-      const { data } = await api.get<DashboardSalesMetrics>("/v1/sales/metrics", { params });
-      return data;
+      const { data } = await api.get<DashboardSalesMetrics>('/v1/sales/metrics', { params })
+      return data
     },
-    () => fallbackGetDashboardSalesMetrics(params),
-  );
+    () => fallbackGetDashboardSalesMetrics(params)
+  )
 }
 
 export function getPurchaseSaleTrend(params: TrendSeriesParams): Promise<TrendSeriesResponse> {
   return withOfflineFallback(
-    "getPurchaseSaleTrend",
+    'getPurchaseSaleTrend',
     async () => {
-      const { data } = await api.get<TrendSeriesResponse>("/v1/trend", { params });
-      return data;
+      const { data } = await api.get<TrendSeriesResponse>('/v1/trend', { params })
+      return data
     },
-    () => fallbackGetPurchaseSaleTrend(params),
-  );
+    () => fallbackGetPurchaseSaleTrend(params)
+  )
 }
 
-export function getSalesWindowMetrics(window = "14d"): Promise<SalesWindowMetrics> {
-  const safeWindow = window && window.trim().length > 0 ? window : "14d";
+export function getSalesWindowMetrics(window = '14d'): Promise<SalesWindowMetrics> {
+  const safeWindow = window && window.trim().length > 0 ? window : '14d'
   return withOfflineFallback(
-    "getSalesWindowMetrics",
+    'getSalesWindowMetrics',
     async () => {
-      const { data } = await api.get<SalesWindowMetrics>("/v1/sales/metrics", {
+      const { data } = await api.get<SalesWindowMetrics>('/v1/sales/metrics', {
         params: { window: safeWindow },
-      });
-      return data;
+      })
+      return data
     },
-    () => fallbackGetSalesWindowMetrics(safeWindow),
-  );
+    () => fallbackGetSalesWindowMetrics(safeWindow)
+  )
 }
 
 export function getSalesSummaryByPeriod(period: SalesPeriod): Promise<SalesPeriodSummary> {
   return withOfflineFallback(
-    "getSalesSummaryByPeriod",
+    'getSalesSummaryByPeriod',
     async () => {
-      const { data } = await api.get<SalesPeriodSummary>("/v1/sales/metrics/summary", {
+      const { data } = await api.get<SalesPeriodSummary>('/v1/sales/metrics/summary', {
         params: { period },
-      });
-      return data;
+      })
+      return data
     },
-    () => fallbackGetSalesSummary(period),
-  );
+    () => fallbackGetSalesSummary(period)
+  )
 }
 
 export function getFrequentProducts(customerId: string): Promise<FrequentProduct[]> {
   if (!customerId) {
-    return Promise.resolve([]);
+    return Promise.resolve([])
   }
 
   return withOfflineFallback(
-    "getFrequentProducts",
+    'getFrequentProducts',
     async () => {
       const { data } = await api.get<FrequentProduct[]>(
         `/v1/customers/${customerId}/frequent-products`,
-        { params: { limit: 20 } },
-      );
-      return data;
+        { params: { limit: 20 } }
+      )
+      return data
     },
-    () => fallbackGetFrequentProducts(customerId, 20),
-  );
+    () => fallbackGetFrequentProducts(customerId, 20)
+  )
 }
 
 export function listSaleDocuments(
-  params: ListSaleDocumentsParams = {},
+  params: ListSaleDocumentsParams = {}
 ): Promise<Page<SaleDocument>> {
-  const { page = 0, size = 10, sort = "date,DESC" } = params;
+  const { page = 0, size = 10, sort = 'date,DESC' } = params
 
   return withOfflineFallback(
-    "listSaleDocuments",
+    'listSaleDocuments',
     async () => {
-      const { data } = await api.get<Page<SaleDocument>>("/v1/documents", {
+      const { data } = await api.get<Page<SaleDocument>>('/v1/documents', {
         params: {
-          type: "SALE",
+          type: 'SALE',
           page,
           size,
           sort,
         },
-      });
-      return data;
+      })
+      return data
     },
-    () => fallbackListSaleDocuments({ page, size, sort }),
-  );
+    () => fallbackListSaleDocuments({ page, size, sort })
+  )
 }
 
 export function listDocuments(params: ListDocumentsParams): Promise<Page<DocumentSummary>> {
-  const { type, page, size } = params;
+  const { type, page, size } = params
 
   return withOfflineFallback(
     `listDocuments-${type}`,
     async () => {
-      const { data } = await api.get<Page<DocumentSummary>>("/v1/documents", {
+      const { data } = await api.get<Page<DocumentSummary>>('/v1/documents', {
         params: {
           type,
           page,
           size,
         },
-      });
-      return data;
+      })
+      return data
     },
-    () => fallbackListDocuments(params),
-  );
+    () => fallbackListDocuments(params)
+  )
 }
 
 export function getDocumentPreview(id: string): Promise<DocumentFile> {
   return withOfflineFallback(
-    "getDocumentPreview",
+    'getDocumentPreview',
     async () => {
-      const response = await api.get<Blob>(`/v1/documents/${id}`, { responseType: "blob" });
-      return createDocumentFileFromResponse(response, `${id}.pdf`);
+      const response = await api.get<Blob>(`/v1/documents/${id}`, { responseType: 'blob' })
+      return createDocumentFileFromResponse(response, `${id}.pdf`)
     },
-    () => fallbackGetDocumentPreview(id),
-  );
+    () => fallbackGetDocumentPreview(id)
+  )
 }
 
 export function downloadDocumentByLink(
   link: string,
-  options: { fallbackName?: string; offlineId?: string; version?: DocumentFileVersion } = {},
+  options: { fallbackName?: string; offlineId?: string; version?: DocumentFileVersion } = {}
 ): Promise<DocumentFile> {
-  const { fallbackName = "document.pdf", offlineId, version = "OFFICIAL" } = options;
+  const { fallbackName = 'document.pdf', offlineId, version = 'OFFICIAL' } = options
   return withOfflineFallback(
-    "downloadDocument",
+    'downloadDocument',
     async () => {
-      const response = await api.get<Blob>(link, { responseType: "blob" });
-      return createDocumentFileFromResponse(response, fallbackName);
+      const response = await api.get<Blob>(link, { responseType: 'blob' })
+      return createDocumentFileFromResponse(response, fallbackName)
     },
     () => {
-      const parsed = parseOfflineDocumentLink(link);
-      const target = parsed ?? (offlineId ? { id: offlineId, version } : null);
+      const parsed = parseOfflineDocumentLink(link)
+      const target = parsed ?? (offlineId ? { id: offlineId, version } : null)
       if (!target) {
-        return createFallbackDocumentFile(fallbackName.replace(/\.pdf$/i, ""), "download");
+        return createFallbackDocumentFile(fallbackName.replace(/\.pdf$/i, ''), 'download')
       }
-      return fallbackDownloadDocument(target.id, target.version);
-    },
-  );
+      return fallbackDownloadDocument(target.id, target.version)
+    }
+  )
 }
 
-export function downloadDocument(id: string, version: DocumentFileVersion = "OFFICIAL"): Promise<DocumentFile> {
-  const url = `/v1/billing/documents/${id}/files/${version}`;
-  const fallbackName = `${id}-${version.toLowerCase()}.pdf`;
-  return downloadDocumentByLink(url, { fallbackName, offlineId: id, version });
+export function downloadDocument(
+  id: string,
+  version: DocumentFileVersion = 'OFFICIAL'
+): Promise<DocumentFile> {
+  const url = `/v1/billing/documents/${id}/files/${version}`
+  const fallbackName = `${id}-${version.toLowerCase()}.pdf`
+  return downloadDocumentByLink(url, { fallbackName, offlineId: id, version })
 }
-
 
 export function getBillingDocument(id: string): Promise<BillingDocumentDetail> {
   return withOfflineFallback(
-    "getBillingDocument",
+    'getBillingDocument',
     async () => {
-      const { data } = await api.get<BillingDocumentDetail>(`/v1/billing/documents/${id}`);
-      return data;
+      const { data } = await api.get<BillingDocumentDetail>(`/v1/billing/documents/${id}`)
+      return data
     },
-    () => fallbackGetBillingDocument(id),
-  );
+    () => fallbackGetBillingDocument(id)
+  )
 }
 
 export function getDocumentDetailUrl(id: string): string {
-  return api.getUri({ url: `/v1/billing/documents/${id}` });
+  return api.getUri({ url: `/v1/billing/documents/${id}` })
 }
-
 
 export function listSalesDaily(days = 14): Promise<SalesDailyPoint[]> {
   return withOfflineFallback(
-    "listSalesDaily",
+    'listSalesDaily',
     async () => {
-      const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/metrics/daily", { params: { days } });
-      return data;
+      const { data } = await api.get<SalesDailyPoint[]>('/v1/sales/metrics/daily', {
+        params: { days },
+      })
+      return data
     },
-    () => fallbackListSalesDaily(days),
-  );
+    () => fallbackListSalesDaily(days)
+  )
 }
 
 export function listSalesDailyByDateRange(from: string, to: string): Promise<SalesDailyPoint[]> {
   return withOfflineFallback(
-    "listSalesDailyByDateRange",
+    'listSalesDailyByDateRange',
     async () => {
-      const { data } = await api.get<SalesDailyPoint[]>("/v1/sales/metrics/daily-range", { 
-        params: { from, to } 
-      });
-      return data;
+      const { data } = await api.get<SalesDailyPoint[]>('/v1/sales/metrics/daily-range', {
+        params: { from, to },
+      })
+      return data
     },
-    () => fallbackListSalesDailyByDateRange(from, to),
-  );
+    () => fallbackListSalesDailyByDateRange(from, to)
+  )
 }
 
 export function getSalesKPIs(from?: string, to?: string): Promise<SalesKPIs> {
   return withOfflineFallback(
-    "getSalesKPIs",
+    'getSalesKPIs',
     async () => {
-      const params: { from?: string; to?: string } = {};
-      if (from) params.from = from;
-      if (to) params.to = to;
-      const { data } = await api.get<SalesKPIs>("/v1/sales/kpis", { params });
-      return data;
+      const params: { from?: string; to?: string } = {}
+      if (from) params.from = from
+      if (to) params.to = to
+      const { data } = await api.get<SalesKPIs>('/v1/sales/kpis', { params })
+      return data
     },
     () => ({
       totalRevenue: 0,
@@ -3820,104 +3936,111 @@ export function getSalesKPIs(from?: string, to?: string): Promise<SalesKPIs> {
       salesGrowth: 0,
       uniqueCustomers: 0,
       customerRetentionRate: 0,
-      topProductName: "N/A",
+      topProductName: 'N/A',
       topProductRevenue: 0,
-      topCustomerName: "N/A",
+      topCustomerName: 'N/A',
       topCustomerRevenue: 0,
       conversionRate: 0,
-      periodStart: from || "",
-      periodEnd: to || "",
-    }),
-  );
+      periodStart: from || '',
+      periodEnd: to || '',
+    })
+  )
 }
 
 export function getSalesABCAnalysis(from?: string, to?: string): Promise<SaleABCClassification[]> {
   return withOfflineFallback(
-    "getSalesABCAnalysis",
+    'getSalesABCAnalysis',
     async () => {
-      const params: { from?: string; to?: string } = {};
-      if (from) params.from = from;
-      if (to) params.to = to;
-      const { data } = await api.get<SaleABCClassification[]>("/v1/sales/abc-analysis", { params });
-      return data;
+      const params: { from?: string; to?: string } = {}
+      if (from) params.from = from
+      if (to) params.to = to
+      const { data } = await api.get<SaleABCClassification[]>('/v1/sales/abc-analysis', { params })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
-export function getSalesProductForecast(from?: string, to?: string, horizonDays?: number): Promise<SaleProductForecast[]> {
+export function getSalesProductForecast(
+  from?: string,
+  to?: string,
+  horizonDays?: number
+): Promise<SaleProductForecast[]> {
   return withOfflineFallback(
-    "getSalesProductForecast",
+    'getSalesProductForecast',
     async () => {
-      const params: { from?: string; to?: string; horizonDays?: number } = {};
-      if (from) params.from = from;
-      if (to) params.to = to;
-      if (horizonDays) params.horizonDays = horizonDays;
-      const { data } = await api.get<SaleProductForecast[]>("/v1/sales/forecast", { params });
-      return data;
+      const params: { from?: string; to?: string; horizonDays?: number } = {}
+      if (from) params.from = from
+      if (to) params.to = to
+      if (horizonDays) params.horizonDays = horizonDays
+      const { data } = await api.get<SaleProductForecast[]>('/v1/sales/forecast', { params })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export function createSale(payload: SalePayload): Promise<SaleRes> {
   return withOfflineFallback(
-    "createSale",
+    'createSale',
     async () => {
-      const { data } = await api.post<SaleRes>("/v1/sales", payload);
-      return data;
+      const { data } = await api.post<SaleRes>('/v1/sales', payload)
+      return data
     },
-    () => fallbackCreateSale(payload),
-  );
+    () => fallbackCreateSale(payload)
+  )
 }
 
 export async function exportSalesToCSV(params: ListSalesParams = {}): Promise<Blob> {
-  const response = await api.get("/v1/sales/export", {
+  const response = await api.get('/v1/sales/export', {
     params,
-    responseType: "blob",
-  });
-  return response.data;
+    responseType: 'blob',
+  })
+  return response.data
 }
 
 export function listPurchases(params: ListPurchasesParams = {}): Promise<Page<PurchaseSummary>> {
   return withOfflineFallback(
-    "listPurchases",
+    'listPurchases',
     async () => {
-      const { data } = await api.get<Page<PurchaseSummary>>("/v1/purchases", { params });
-      return data;
+      const { data } = await api.get<Page<PurchaseSummary>>('/v1/purchases', { params })
+      return data
     },
-    () => fallbackListPurchases(params),
-  );
+    () => fallbackListPurchases(params)
+  )
 }
 
-export function updatePurchase(id: string, payload: PurchaseUpdatePayload): Promise<PurchaseSummary> {
+export function updatePurchase(
+  id: string,
+  payload: PurchaseUpdatePayload
+): Promise<PurchaseSummary> {
   return withOfflineFallback(
-    "updatePurchase",
+    'updatePurchase',
     async () => {
-      const { data } = await api.put<PurchaseSummary>(`/v1/purchases/${id}`, payload);
-      return data;
+      const { data } = await api.put<PurchaseSummary>(`/v1/purchases/${id}`, payload)
+      return data
     },
-    () => fallbackUpdatePurchase(id, payload),
-  );
+    () => fallbackUpdatePurchase(id, payload)
+  )
 }
 
 export function cancelPurchase(id: string): Promise<PurchaseSummary> {
   return withOfflineFallback(
-    "cancelPurchase",
+    'cancelPurchase',
     async () => {
-      const { data } = await api.post<PurchaseSummary>(`/v1/purchases/${id}/cancel`, {});
-      return data;
+      const { data } = await api.post<PurchaseSummary>(`/v1/purchases/${id}/cancel`, {})
+      return data
     },
-    () => fallbackCancelPurchase(id),
-  );
+    () => fallbackCancelPurchase(id)
+  )
 }
 
 export function getPurchaseKPIs(from?: string, to?: string): Promise<PurchaseKPIs> {
   return withOfflineFallback(
-    "getPurchaseKPIs",
+    'getPurchaseKPIs',
     async () => {
-      const { data } = await api.get<PurchaseKPIs>("/v1/purchases/kpis", { params: { from, to } });
-      return data;
+      const { data } = await api.get<PurchaseKPIs>('/v1/purchases/kpis', { params: { from, to } })
+      return data
     },
     () => ({
       totalSpent: 0,
@@ -3927,126 +4050,137 @@ export function getPurchaseKPIs(from?: string, to?: string): Promise<PurchaseKPI
       purchaseGrowth: 0,
       uniqueSuppliers: 0,
       supplierConcentration: 0,
-      topSupplierName: "N/A",
+      topSupplierName: 'N/A',
       topSupplierSpent: 0,
-      topCategoryName: "N/A",
+      topCategoryName: 'N/A',
       topCategorySpent: 0,
       onTimeDeliveryRate: 0,
       costPerUnit: 0,
       pendingOrders: 0,
-      periodStart: "",
-      periodEnd: "",
-    }),
-  );
+      periodStart: '',
+      periodEnd: '',
+    })
+  )
 }
 
-export function getPurchaseABCAnalysis(from?: string, to?: string): Promise<PurchaseABCClassification[]> {
+export function getPurchaseABCAnalysis(
+  from?: string,
+  to?: string
+): Promise<PurchaseABCClassification[]> {
   return withOfflineFallback(
-    "getPurchaseABCAnalysis",
+    'getPurchaseABCAnalysis',
     async () => {
-      const { data } = await api.get<PurchaseABCClassification[]>("/v1/purchases/abc-analysis", { params: { from, to } });
-      return data;
+      const { data } = await api.get<PurchaseABCClassification[]>('/v1/purchases/abc-analysis', {
+        params: { from, to },
+      })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
-export function getPurchaseSupplierForecast(from?: string, to?: string, horizonDays?: number): Promise<PurchaseSupplierForecast[]> {
+export function getPurchaseSupplierForecast(
+  from?: string,
+  to?: string,
+  horizonDays?: number
+): Promise<PurchaseSupplierForecast[]> {
   return withOfflineFallback(
-    "getPurchaseSupplierForecast",
+    'getPurchaseSupplierForecast',
     async () => {
-      const { data } = await api.get<PurchaseSupplierForecast[]>("/v1/purchases/forecast", { 
-        params: { from, to, horizonDays } 
-      });
-      return data;
+      const { data } = await api.get<PurchaseSupplierForecast[]>('/v1/purchases/forecast', {
+        params: { from, to, horizonDays },
+      })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export function listPurchaseDaily(days = 14): Promise<PurchaseDailyPoint[]> {
   return withOfflineFallback(
-    "listPurchaseDaily",
+    'listPurchaseDaily',
     async () => {
-      const { data } = await api.get<PurchaseDailyPoint[]>("/v1/purchases/metrics/daily", { params: { days } });
-      return data;
+      const { data } = await api.get<PurchaseDailyPoint[]>('/v1/purchases/metrics/daily', {
+        params: { days },
+      })
+      return data
     },
-    () => fallbackListPurchaseDaily(days),
-  );
+    () => fallbackListPurchaseDaily(days)
+  )
 }
 
 export function createPurchase(payload: PurchasePayload, file?: File): Promise<{ id: string }> {
   return withOfflineFallback(
-    "createPurchase",
+    'createPurchase',
     async () => {
       if (file) {
         // Si hay archivo, usar FormData con multipart/form-data
-        const formData = new FormData();
-        formData.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
-        formData.append("file", file);
-        
-        const { data } = await api.post<{ id: string }>("/v1/purchases", formData, {
+        const formData = new FormData()
+        formData.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }))
+        formData.append('file', file)
+
+        const { data } = await api.post<{ id: string }>('/v1/purchases', formData, {
           headers: {
-            "Content-Type": "multipart/form-data",
+            'Content-Type': 'multipart/form-data',
           },
-        });
-        return data;
+        })
+        return data
       } else {
         // Sin archivo, usar JSON normal
-        const { data } = await api.post<{ id: string }>("/v1/purchases", payload);
-        return data;
+        const { data } = await api.post<{ id: string }>('/v1/purchases', payload)
+        return data
       }
     },
-    () => fallbackCreatePurchase(payload),
-  );
+    () => fallbackCreatePurchase(payload)
+  )
 }
 
 export async function exportPurchasesToCSV(params: ListPurchasesParams = {}): Promise<Blob> {
-  const response = await api.get("/v1/purchases/export", {
+  const response = await api.get('/v1/purchases/export', {
     params,
-    responseType: "blob",
-  });
-  return response.data;
+    responseType: 'blob',
+  })
+  return response.data
 }
 
 export type PurchaseImportResult = {
-  success: boolean;
-  imported: number;
-  total: number;
-  errors: string[];
-  message?: string;
-};
+  success: boolean
+  imported: number
+  total: number
+  errors: string[]
+  message?: string
+}
 
 export async function importPurchasesFromCSV(file: File): Promise<PurchaseImportResult> {
-  const formData = new FormData();
-  formData.append("file", file);
+  const formData = new FormData()
+  formData.append('file', file)
 
-  const { data } = await api.post<PurchaseImportResult>("/v1/purchases/import", formData, {
+  const { data } = await api.post<PurchaseImportResult>('/v1/purchases/import', formData, {
     headers: {
-      "Content-Type": "multipart/form-data",
+      'Content-Type': 'multipart/form-data',
     },
-  });
-  return data;
+  })
+  return data
 }
 
 export async function listLocations(type?: LocationType): Promise<Location[]> {
   return withOfflineFallback(
-    "listLocations",
+    'listLocations',
     async () => {
-      const params = type ? { type } : {};
-      const { data } = await api.get<Location[]>("/api/locations", { params });
-      return data;
+      const params = type ? { type } : {}
+      const { data } = await api.get<Location[]>('/api/locations', { params })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export async function createLocation(payload: LocationPayload): Promise<Location> {
   return withOfflineFallback(
-    "createLocation",
+    'createLocation',
     async () => {
-      const { data } = await api.post<Location>("/api/locations", payload);
-      return data;
+      const { data } = await api.post<Location>('/api/locations', payload)
+      return data
     },
     () => ({
       id: crypto.randomUUID(),
@@ -4058,16 +4192,16 @@ export async function createLocation(payload: LocationPayload): Promise<Location
       parentLocationId: payload.parentLocationId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }),
-  );
+    })
+  )
 }
 
 export async function updateLocation(id: string, payload: LocationPayload): Promise<Location> {
   return withOfflineFallback(
-    "updateLocation",
+    'updateLocation',
     async () => {
-      const { data} = await api.put<Location>(`/api/locations/${id}`, payload);
-      return data;
+      const { data } = await api.put<Location>(`/api/locations/${id}`, payload)
+      return data
     },
     () => ({
       id,
@@ -4075,83 +4209,83 @@ export async function updateLocation(id: string, payload: LocationPayload): Prom
       ...payload,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }),
-  );
+    })
+  )
 }
 
 export async function deleteLocation(id: string): Promise<void> {
   return withOfflineFallback(
-    "deleteLocation",
+    'deleteLocation',
     async () => {
-      await api.delete(`/api/locations/${id}`);
+      await api.delete(`/api/locations/${id}`)
     },
-    () => {},
-  );
+    () => {}
+  )
 }
 
 export type LocationStockSummary = {
-  locationId: string;
-  locationCode: string;
-  locationName: string;
-  locationType: string;
+  locationId: string
+  locationCode: string
+  locationName: string
+  locationType: string
   products: {
-    productId: string;
-    productName: string;
-    productSku: string;
-    totalQuantity: number;
-    lotCount: number;
-  }[];
-};
+    productId: string
+    productName: string
+    productSku: string
+    totalQuantity: number
+    lotCount: number
+  }[]
+}
 
 export async function getLocationStockSummary(): Promise<LocationStockSummary[]> {
   return withOfflineFallback(
-    "getLocationStockSummary",
+    'getLocationStockSummary',
     async () => {
-      const { data } = await api.get<LocationStockSummary[]>("/api/locations/stock-summary");
-      return data;
+      const { data } = await api.get<LocationStockSummary[]>('/api/locations/stock-summary')
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 // Services API
 export type ServiceDTO = {
-  id: string;
-  companyId: string;
-  code: string;
-  name: string;
-  description?: string;
-  lastPurchaseDate?: string;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
+  id: string
+  companyId: string
+  code: string
+  name: string
+  description?: string
+  lastPurchaseDate?: string
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
 
 export type ServicePayload = {
-  code: string;
-  name: string;
-  description?: string;
-  active?: boolean;
-};
+  code: string
+  name: string
+  description?: string
+  active?: boolean
+}
 
 export async function listServices(active?: boolean): Promise<ServiceDTO[]> {
   return withOfflineFallback(
-    "listServices",
+    'listServices',
     async () => {
-      const params = active !== undefined ? { active } : {};
-      const { data } = await api.get<ServiceDTO[]>("/api/services", { params });
-      return data;
+      const params = active !== undefined ? { active } : {}
+      const { data } = await api.get<ServiceDTO[]>('/api/services', { params })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
 export async function createService(payload: ServicePayload): Promise<ServiceDTO> {
   return withOfflineFallback(
-    "createService",
+    'createService',
     async () => {
-      const { data } = await api.post<ServiceDTO>("/api/services", payload);
-      return data;
+      const { data } = await api.post<ServiceDTO>('/api/services', payload)
+      return data
     },
     () => ({
       id: crypto.randomUUID(),
@@ -4160,16 +4294,16 @@ export async function createService(payload: ServicePayload): Promise<ServiceDTO
       active: payload.active ?? true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }),
-  );
+    })
+  )
 }
 
 export async function updateService(id: string, payload: ServicePayload): Promise<ServiceDTO> {
   return withOfflineFallback(
-    "updateService",
+    'updateService',
     async () => {
-      const { data } = await api.put<ServiceDTO>(`/api/services/${id}`, payload);
-      return data;
+      const { data } = await api.put<ServiceDTO>(`/api/services/${id}`, payload)
+      return data
     },
     () => ({
       id,
@@ -4178,71 +4312,73 @@ export async function updateService(id: string, payload: ServicePayload): Promis
       active: payload.active ?? true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }),
-  );
+    })
+  )
 }
 
 export async function deleteService(id: string): Promise<void> {
   return withOfflineFallback(
-    "deleteService",
+    'deleteService',
     async () => {
-      await api.delete(`/api/services/${id}`);
+      await api.delete(`/api/services/${id}`)
     },
-    () => {},
-  );
+    () => {}
+  )
 }
 
 export function listInventoryAlerts(threshold?: number): Promise<InventoryAlert[]> {
   return withOfflineFallback(
-    "listInventoryAlerts",
+    'listInventoryAlerts',
     async () => {
-      const params = typeof threshold === "number" ? { threshold } : {};
-      const { data } = await api.get<InventoryAlert[]>("/v1/inventory/alerts", { params });
-      return data;
+      const params = typeof threshold === 'number' ? { threshold } : {}
+      const { data } = await api.get<InventoryAlert[]>('/v1/inventory/alerts', { params })
+      return data
     },
-    () => fallbackListInventoryAlerts(threshold),
-  );
+    () => fallbackListInventoryAlerts(threshold)
+  )
 }
 
 export function getInventorySummary(): Promise<InventorySummary> {
   return withOfflineFallback(
-    "getInventorySummary",
+    'getInventorySummary',
     async () => {
-      const { data } = await api.get<InventorySummary>("/v1/inventory/summary");
-      return data;
+      const { data } = await api.get<InventorySummary>('/v1/inventory/summary')
+      return data
     },
-    () => fallbackGetInventorySummary(),
-  );
+    () => fallbackGetInventorySummary()
+  )
 }
 
 export function getInventorySettings(): Promise<InventorySettings> {
   return withOfflineFallback(
-    "getInventorySettings",
+    'getInventorySettings',
     async () => {
-      const { data } = await api.get<InventorySettings>("/v1/inventory/settings");
-      return data;
+      const { data } = await api.get<InventorySettings>('/v1/inventory/settings')
+      return data
     },
-    () => fallbackGetInventorySettings(),
-  );
+    () => fallbackGetInventorySettings()
+  )
 }
 
-export function updateInventorySettings(payload: { lowStockThreshold: number }): Promise<InventorySettings> {
+export function updateInventorySettings(payload: {
+  lowStockThreshold: number
+}): Promise<InventorySettings> {
   return withOfflineFallback(
-    "updateInventorySettings",
+    'updateInventorySettings',
     async () => {
-      const { data } = await api.put<InventorySettings>("/v1/inventory/settings", payload);
-      return data;
+      const { data } = await api.put<InventorySettings>('/v1/inventory/settings', payload)
+      return data
     },
-    () => fallbackUpdateInventorySettings(payload),
-  );
+    () => fallbackUpdateInventorySettings(payload)
+  )
 }
 
 export function getInventoryKPIs(): Promise<InventoryKPIs> {
   return withOfflineFallback(
-    "getInventoryKPIs",
+    'getInventoryKPIs',
     async () => {
-      const { data } = await api.get<InventoryKPIs>("/v1/inventory/kpis");
-      return data;
+      const { data } = await api.get<InventoryKPIs>('/v1/inventory/kpis')
+      return data
     },
     () => ({
       stockCoverageDays: null,
@@ -4256,16 +4392,16 @@ export function getInventoryKPIs(): Promise<InventoryKPIs> {
       daysInventoryOnHand: null,
       overstockValue: 0,
       overstockCount: 0,
-    }),
-  );
+    })
+  )
 }
 
 export function getStockMovementStats(): Promise<StockMovementStats> {
   return withOfflineFallback(
-    "getStockMovementStats",
+    'getStockMovementStats',
     async () => {
-      const { data } = await api.get<StockMovementStats>("/v1/inventory/movement-stats");
-      return data;
+      const { data } = await api.get<StockMovementStats>('/v1/inventory/movement-stats')
+      return data
     },
     () => ({
       totalInflows: 0,
@@ -4275,153 +4411,156 @@ export function getStockMovementStats(): Promise<StockMovementStats> {
       topInflowProducts: [],
       topOutflowProducts: [],
       categoryVelocities: [],
-    }),
-  );
+    })
+  )
 }
 
 export function getABCAnalysis(classification?: string): Promise<ProductABCClassification[]> {
   return withOfflineFallback(
-    "getABCAnalysis",
+    'getABCAnalysis',
     async () => {
-      const params = classification ? { classification } : {};
-      const { data } = await api.get<ProductABCClassification[]>("/v1/inventory/abc-analysis", { params });
-      return data;
+      const params = classification ? { classification } : {}
+      const { data } = await api.get<ProductABCClassification[]>('/v1/inventory/abc-analysis', {
+        params,
+      })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
-export function getForecastAnalysis(productId?: number, days?: number): Promise<InventoryForecast[]> {
+export function getForecastAnalysis(
+  productId?: number,
+  days?: number
+): Promise<InventoryForecast[]> {
   return withOfflineFallback(
-    "getForecastAnalysis",
+    'getForecastAnalysis',
     async () => {
-      const params: { productId?: number; days?: number } = {};
-      if (productId !== undefined) params.productId = productId;
-      if (days !== undefined) params.days = days;
-      const { data } = await api.get<InventoryForecast[]>("/v1/inventory/forecast", { params });
-      return data;
+      const params: { productId?: number; days?: number } = {}
+      if (productId !== undefined) params.productId = productId
+      if (days !== undefined) params.days = days
+      const { data } = await api.get<InventoryForecast[]>('/v1/inventory/forecast', { params })
+      return data
     },
-    () => [],
-  );
+    () => []
+  )
 }
 
-export function createInventoryAdjustment(payload: InventoryAdjustmentPayload): Promise<InventoryAdjustmentResponse> {
+export function createInventoryAdjustment(
+  payload: InventoryAdjustmentPayload
+): Promise<InventoryAdjustmentResponse> {
   return withOfflineFallback(
-    "createInventoryAdjustment",
+    'createInventoryAdjustment',
     async () => {
-      const { data } = await api.post<InventoryAdjustmentResponse>("/v1/inventory/adjustments", payload);
-      return data;
+      const { data } = await api.post<InventoryAdjustmentResponse>(
+        '/v1/inventory/adjustments',
+        payload
+      )
+      return data
     },
-    () => fallbackCreateInventoryAdjustment(payload),
-  );
+    () => fallbackCreateInventoryAdjustment(payload)
+  )
 }
 
 // === Finance Module ===
 export interface FinanceSummary {
-  cashOnHand: number;
-  totalReceivables: number;
-  totalPayables: number;
-  netPosition: number;
-  overdueInvoices: number;
-  dueSoonInvoices: number;
-  overduePayables: number;
-  dueSoonPayables: number;
-  next7DaysIncome: number;
-  next7DaysExpense: number;
-  next30DaysIncome: number;
-  next30DaysExpense: number;
+  cashOnHand: number
+  totalReceivables: number
+  totalPayables: number
+  netPosition: number
+  overdueInvoices: number
+  dueSoonInvoices: number
+  overduePayables: number
+  dueSoonPayables: number
+  next7DaysIncome: number
+  next7DaysExpense: number
+  next30DaysIncome: number
+  next30DaysExpense: number
 }
 
 export interface AccountReceivable {
-  id: string;
-  saleId: string;
-  customerId: string;
-  customerName: string;
-  docType: string;
-  docNumber: string;
-  total: number;
-  paid: number;
-  balance: number;
-  status: string;
-  issuedAt: string;
-  dueDate: string;
-  daysOverdue: number;
-  paymentStatus: "PENDING" | "OVERDUE" | "DUE_SOON";
+  id: string
+  saleId: string
+  customerId: string
+  customerName: string
+  docType: string
+  docNumber: string
+  total: number
+  paid: number
+  balance: number
+  status: string
+  issuedAt: string
+  dueDate: string
+  daysOverdue: number
+  paymentStatus: 'PENDING' | 'OVERDUE' | 'DUE_SOON'
 }
 
 export interface AccountPayable {
-  id: string;
-  purchaseId: string;
-  supplierId: string;
-  supplierName: string;
-  docType: string;
-  docNumber: string;
-  total: number;
-  paid: number;
-  balance: number;
-  status: string;
-  issuedAt: string;
-  dueDate: string;
-  daysOverdue: number;
-  paymentStatus: "PENDING" | "OVERDUE" | "DUE_SOON";
+  id: string
+  purchaseId: string
+  supplierId: string
+  supplierName: string
+  docType: string
+  docNumber: string
+  total: number
+  paid: number
+  balance: number
+  status: string
+  issuedAt: string
+  dueDate: string
+  daysOverdue: number
+  paymentStatus: 'PENDING' | 'OVERDUE' | 'DUE_SOON'
 }
 
 export interface CashflowProjection {
-  date: string;
-  expectedIncome: number;
-  expectedExpense: number;
-  netCashflow: number;
-  cumulativeBalance: number;
-  period: string;
+  date: string
+  expectedIncome: number
+  expectedExpense: number
+  netCashflow: number
+  cumulativeBalance: number
+  period: string
 }
 
 export interface PaginatedResponse<T> {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
 }
 
 export async function getFinanceSummary(): Promise<FinanceSummary> {
-  const { data } = await api.get<FinanceSummary>("/v1/finances/summary");
-  return data;
+  const { data } = await api.get<FinanceSummary>('/v1/finances/summary')
+  return data
 }
 
-export async function getAccountsReceivable(
-  params?: { status?: string; page?: number; size?: number }
-): Promise<PaginatedResponse<AccountReceivable>> {
-  const { data } = await api.get<PaginatedResponse<AccountReceivable>>("/v1/finances/receivables", { params });
-  return data;
+export async function getAccountsReceivable(params?: {
+  status?: string
+  page?: number
+  size?: number
+}): Promise<PaginatedResponse<AccountReceivable>> {
+  const { data } = await api.get<PaginatedResponse<AccountReceivable>>('/v1/finances/receivables', {
+    params,
+  })
+  return data
 }
 
-export async function getAccountsPayable(
-  params?: { status?: string; page?: number; size?: number }
-): Promise<PaginatedResponse<AccountPayable>> {
-  const { data } = await api.get<PaginatedResponse<AccountPayable>>("/v1/finances/payables", { params });
-  return data;
+export async function getAccountsPayable(params?: {
+  status?: string
+  page?: number
+  size?: number
+}): Promise<PaginatedResponse<AccountPayable>> {
+  const { data } = await api.get<PaginatedResponse<AccountPayable>>('/v1/finances/payables', {
+    params,
+  })
+  return data
 }
 
 export async function getCashflowProjection(days: number = 30): Promise<CashflowProjection[]> {
-  const { data } = await api.get<CashflowProjection[]>("/v1/finances/cashflow", { params: { days } });
-  return data;
+  const { data } = await api.get<CashflowProjection[]>('/v1/finances/cashflow', {
+    params: { days },
+  })
+  return data
 }
 
-export default api;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export default api

@@ -1,91 +1,91 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 type Props = {
-  open: boolean;
-  onClose: () => void;
-};
+  open: boolean
+  onClose: () => void
+}
 
 type ImportResult = {
-  created: number;
-  errors: Array<{ line: number; error: string }>;
-  totalErrors: number;
-};
+  created: number
+  errors: Array<{ line: number; error: string }>
+  totalErrors: number
+}
 
 export default function CustomerImportDialog({ open, onClose }: Props) {
-  const queryClient = useQueryClient();
-  const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<ImportResult | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const queryClient = useQueryClient()
+  const [file, setFile] = useState<File | null>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const importMutation = useMutation<ImportResult, Error, File>({
     mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
+      const formData = new FormData()
+      formData.append('file', file)
 
-      const response = await fetch("/api/v1/customers/import", {
-        method: "POST",
+      const response = await fetch('/api/v1/customers/import', {
+        method: 'POST',
         body: formData,
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Error importando archivo");
+        throw new Error('Error importando archivo')
       }
 
-      return response.json();
+      return response.json()
     },
-    onSuccess: (data) => {
-      setResult(data);
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      queryClient.invalidateQueries({ queryKey: ["customers", "segments"] });
+    onSuccess: data => {
+      setResult(data)
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['customers', 'segments'] })
     },
-  });
+  })
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.name.endsWith(".csv")) {
-      setFile(droppedFile);
-      setResult(null);
+    e.preventDefault()
+    setIsDragging(false)
+
+    const droppedFile = e.dataTransfer.files[0]
+    if (droppedFile && droppedFile.name.endsWith('.csv')) {
+      setFile(droppedFile)
+      setResult(null)
     }
-  };
+  }
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+    e.preventDefault()
+    setIsDragging(true)
+  }
 
   const handleDragLeave = () => {
-    setIsDragging(false);
-  };
+    setIsDragging(false)
+  }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
+    const selectedFile = e.target.files?.[0]
     if (selectedFile) {
-      setFile(selectedFile);
-      setResult(null);
+      setFile(selectedFile)
+      setResult(null)
     }
-  };
+  }
 
   const handleImport = () => {
     if (file) {
-      importMutation.mutate(file);
+      importMutation.mutate(file)
     }
-  };
+  }
 
   const handleClose = () => {
-    setFile(null);
-    setResult(null);
-    onClose();
-  };
+    setFile(null)
+    setResult(null)
+    onClose()
+  }
 
-  if (!open) return null;
+  if (!open) return null
 
   return (
     <div className="dialog-overlay" onClick={handleClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+      <div className="dialog" onClick={e => e.stopPropagation()}>
         <div className="dialog-header">
           <h2>Importar Clientes desde CSV</h2>
           <button className="close-button" onClick={handleClose}>
@@ -97,7 +97,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
           {!result ? (
             <>
               <div
-                className={`file-drop-zone ${isDragging ? "dragging" : ""}`}
+                className={`file-drop-zone ${isDragging ? 'dragging' : ''}`}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -106,9 +106,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
                   <div className="file-selected">
                     <div className="file-icon">📄</div>
                     <div className="file-name">{file.name}</div>
-                    <div className="file-size">
-                      {(file.size / 1024).toFixed(1)} KB
-                    </div>
+                    <div className="file-size">{(file.size / 1024).toFixed(1)} KB</div>
                   </div>
                 ) : (
                   <div className="file-drop-message">
@@ -121,7 +119,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
                         type="file"
                         accept=".csv"
                         onChange={handleFileInput}
-                        style={{ display: "none" }}
+                        style={{ display: 'none' }}
                       />
                     </label>
                   </div>
@@ -130,9 +128,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
 
               <div className="import-instructions">
                 <h4>Formato esperado del CSV:</h4>
-                <p>
-                  El archivo debe tener las siguientes columnas en orden:
-                </p>
+                <p>El archivo debe tener las siguientes columnas en orden:</p>
                 <ol>
                   <li>Nombre (requerido)</li>
                   <li>RUT</li>
@@ -148,7 +144,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
             </>
           ) : (
             <div className="import-result">
-              <div className={`result-summary ${result.totalErrors > 0 ? "warning" : "success"}`}>
+              <div className={`result-summary ${result.totalErrors > 0 ? 'warning' : 'success'}`}>
                 <h3>Importación completada</h3>
                 <div className="result-stats">
                   <div className="stat">
@@ -173,9 +169,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
                       </div>
                     ))}
                     {result.errors.length > 10 && (
-                      <p className="text-muted">
-                        ... y {result.errors.length - 10} errores más
-                      </p>
+                      <p className="text-muted">... y {result.errors.length - 10} errores más</p>
                     )}
                   </div>
                 </div>
@@ -195,7 +189,7 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
                 onClick={handleImport}
                 disabled={!file || importMutation.isPending}
               >
-                {importMutation.isPending ? "Importando..." : "Importar"}
+                {importMutation.isPending ? 'Importando...' : 'Importar'}
               </button>
             </>
           ) : (
@@ -206,5 +200,5 @@ export default function CustomerImportDialog({ open, onClose }: Props) {
         </div>
       </div>
     </div>
-  );
+  )
 }

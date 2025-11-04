@@ -1,13 +1,27 @@
-import { useQuery } from "@tanstack/react-query";
-import { getABCAnalysis } from "../services/client";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
+import { useQuery } from '@tanstack/react-query'
+import { getABCAnalysis } from '../services/client'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts'
 
 export default function ABCClassificationChart() {
-  const { data: analysis, isLoading, error } = useQuery({
-    queryKey: ["abcAnalysis"],
+  const {
+    data: analysis,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['abcAnalysis'],
     queryFn: () => getABCAnalysis(),
     refetchInterval: 300000, // Refetch every 5 minutes
-  });
+  })
 
   if (isLoading) {
     return (
@@ -15,7 +29,7 @@ export default function ABCClassificationChart() {
         <div className="h-6 bg-neutral-800 rounded w-1/3 mb-6"></div>
         <div className="h-80 bg-neutral-800 rounded"></div>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -23,7 +37,7 @@ export default function ABCClassificationChart() {
       <div className="bg-red-900/20 border border-red-800 rounded-lg p-6 text-center">
         <p className="text-red-400">Error al cargar análisis ABC</p>
       </div>
-    );
+    )
   }
 
   if (!analysis || analysis.length === 0) {
@@ -34,61 +48,59 @@ export default function ABCClassificationChart() {
           El análisis requiere productos con inventario valorizado
         </p>
       </div>
-    );
+    )
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   // Agrupar por clasificación
-  const classA = analysis.filter(item => item.classification === "A");
-  const classB = analysis.filter(item => item.classification === "B");
-  const classC = analysis.filter(item => item.classification === "C");
+  const classA = analysis.filter(item => item.classification === 'A')
+  const classB = analysis.filter(item => item.classification === 'B')
+  const classC = analysis.filter(item => item.classification === 'C')
 
-  const totalValueA = classA.reduce((sum, item) => sum + item.totalValue, 0);
-  const totalValueB = classB.reduce((sum, item) => sum + item.totalValue, 0);
-  const totalValueC = classC.reduce((sum, item) => sum + item.totalValue, 0);
-  const totalValue = totalValueA + totalValueB + totalValueC;
+  const totalValueA = classA.reduce((sum, item) => sum + item.totalValue, 0)
+  const totalValueB = classB.reduce((sum, item) => sum + item.totalValue, 0)
+  const totalValueC = classC.reduce((sum, item) => sum + item.totalValue, 0)
+  const totalValue = totalValueA + totalValueB + totalValueC
 
   const chartData = [
     {
-      name: "Clase A",
+      name: 'Clase A',
       productos: classA.length,
       valor: totalValueA,
       porcentaje: ((totalValueA / totalValue) * 100).toFixed(1),
     },
     {
-      name: "Clase B",
+      name: 'Clase B',
       productos: classB.length,
       valor: totalValueB,
       porcentaje: ((totalValueB / totalValue) * 100).toFixed(1),
     },
     {
-      name: "Clase C",
+      name: 'Clase C',
       productos: classC.length,
       valor: totalValueC,
       porcentaje: ((totalValueC / totalValue) * 100).toFixed(1),
     },
-  ];
+  ]
 
   const colors = {
-    A: "#22c55e", // green
-    B: "#eab308", // yellow
-    C: "#f97316", // orange
-  };
+    A: '#22c55e', // green
+    B: '#eab308', // yellow
+    C: '#f97316', // orange
+  }
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-neutral-100 mb-2">
-          Análisis ABC de Inventario
-        </h2>
+        <h2 className="text-xl font-semibold text-neutral-100 mb-2">Análisis ABC de Inventario</h2>
         <p className="text-sm text-neutral-400">
           Clasificación por valor de inventario (Principio de Pareto 80-15-5)
         </p>
@@ -109,9 +121,7 @@ export default function ABCClassificationChart() {
           <div className="text-xs text-neutral-400">
             {((totalValueA / totalValue) * 100).toFixed(1)}% del valor total
           </div>
-          <div className="text-xs text-neutral-500 mt-2">
-            Alta rotación - Control diario
-          </div>
+          <div className="text-xs text-neutral-500 mt-2">Alta rotación - Control diario</div>
         </div>
 
         <div className="bg-yellow-900/20 border border-yellow-800 rounded-lg p-4">
@@ -127,9 +137,7 @@ export default function ABCClassificationChart() {
           <div className="text-xs text-neutral-400">
             {((totalValueB / totalValue) * 100).toFixed(1)}% del valor total
           </div>
-          <div className="text-xs text-neutral-500 mt-2">
-            Rotación media - Control semanal
-          </div>
+          <div className="text-xs text-neutral-500 mt-2">Rotación media - Control semanal</div>
         </div>
 
         <div className="bg-orange-900/20 border border-orange-800 rounded-lg p-4">
@@ -145,9 +153,7 @@ export default function ABCClassificationChart() {
           <div className="text-xs text-neutral-400">
             {((totalValueC / totalValue) * 100).toFixed(1)}% del valor total
           </div>
-          <div className="text-xs text-neutral-500 mt-2">
-            Baja rotación - Control mensual
-          </div>
+          <div className="text-xs text-neutral-500 mt-2">Baja rotación - Control mensual</div>
         </div>
       </div>
 
@@ -160,20 +166,23 @@ export default function ABCClassificationChart() {
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#404040" />
             <XAxis dataKey="name" stroke="#a3a3a3" />
-            <YAxis stroke="#a3a3a3" tickFormatter={(value) => formatCurrency(value)} />
+            <YAxis stroke="#a3a3a3" tickFormatter={value => formatCurrency(value)} />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#262626",
-                border: "1px solid #404040",
-                borderRadius: "8px",
+                backgroundColor: '#262626',
+                border: '1px solid #404040',
+                borderRadius: '8px',
               }}
-              labelStyle={{ color: "#f5f5f5" }}
+              labelStyle={{ color: '#f5f5f5' }}
               formatter={(value: number) => formatCurrency(value)}
             />
             <Legend />
             <Bar dataKey="valor" name="Valor Total" radius={[8, 8, 0, 0]}>
               {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={index === 0 ? colors.A : index === 1 ? colors.B : colors.C} />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={index === 0 ? colors.A : index === 1 ? colors.B : colors.C}
+                />
               ))}
             </Bar>
           </BarChart>
@@ -189,7 +198,9 @@ export default function ABCClassificationChart() {
           </div>
           <div>
             <div className="text-xs text-neutral-400 mb-1">Valor Total Inventario</div>
-            <div className="text-lg font-semibold text-neutral-100">{formatCurrency(totalValue)}</div>
+            <div className="text-lg font-semibold text-neutral-100">
+              {formatCurrency(totalValue)}
+            </div>
           </div>
           <div>
             <div className="text-xs text-neutral-400 mb-1">Concentración Clase A</div>
@@ -200,5 +211,5 @@ export default function ABCClassificationChart() {
         </div>
       </div>
     </div>
-  );
+  )
 }

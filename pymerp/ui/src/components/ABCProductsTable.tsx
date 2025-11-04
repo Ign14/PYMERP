@@ -1,18 +1,22 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getABCAnalysis, ProductABCClassification } from "../services/client";
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getABCAnalysis, ProductABCClassification } from '../services/client'
 
 export default function ABCProductsTable() {
-  const [selectedClass, setSelectedClass] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [selectedClass, setSelectedClass] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
-  const { data: analysis, isLoading, error } = useQuery({
-    queryKey: ["abcAnalysis"],
+  const {
+    data: analysis,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['abcAnalysis'],
     queryFn: () => getABCAnalysis(),
     refetchInterval: 300000,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -24,7 +28,7 @@ export default function ABCProductsTable() {
           ))}
         </div>
       </div>
-    );
+    )
   }
 
   if (error || !analysis) {
@@ -32,49 +36,50 @@ export default function ABCProductsTable() {
       <div className="bg-red-900/20 border border-red-800 rounded-lg p-6 text-center">
         <p className="text-red-400">Error al cargar productos</p>
       </div>
-    );
+    )
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("es-CL");
-  };
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleDateString('es-CL')
+  }
 
   // Filtrar productos
   const filteredProducts = analysis.filter((product: ProductABCClassification) => {
-    const matchesClass = selectedClass === "all" || product.classification === selectedClass;
-    const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesClass && matchesSearch;
-  });
+    const matchesClass = selectedClass === 'all' || product.classification === selectedClass
+    const matchesSearch =
+      product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesClass && matchesSearch
+  })
 
   // Paginación
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentProducts = filteredProducts.slice(startIndex, endIndex)
 
   const getClassBadgeStyles = (classification: string) => {
     switch (classification) {
-      case "A":
-        return "bg-green-900/40 border-green-800 text-green-400";
-      case "B":
-        return "bg-yellow-900/40 border-yellow-800 text-yellow-400";
-      case "C":
-        return "bg-orange-900/40 border-orange-800 text-orange-400";
+      case 'A':
+        return 'bg-green-900/40 border-green-800 text-green-400'
+      case 'B':
+        return 'bg-yellow-900/40 border-yellow-800 text-yellow-400'
+      case 'C':
+        return 'bg-orange-900/40 border-orange-800 text-orange-400'
       default:
-        return "bg-neutral-800 border-neutral-700 text-neutral-400";
+        return 'bg-neutral-800 border-neutral-700 text-neutral-400'
     }
-  };
+  }
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
@@ -91,9 +96,9 @@ export default function ABCProductsTable() {
               type="text"
               placeholder="Buscar producto o categoría..."
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
+              onChange={e => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1)
               }}
               className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
@@ -103,52 +108,52 @@ export default function ABCProductsTable() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                setSelectedClass("all");
-                setCurrentPage(1);
+                setSelectedClass('all')
+                setCurrentPage(1)
               }}
               className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                selectedClass === "all"
-                  ? "bg-blue-900/40 border-blue-800 text-blue-400"
-                  : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                selectedClass === 'all'
+                  ? 'bg-blue-900/40 border-blue-800 text-blue-400'
+                  : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700'
               }`}
             >
               Todos ({analysis.length})
             </button>
             <button
               onClick={() => {
-                setSelectedClass("A");
-                setCurrentPage(1);
+                setSelectedClass('A')
+                setCurrentPage(1)
               }}
               className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                selectedClass === "A"
-                  ? "bg-green-900/40 border-green-800 text-green-400"
-                  : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                selectedClass === 'A'
+                  ? 'bg-green-900/40 border-green-800 text-green-400'
+                  : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700'
               }`}
             >
               Clase A
             </button>
             <button
               onClick={() => {
-                setSelectedClass("B");
-                setCurrentPage(1);
+                setSelectedClass('B')
+                setCurrentPage(1)
               }}
               className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                selectedClass === "B"
-                  ? "bg-yellow-900/40 border-yellow-800 text-yellow-400"
-                  : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                selectedClass === 'B'
+                  ? 'bg-yellow-900/40 border-yellow-800 text-yellow-400'
+                  : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700'
               }`}
             >
               Clase B
             </button>
             <button
               onClick={() => {
-                setSelectedClass("C");
-                setCurrentPage(1);
+                setSelectedClass('C')
+                setCurrentPage(1)
               }}
               className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                selectedClass === "C"
-                  ? "bg-orange-900/40 border-orange-800 text-orange-400"
-                  : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                selectedClass === 'C'
+                  ? 'bg-orange-900/40 border-orange-800 text-orange-400'
+                  : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700'
               }`}
             >
               Clase C
@@ -180,19 +185,20 @@ export default function ABCProductsTable() {
                 </td>
               </tr>
             ) : (
-              currentProducts.map((product) => (
-                <tr key={product.productId} className="border-b border-neutral-800/50 hover:bg-neutral-800/30">
+              currentProducts.map(product => (
+                <tr
+                  key={product.productId}
+                  className="border-b border-neutral-800/50 hover:bg-neutral-800/30"
+                >
                   <td className="py-3">
-                    <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-semibold border ${getClassBadgeStyles(product.classification)}`}>
+                    <span
+                      className={`inline-flex px-2.5 py-1 rounded-md text-xs font-semibold border ${getClassBadgeStyles(product.classification)}`}
+                    >
                       {product.classification}
                     </span>
                   </td>
-                  <td className="py-3 text-neutral-100 font-medium">
-                    {product.productName}
-                  </td>
-                  <td className="py-3 text-neutral-400">
-                    {product.category}
-                  </td>
+                  <td className="py-3 text-neutral-100 font-medium">{product.productName}</td>
+                  <td className="py-3 text-neutral-400">{product.category}</td>
                   <td className="py-3 text-right text-neutral-100 font-medium">
                     {formatCurrency(product.totalValue)}
                   </td>
@@ -200,11 +206,9 @@ export default function ABCProductsTable() {
                     {product.percentageOfTotalValue.toFixed(2)}%
                   </td>
                   <td className="py-3 text-right text-neutral-400">
-                    {product.totalQuantity.toLocaleString("es-CL")}
+                    {product.totalQuantity.toLocaleString('es-CL')}
                   </td>
-                  <td className="py-3 text-right text-neutral-400">
-                    {product.salesFrequency}
-                  </td>
+                  <td className="py-3 text-right text-neutral-400">{product.salesFrequency}</td>
                   <td className="py-3 text-right text-neutral-400 text-xs">
                     {formatDate(product.lastMovementDate)}
                   </td>
@@ -219,7 +223,8 @@ export default function ABCProductsTable() {
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
           <div className="text-xs text-neutral-500">
-            Mostrando {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} de {filteredProducts.length} productos
+            Mostrando {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} de{' '}
+            {filteredProducts.length} productos
           </div>
           <div className="flex gap-2">
             <button
@@ -243,5 +248,5 @@ export default function ABCProductsTable() {
         </div>
       )}
     </div>
-  );
+  )
 }

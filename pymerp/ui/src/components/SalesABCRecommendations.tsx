@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { getSalesABCAnalysis } from "../services/client";
+import { useQuery } from '@tanstack/react-query'
+import { getSalesABCAnalysis } from '../services/client'
 
 export default function SalesABCRecommendations() {
   const { data: abcData = [], isLoading } = useQuery({
-    queryKey: ["salesABCAnalysis"],
+    queryKey: ['salesABCAnalysis'],
     queryFn: () => getSalesABCAnalysis(),
     refetchInterval: 5 * 60 * 1000,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -17,24 +17,26 @@ export default function SalesABCRecommendations() {
           <div className="h-32 bg-neutral-800 rounded"></div>
         </div>
       </div>
-    );
+    )
   }
 
-  const classA = abcData.filter(item => item.classification === "A");
-  const classB = abcData.filter(item => item.classification === "B");
-  const classC = abcData.filter(item => item.classification === "C");
+  const classA = abcData.filter(item => item.classification === 'A')
+  const classB = abcData.filter(item => item.classification === 'B')
+  const classC = abcData.filter(item => item.classification === 'C')
 
-  const totalRevenue = abcData.reduce((sum, item) => sum + item.totalRevenue, 0);
-  const revenueA = classA.reduce((sum, item) => sum + item.totalRevenue, 0);
-  const revenueB = classB.reduce((sum, item) => sum + item.totalRevenue, 0);
-  const revenueC = classC.reduce((sum, item) => sum + item.totalRevenue, 0);
+  const totalRevenue = abcData.reduce((sum, item) => sum + item.totalRevenue, 0)
+  const revenueA = classA.reduce((sum, item) => sum + item.totalRevenue, 0)
+  const revenueB = classB.reduce((sum, item) => sum + item.totalRevenue, 0)
+  const revenueC = classC.reduce((sum, item) => sum + item.totalRevenue, 0)
 
-  const concentrationRisk = totalRevenue > 0 ? (revenueA / totalRevenue) * 100 : 0;
-  const optimizationPotential = classC.length;
+  const concentrationRisk = totalRevenue > 0 ? (revenueA / totalRevenue) * 100 : 0
+  const optimizationPotential = classC.length
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-6">Recomendaciones Estratégicas por Clase</h3>
+      <h3 className="text-lg font-semibold text-white mb-6">
+        Recomendaciones Estratégicas por Clase
+      </h3>
 
       <div className="space-y-4 mb-6">
         {/* Estrategias Clase A */}
@@ -49,25 +51,29 @@ export default function SalesABCRecommendations() {
             <li className="flex items-start gap-2">
               <span className="text-red-400 mt-0.5">▪</span>
               <span>
-                <strong>Stock prioritario:</strong> Mantener niveles de inventario elevados para evitar quiebres de stock
+                <strong>Stock prioritario:</strong> Mantener niveles de inventario elevados para
+                evitar quiebres de stock
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-red-400 mt-0.5">▪</span>
               <span>
-                <strong>Promoción activa:</strong> Destacar en campañas de marketing, vitrinas y canales digitales
+                <strong>Promoción activa:</strong> Destacar en campañas de marketing, vitrinas y
+                canales digitales
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-red-400 mt-0.5">▪</span>
               <span>
-                <strong>Análisis de precio:</strong> Optimizar márgenes sin sacrificar volumen de ventas
+                <strong>Análisis de precio:</strong> Optimizar márgenes sin sacrificar volumen de
+                ventas
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-red-400 mt-0.5">▪</span>
               <span>
-                <strong>Relación con proveedores:</strong> Negociar condiciones preferenciales y continuidad de suministro
+                <strong>Relación con proveedores:</strong> Negociar condiciones preferenciales y
+                continuidad de suministro
               </span>
             </li>
           </ul>
@@ -85,25 +91,29 @@ export default function SalesABCRecommendations() {
             <li className="flex items-start gap-2">
               <span className="text-amber-400 mt-0.5">▪</span>
               <span>
-                <strong>Potencial de crecimiento:</strong> Evaluar estrategias para promover a Clase A mediante promociones dirigidas
+                <strong>Potencial de crecimiento:</strong> Evaluar estrategias para promover a Clase
+                A mediante promociones dirigidas
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-amber-400 mt-0.5">▪</span>
               <span>
-                <strong>Revisión de pricing:</strong> Ajustar precios para mejorar competitividad sin afectar márgenes
+                <strong>Revisión de pricing:</strong> Ajustar precios para mejorar competitividad
+                sin afectar márgenes
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-amber-400 mt-0.5">▪</span>
               <span>
-                <strong>Optimización de inventario:</strong> Mantener stock equilibrado basado en demanda histórica
+                <strong>Optimización de inventario:</strong> Mantener stock equilibrado basado en
+                demanda histórica
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-amber-400 mt-0.5">▪</span>
               <span>
-                <strong>Cross-selling:</strong> Bundling con productos Clase A para aumentar ticket promedio
+                <strong>Cross-selling:</strong> Bundling con productos Clase A para aumentar ticket
+                promedio
               </span>
             </li>
           </ul>
@@ -121,25 +131,29 @@ export default function SalesABCRecommendations() {
             <li className="flex items-start gap-2">
               <span className="text-emerald-400 mt-0.5">▪</span>
               <span>
-                <strong>Evaluación de continuidad:</strong> Considerar descontinuar productos con baja rotación y bajo margen
+                <strong>Evaluación de continuidad:</strong> Considerar descontinuar productos con
+                baja rotación y bajo margen
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-400 mt-0.5">▪</span>
               <span>
-                <strong>Reducción de stock:</strong> Minimizar inventario para liberar capital de trabajo
+                <strong>Reducción de stock:</strong> Minimizar inventario para liberar capital de
+                trabajo
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-400 mt-0.5">▪</span>
               <span>
-                <strong>Promociones liquidación:</strong> Lanzar ofertas especiales para rotar inventario estancado
+                <strong>Promociones liquidación:</strong> Lanzar ofertas especiales para rotar
+                inventario estancado
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-400 mt-0.5">▪</span>
               <span>
-                <strong>Reemplazo estratégico:</strong> Identificar alternativas con mejor potencial de ventas
+                <strong>Reemplazo estratégico:</strong> Identificar alternativas con mejor potencial
+                de ventas
               </span>
             </li>
           </ul>
@@ -153,11 +167,14 @@ export default function SalesABCRecommendations() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-400">Concentración en Clase A</span>
-              <span className="text-sm font-semibold text-white">{concentrationRisk.toFixed(1)}%</span>
+              <span className="text-sm font-semibold text-white">
+                {concentrationRisk.toFixed(1)}%
+              </span>
             </div>
             {concentrationRisk > 85 && (
               <p className="text-xs text-red-300">
-                ⚠️ Alta concentración de ingresos en pocos productos. Considerar diversificar portafolio.
+                ⚠️ Alta concentración de ingresos en pocos productos. Considerar diversificar
+                portafolio.
               </p>
             )}
             {concentrationRisk >= 70 && concentrationRisk <= 85 && (
@@ -179,7 +196,8 @@ export default function SalesABCRecommendations() {
             </div>
             {optimizationPotential > 20 && (
               <p className="text-xs text-emerald-300">
-                💡 Oportunidad: Revisar {optimizationPotential} productos para optimizar recursos y simplificar catálogo.
+                💡 Oportunidad: Revisar {optimizationPotential} productos para optimizar recursos y
+                simplificar catálogo.
               </p>
             )}
             {optimizationPotential >= 10 && optimizationPotential <= 20 && (
@@ -222,5 +240,5 @@ export default function SalesABCRecommendations() {
         </div>
       </div>
     </div>
-  );
+  )
 }

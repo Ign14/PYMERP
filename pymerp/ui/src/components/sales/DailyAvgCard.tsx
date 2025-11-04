@@ -1,12 +1,16 @@
-import { formatMoneyCLP } from "../../utils/currency";
+import { formatMoneyCLP } from '../../utils/currency'
 
 type DailyAvgCardProps = {
-  value: number;
-  rangeLabel: string;
-  formatter?: (value: number) => string;
-};
+  value: number
+  rangeLabel: string
+  formatter?: (value: number) => string
+}
 
-export default function DailyAvgCard({ value, rangeLabel, formatter = formatMoneyCLP }: DailyAvgCardProps) {
+export default function DailyAvgCard({
+  value,
+  rangeLabel,
+  formatter = formatMoneyCLP,
+}: DailyAvgCardProps) {
   return (
     <article className="card stat" aria-label={`Promedio diario de ventas para ${rangeLabel}`}>
       <h3>Promedio diario</h3>
@@ -15,5 +19,5 @@ export default function DailyAvgCard({ value, rangeLabel, formatter = formatMone
       </p>
       <span className="stat-trend">Rango seleccionado: {rangeLabel}</span>
     </article>
-  );
+  )
 }
