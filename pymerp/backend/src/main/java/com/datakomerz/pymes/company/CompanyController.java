@@ -6,6 +6,7 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,22 +30,26 @@ public class CompanyController {
   }
 
   @GetMapping
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<CompanyResponse> list() {
     return service.findAll().stream().map(this::toResponse).toList();
   }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasRole('ADMIN')")
   public CompanyResponse create(@Valid @RequestBody CompanyRequest request) {
     return toResponse(service.create(request));
   }
 
   @GetMapping("/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public CompanyResponse get(@PathVariable UUID id) {
     return toResponse(service.get(id));
   }
 
   @PutMapping("/{id}")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public CompanyResponse update(@PathVariable UUID id, @Valid @RequestBody CompanyRequest request) {
     return toResponse(service.update(id, request));
   }

@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -38,31 +39,37 @@ public class InventoryController {
   }
 
   @GetMapping("/alerts")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<InventoryAlert> lowStock(@RequestParam(required = false) BigDecimal threshold) {
     return inventoryService.lowStock(threshold);
   }
 
   @GetMapping("/summary")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public InventorySummary summary() {
     return inventoryService.summary();
   }
 
   @GetMapping("/settings")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public InventorySettingsResponse settings() {
     return inventoryService.getSettings();
   }
 
   @PutMapping("/settings")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public InventorySettingsResponse updateSettings(@Valid @RequestBody InventorySettingsUpdateRequest request) {
     return inventoryService.updateSettings(request);
   }
 
   @PostMapping("/adjustments")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public InventoryAdjustmentResponse adjust(@Valid @RequestBody InventoryAdjustmentRequest request) {
     return inventoryService.adjust(request);
   }
 
   @GetMapping("/movements")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public Page<InventoryMovementSummary> movements(
       @RequestParam(required = false) UUID productId,
       @RequestParam(required = false) String type,
@@ -74,16 +81,19 @@ public class InventoryController {
   }
 
   @GetMapping("/kpis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public InventoryKPIs kpis() {
     return inventoryService.getKPIs();
   }
 
   @GetMapping("/movement-stats")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public StockMovementStats movementStats() {
     return inventoryService.getMovementStats();
   }
 
   @GetMapping("/abc-analysis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<ProductABCClassification> abcAnalysis(
     @RequestParam(required = false) String classification
   ) {
@@ -100,6 +110,7 @@ public class InventoryController {
   }
   
   @GetMapping("/forecast")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<com.datakomerz.pymes.inventory.dto.InventoryForecast> forecast(
     @RequestParam(required = false) Long productId,
     @RequestParam(required = false) Integer days
