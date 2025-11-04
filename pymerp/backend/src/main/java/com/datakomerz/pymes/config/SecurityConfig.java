@@ -49,7 +49,12 @@ public class SecurityConfig {
     if (oidcEnabled) {
       // resource server mode (Keycloak/Auth0) - use standard JWT converter for roles claim 'roles'
       http.authorizeHttpRequests(auth -> auth
-          .requestMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
+          // Public actuator endpoints (health checks for load balancers)
+          .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+          // Protected actuator endpoints (requires ACTUATOR_ADMIN role)
+          .requestMatchers("/actuator/**").hasRole("ACTUATOR_ADMIN")
+          // Public authentication endpoints
+          .requestMatchers("/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
           .anyRequest().authenticated()
         )
@@ -57,7 +62,12 @@ public class SecurityConfig {
     } else {
       // default: internal JWT filter + DAO auth provider
       http.authorizeHttpRequests(auth -> auth
-          .requestMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
+          // Public actuator endpoints (health checks for load balancers)
+          .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+          // Protected actuator endpoints (requires ACTUATOR_ADMIN role)
+          .requestMatchers("/actuator/**").hasRole("ACTUATOR_ADMIN")
+          // Public authentication endpoints
+          .requestMatchers("/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
           .anyRequest().authenticated()
         )
@@ -93,16 +103,23 @@ public class SecurityConfig {
     var originPatterns = cors.getAllowedOriginPatterns();
     boolean hasOrigins = origins != null && !origins.isEmpty();
     boolean hasPatterns = originPatterns != null && !originPatterns.isEmpty();
+    
+    // SECURITY: CORS must be explicitly configured - no wildcard fallback
     if (!hasOrigins && !hasPatterns) {
-      cfg.setAllowedOriginPatterns(List.of("*"));
-    } else {
-      if (hasOrigins) {
-        cfg.setAllowedOrigins(origins);
-      }
-      if (hasPatterns) {
-        cfg.setAllowedOriginPatterns(originPatterns);
-      }
+      throw new IllegalStateException(
+        "CORS configuration is required. " +
+        "Please set app.cors.allowed-origins or app.cors.allowed-origin-patterns in application.yml. " +
+        "Wildcard (*) is not allowed for security reasons."
+      );
     }
+    
+    if (hasOrigins) {
+      cfg.setAllowedOrigins(origins);
+    }
+    if (hasPatterns) {
+      cfg.setAllowedOriginPatterns(originPatterns);
+    }
+    
     cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "X-Company-Id"));
     cfg.setAllowCredentials(true);

@@ -24,5 +24,10 @@ Thumbs.db
 node_modules/
 ui/node_modules/
 
-# Docker
+# Environment Variables (Secrets)
 .env
+.env.local
+.env.production
+*.env
+!.env.example
+!.env.production.example
