@@ -132,7 +132,8 @@ public class SecurityConfig {
    * JwtAuthenticationConverter that extracts roles from the claim `realm_access.roles` and
    * converts them to authorities with prefix `ROLE_`.
    */
-  private JwtAuthenticationConverter jwtAuthenticationConverter() {
+  @Bean
+  public JwtAuthenticationConverter jwtAuthenticationConverter() {
     JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(jwt -> {
       // delegate to our utility which works with a claims map
