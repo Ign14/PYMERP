@@ -16,6 +16,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,12 +46,14 @@ public class SupplierController {
   }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public List<Supplier> list(
         @RequestParam(required = false) String query,
         @RequestParam(required = false) Boolean active) {
         UUID companyId = companyContext.require();
         return repo.searchSuppliers(companyId, active, query);
     }  @PostMapping
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public Supplier create(@Valid @RequestBody SupplierRequest request) {
     Supplier supplier = new Supplier();
     supplier.setCompanyId(companyContext.require());
@@ -59,6 +62,7 @@ public class SupplierController {
   }
 
   @PutMapping("/{id}")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public Supplier update(@PathVariable UUID id, @Valid @RequestBody SupplierRequest request) {
     Supplier supplier = ensureOwnership(id);
     apply(supplier, request);
@@ -67,6 +71,7 @@ public class SupplierController {
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
+  @PreAuthorize("hasRole('ADMIN')")
   public void delete(@PathVariable UUID id) {
     Supplier supplier = ensureOwnership(id);
     supplier.setActive(false);
@@ -74,12 +79,14 @@ public class SupplierController {
   }
 
   @GetMapping("/{id}/contacts")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<SupplierContact> listContacts(@PathVariable UUID id) {
     ensureOwnership(id);
     return contacts.findBySupplierId(id);
   }
 
   @PostMapping("/{id}/contacts")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public SupplierContact addContact(@PathVariable UUID id, @Valid @RequestBody SupplierContact contact) {
     ensureOwnership(id);
     contact.setSupplierId(id);
@@ -87,6 +94,7 @@ public class SupplierController {
   }
 
   @GetMapping("/export")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
   public void exportToCSV(
       @RequestParam(required = false) String query,
       @RequestParam(required = false) Boolean active,
@@ -124,8 +132,9 @@ public class SupplierController {
     }
   }
 
-  @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ResponseEntity<Map<String, Object>> importFromCSV(@RequestParam("file") MultipartFile file) {
+    @PostMapping("/import")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
+  public Map<String, Object> importFromCSV(@RequestParam("file") MultipartFile file) throws IOException {
     Map<String, Object> result = new LinkedHashMap<>();
     List<Map<String, Object>> errors = new ArrayList<>();
     int created = 0;
@@ -241,8 +250,9 @@ public class SupplierController {
   /**
    * Obtiene métricas de compras para un proveedor específico
    */
-  @GetMapping("/{id}/metrics")
-  public SupplierMetrics getMetrics(@PathVariable UUID id) {
+    @GetMapping("/{id}/metrics")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public Map<String, Object> getSupplierMetrics(@PathVariable UUID id) {
     UUID companyId = companyContext.require();
     return supplierService.getSupplierMetrics(id, companyId);
   }
@@ -250,8 +260,9 @@ public class SupplierController {
   /**
    * Obtiene alertas de todos los proveedores
    */
-  @GetMapping("/alerts")
-  public List<SupplierAlert> getAlerts() {
+    @GetMapping("/alerts")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public List<Map<String, Object>> getSupplierAlerts() {
     UUID companyId = companyContext.require();
     return supplierService.getSupplierAlerts(companyId);
   }
@@ -259,10 +270,9 @@ public class SupplierController {
   /**
    * Obtiene ranking de proveedores
    */
-  @GetMapping("/ranking")
-  public List<SupplierRanking> getRanking(
-      @RequestParam(defaultValue = "volume") String criteria
-  ) {
+    @GetMapping("/ranking")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public List<Map<String, Object>> getSupplierRanking(
     UUID companyId = companyContext.require();
     return supplierService.getSupplierRanking(companyId, criteria);
   }
@@ -270,8 +280,9 @@ public class SupplierController {
   /**
    * Obtiene análisis de riesgo (categorías ABC)
    */
-  @GetMapping("/risk-analysis")
-  public SupplierRiskAnalysis getRiskAnalysis() {
+    @GetMapping("/risk-analysis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public Map<String, Object> analyzeSupplierRisk() {
     UUID companyId = companyContext.require();
     return supplierService.getRiskAnalysis(companyId);
   }
@@ -279,11 +290,9 @@ public class SupplierController {
   /**
    * Obtiene historial de precios de un producto de un proveedor
    */
-  @GetMapping("/{supplierId}/price-history")
-  public SupplierPriceHistory getPriceHistory(
-      @PathVariable UUID supplierId,
-      @RequestParam UUID productId
-  ) {
+    @GetMapping("/{supplierId}/price-history")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public List<Map<String, Object>> getSupplierPriceHistory(
     UUID companyId = companyContext.require();
     return supplierService.getPriceHistory(supplierId, productId, companyId);
   }
@@ -291,8 +300,9 @@ public class SupplierController {
   /**
    * Obtiene oportunidades de negociación con proveedores
    */
-  @GetMapping("/negotiation-opportunities")
-  public List<NegotiationOpportunity> getNegotiationOpportunities() {
+    @GetMapping("/negotiation-opportunities")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public List<Map<String, Object>> getNegotiationOpportunities() {
     UUID companyId = companyContext.require();
     return supplierService.getNegotiationOpportunities(companyId);
   }
@@ -301,14 +311,16 @@ public class SupplierController {
    * Obtiene productos con un solo proveedor (riesgo de concentración)
    */
   @GetMapping("/single-source-products")
-  public ResponseEntity<List<SingleSourceProduct>> getSingleSourceProducts() {
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public List<Map<String, Object>> getSingleSourceProducts() {
     UUID companyId = companyContext.require();
     List<SingleSourceProduct> products = supplierService.getSingleSourceProducts(companyId);
     return ResponseEntity.ok(products);
   }
 
-  @GetMapping("/{supplierId}/forecast")
-  public ResponseEntity<PurchaseForecast> getSupplierForecast(@PathVariable UUID supplierId) {
+    @GetMapping("/{supplierId}/forecast")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public ResponseEntity<?> getSupplierForecast(
     UUID companyId = companyContext.require();
     PurchaseForecast forecast = supplierService.getPurchaseForecast(supplierId, companyId);
     return ResponseEntity.ok(forecast);
