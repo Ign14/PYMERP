@@ -6,6 +6,7 @@ import com.datakomerz.pymes.sales.reports.SalesTimeseriesPoint;
 import com.datakomerz.pymes.sales.reports.SalesTimeseriesResponse;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,6 +24,7 @@ public class SalesReportController {
   }
 
   @GetMapping("/summary")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public SalesSummaryReport summary(@RequestParam(defaultValue = "14") int days) {
     if (days <= 0) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "days must be greater than zero");
@@ -31,6 +33,7 @@ public class SalesReportController {
   }
 
   @GetMapping("/timeseries")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public SalesTimeseriesResponse timeseries(@RequestParam(defaultValue = "14") int days,
                                             @RequestParam(defaultValue = "day") String bucket) {
     if (days <= 0) {

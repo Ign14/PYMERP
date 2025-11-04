@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,6 +27,7 @@ public class FinanceController {
    * GET /api/v1/finances/summary
    */
   @GetMapping("/summary")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public ResponseEntity<FinanceSummary> getSummary() {
     FinanceSummary summary = financeService.getSummary();
     return ResponseEntity.ok(summary);
@@ -36,6 +38,7 @@ public class FinanceController {
    * GET /api/v1/finances/receivables?status=OVERDUE&page=0&size=20
    */
   @GetMapping("/receivables")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public ResponseEntity<Page<AccountReceivable>> getAccountsReceivable(
       @RequestParam(required = false) String status,
       @PageableDefault(size = 20) Pageable pageable
@@ -49,6 +52,7 @@ public class FinanceController {
    * GET /api/v1/finances/payables?status=DUE_SOON&page=0&size=20
    */
   @GetMapping("/payables")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public ResponseEntity<Page<AccountPayable>> getAccountsPayable(
       @RequestParam(required = false) String status,
       @PageableDefault(size = 20) Pageable pageable
@@ -62,6 +66,7 @@ public class FinanceController {
    * GET /api/v1/finances/cashflow?days=30
    */
   @GetMapping("/cashflow")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public ResponseEntity<List<CashflowProjection>> getCashflowProjection(
       @RequestParam(defaultValue = "30") int days
   ) {

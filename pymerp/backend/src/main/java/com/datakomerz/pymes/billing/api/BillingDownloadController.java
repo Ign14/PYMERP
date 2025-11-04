@@ -18,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +48,7 @@ public class BillingDownloadController {
   }
 
   @GetMapping("/documents/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public DocumentDetailResponse getDocument(@PathVariable UUID id) {
     BillingDocumentView view = billingService.getDocument(id);
     DocumentLinksResponse links = buildDownloadLinks(view, id);
@@ -54,6 +56,7 @@ public class BillingDownloadController {
   }
 
   @GetMapping("/documents/{id}/files/{version}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public ResponseEntity<Resource> download(@PathVariable UUID id,
                                            @PathVariable String version,
                                            @RequestParam(name = "contentType", required = false) String requestedContentType) {

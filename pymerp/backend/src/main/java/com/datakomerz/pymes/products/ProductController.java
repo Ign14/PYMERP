@@ -31,6 +31,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -77,7 +78,7 @@ public class ProductController {
   }
 
   @GetMapping
-  @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ROLE_ERP_USER') or hasAuthority('SCOPE_products:read')")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public Page<ProductRes> list(@RequestParam(defaultValue = "") String q,
                                @RequestParam(defaultValue = "0") int page,
                                @RequestParam(defaultValue = "20") int size,
@@ -100,6 +101,7 @@ public class ProductController {
   }
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public ProductRes create(@Valid @RequestPart("product") ProductReq req,
                            @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
     UUID companyId = companyContext.require();
@@ -118,6 +120,7 @@ public class ProductController {
   }
 
   @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public ProductRes update(@PathVariable UUID id,
                            @Valid @RequestPart("product") ProductReq req,
                            @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
@@ -135,6 +138,7 @@ public class ProductController {
   }
 
   @PatchMapping("/{id}/status")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public ProductRes updateStatus(@PathVariable UUID id, @Valid @RequestBody ProductStatusRequest req) {
     UUID companyId = companyContext.require();
     Product entity = repo.findByIdAndCompanyId(id, companyId)
@@ -145,6 +149,7 @@ public class ProductController {
   }
 
   @PatchMapping("/{id}/inventory-alert")
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public ProductRes updateInventoryAlert(@PathVariable UUID id,
                                          @Valid @RequestBody ProductInventoryAlertRequest req) {
     UUID companyId = companyContext.require();

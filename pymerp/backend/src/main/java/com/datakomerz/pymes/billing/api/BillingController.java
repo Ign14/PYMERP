@@ -11,6 +11,7 @@ import com.datakomerz.pymes.billing.service.BillingService;
 import com.datakomerz.pymes.billing.service.InvoicePayloadFactory;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -38,6 +39,7 @@ public class BillingController {
 
   @PostMapping("/invoices")
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public InvoiceResponse issueInvoice(@RequestHeader(value = "Idempotency-Key", required = false)
                                       String idempotencyKeyHeader,
                                       @Valid @RequestBody IssueInvoiceRequest request) {
@@ -57,6 +59,7 @@ public class BillingController {
 
   @PostMapping("/non-fiscal")
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public NonFiscalDocumentResponse createNonFiscal(
       @Valid @RequestBody NonFiscalDocumentRequest request) {
     InvoicePayload payload = payloadFactory.fromNonFiscalRequest(request);

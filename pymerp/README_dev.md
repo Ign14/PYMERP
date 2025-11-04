@@ -60,12 +60,164 @@ Notas finales
 - No comitees `.env` con secretos; `.env.sample` contiene placeholders.
 - Los scripts son idempotentes y seguros para ejecuciones repetidas en entorno de desarrollo.
 
-## Autorización efectiva
+## Autorización RBAC (Role-Based Access Control)
+
+### Roles Definidos
+
+El sistema implementa 5 roles con permisos específicos:
+
+| Rol | Descripción | Acceso | Endpoints |
+|-----|-------------|--------|-----------|
+| **ADMIN** | Administrador completo | Acceso total (100%) | 106/106 endpoints |
+| **SETTINGS** | Gestión de catálogos | Lectura + Configuración (71%) | 75/106 endpoints |
+| **ERP_USER** | Operaciones diarias | Lectura + Operaciones (90%) | 95/106 endpoints |
+| **READONLY** | Solo lectura | Consultas (57%) | 60/106 endpoints |
+| **ACTUATOR_ADMIN** | Monitoreo DevOps | Solo actuator | /actuator/** |
+
+### Matriz de Permisos por Operación
+
+#### Endpoints de Catálogo (Customers, Products, Suppliers, etc.)
+| Operación | Roles Permitidos | Status |
+|-----------|-----------------|--------|
+| `GET` | ADMIN, SETTINGS, ERP_USER, READONLY | 200 OK |
+| `POST` | ADMIN, SETTINGS | 200/201 |
+| `PUT` | ADMIN, SETTINGS | 200 OK |
+| `DELETE` | ADMIN | 204 No Content |
+| Otros roles | - | **403 Forbidden** |
+
+#### Endpoints Operacionales (Sales, Purchases, Inventory, Billing)
+| Operación | Roles Permitidos | Status |
+|-----------|-----------------|--------|
+| `GET` | ADMIN, SETTINGS, ERP_USER, READONLY | 200 OK |
+| `POST` | ADMIN, ERP_USER | 200/201 |
+| `PUT` | ADMIN, ERP_USER | 200 OK |
+| `DELETE` | ADMIN | 204 No Content |
+| Otros roles | - | **403 Forbidden** |
+
+### Ejemplos de Uso
+
+#### Obtener Token con Rol Específico (Keycloak)
+```bash
+# Token con rol ERP_USER
+curl -X POST http://localhost:8082/realms/pymes/protocol/openid-connect/token \
+  -d "client_id=pymes-api" \
+  -d "client_secret=YOUR_SECRET" \
+  -d "grant_type=password" \
+  -d "username=user@example.com" \
+  -d "password=password"
+```
+
+#### Request Exitoso con ERP_USER
+```http
+GET http://localhost:8081/api/v1/products
+Authorization: Bearer <token_with_erp_user_role>
+X-Company-Id: 00000000-0000-0000-0000-000000000001
+```
+**Response**: `200 OK` - Usuario puede listar productos
+
+#### Request Denegado con READONLY
+```http
+POST http://localhost:8081/api/v1/products
+Authorization: Bearer <token_with_readonly_role>
+X-Company-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{"name": "New Product"}
+```
+**Response**: `403 Forbidden` - READONLY no puede crear productos
+
+#### Request Exitoso con SETTINGS
+```http
+POST http://localhost:8081/api/v1/products
+Authorization: Bearer <token_with_settings_role>
+X-Company-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{"name": "New Product"}
+```
+**Response**: `200 OK` - SETTINGS puede gestionar catálogos
+
+### Configuración de Roles en Keycloak
+
+1. **Crear Roles en Realm `pymes`**:
+   - Ir a: Realm Settings → Roles → Create Role
+   - Crear: `ADMIN`, `SETTINGS`, `ERP_USER`, `READONLY`, `ACTUATOR_ADMIN`
+
+2. **Asignar Roles a Usuarios**:
+   - Ir a: Users → Select User → Role Mappings
+   - En "Realm Roles": asignar roles apropiados (ej: `ERP_USER`)
+
+3. **Configurar Client Scope** (opcional):
+   - Ir a: Client Scopes → roles → Mappers
+   - Verificar mapper `realm roles` esté activo
+   - El claim `realm_access.roles` debe incluir roles asignados
+
+4. **Verificar Token**:
+   ```bash
+   # Decodificar JWT en https://jwt.io
+   # Verificar claim: "realm_access": { "roles": ["ERP_USER", "SETTINGS"] }
+   ```
+
+### Códigos de Estado HTTP
+
+- **200/201**: Token válido con rol apropiado + header `X-Company-Id` válido
+- **401 Unauthorized**: 
+  - No hay token en header `Authorization: Bearer`
+  - Token expirado o inválido
+  - Firma del token no coincide con clave pública
+- **403 Forbidden**:
+  - Token válido pero sin rol apropiado para la operación
+  - Usuario con rol `READONLY` intenta `POST/PUT/DELETE`
+  - Usuario con rol `ERP_USER` intenta eliminar (`DELETE`)
+- **400 Bad Request**:
+  - Falta header `X-Company-Id`
+  - Header `X-Company-Id` no es UUID válido
+
+### Troubleshooting RBAC
+
+#### Problema: 403 Forbidden con token válido
+**Causa**: El token no incluye el rol requerido o el claim `realm_access.roles` está vacío.
+
+**Solución**:
+1. Verificar roles asignados al usuario en Keycloak
+2. Decodificar JWT y verificar `realm_access.roles`
+3. Verificar mapper de roles en Client Scope
+4. Verificar `OidcRoleMapper` convierte roles a `ROLE_*` prefix
+
+#### Problema: 401 Unauthorized
+**Causa**: Token inválido, expirado o clave pública incorrecta.
+
+**Solución**:
+1. Verificar `app.security.jwt.oidc-enabled=true` en `application.yml`
+2. Verificar `spring.security.oauth2.resourceserver.jwt.issuer-uri` apunta a Keycloak
+3. Verificar conectividad a Keycloak (`http://localhost:8082`)
+4. Regenerar token (puede estar expirado)
+
+#### Problema: Claims no se mapean correctamente
+**Causa**: `JwtAuthenticationConverter` no está configurado o `OidcRoleMapper` no normaliza roles.
+
+**Solución**:
+1. Verificar `SecurityConfig.jwtAuthenticationConverter()` está registrado
+2. Verificar `OidcRoleMapper.mapRolesFromClaims()` convierte `erp_user` → `ROLE_ERP_USER`
+3. Agregar logs en `OidcRoleMapper` para debug:
+   ```java
+   logger.debug("Mapped roles: {}", authorities);
+   ```
+
+### Documentación Adicional
+
+- **RBAC_MATRIX.md**: Matriz completa de permisos (411 líneas)
+- **SPRINT_3_TESTS_GUIDE.md**: Guía de tests de autorización (287 líneas)
+- **TROUBLESHOOTING_RBAC.md**: Casos comunes y soluciones
+
+---
+
+## Autorización Efectiva (Legacy)
 
 Matriz rápida:
 
-- **200**: token válido que incluye `realm_access.roles` con `erp_user` (mapeado a `ROLE_ERP_USER`) o claim `scope` que contenga `products:read`, y header `X-Company-Id` válido.
-- **403**: token válido pero sin roles ni scopes esperados.
+- **200**: token válido que incluye `realm_access.roles` con roles apropiados (ej: `erp_user` mapeado a `ROLE_ERP_USER`) y header `X-Company-Id` válido.
+- **403**: token válido pero sin roles requeridos para la operación.
 - **400**: falta `X-Company-Id` o no es UUID válido.
 - **401**: no hay token o el token es inválido/expirado.
 

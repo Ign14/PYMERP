@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -60,6 +61,7 @@ public class CustomerController {
   }
 
   @GetMapping
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public PagedResponse<CustomerResponse> list(@RequestParam(name = "q", defaultValue = "") String q,
                                               @RequestParam(name = "segment", required = false) String segment,
                                               @RequestParam(name = "active", required = false) Boolean active,
@@ -69,39 +71,46 @@ public class CustomerController {
   }
 
   @GetMapping("/segments")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<CustomerSegmentSummary> segments() {
     return service.summarizeSegments();
   }
 
   @GetMapping("/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public CustomerResponse get(@PathVariable UUID id) {
     return mapper.toResponse(service.get(id));
   }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
   public CustomerResponse create(@Valid @RequestBody CustomerRequest request) {
     return createCustomerUseCase.handle(request);
   }
 
   @PutMapping("/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
   public CustomerResponse update(@PathVariable UUID id, @Valid @RequestBody CustomerRequest request) {
     Customer updated = service.update(id, request);
     return mapper.toResponse(updated);
   }
 
   @DeleteMapping("/{id}")
+  @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Void> delete(@PathVariable UUID id) {
     service.delete(id);
     return ResponseEntity.noContent().build();
   }
 
   @GetMapping("/{id}/stats")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public CustomerStatsResponse getStats(@PathVariable UUID id) {
     return service.getCustomerStats(id);
   }
 
   @GetMapping("/{id}/sales")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public Page<CustomerSaleHistoryItem> getSaleHistory(
       @PathVariable UUID id,
       @RequestParam(defaultValue = "0") int page,
@@ -110,6 +119,7 @@ public class CustomerController {
   }
 
   @GetMapping("/export")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
   public void exportToCSV(
       @RequestParam(required = false) String query,
       @RequestParam(required = false) String segment,
@@ -160,6 +170,7 @@ public class CustomerController {
   }
 
   @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public ResponseEntity<Map<String, Object>> importFromCSV(@RequestParam("file") MultipartFile file) {
     Map<String, Object> result = new LinkedHashMap<>();
     List<Map<String, Object>> errors = new ArrayList<>();

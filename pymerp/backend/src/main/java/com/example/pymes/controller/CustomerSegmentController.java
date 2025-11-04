@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,6 +41,7 @@ public class CustomerSegmentController {
      * List all segments for current company.
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public ResponseEntity<List<CustomerSegmentResponse>> list() {
         List<CustomerSegment> segments = service.findAll();
         List<CustomerSegmentResponse> response = segments.stream()
@@ -52,6 +54,7 @@ public class CustomerSegmentController {
      * Get segment statistics with customer counts.
      */
     @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public ResponseEntity<List<CustomerSegmentStatsResponse>> stats() {
         List<CustomerSegmentStatsResponse> stats = service.getSegmentStats();
         return ResponseEntity.ok(stats);
@@ -61,6 +64,7 @@ public class CustomerSegmentController {
      * Get segment by ID.
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public ResponseEntity<CustomerSegmentResponse> getById(@PathVariable UUID id) {
         CustomerSegment segment = service.findById(id);
         return ResponseEntity.ok(mapper.toResponse(segment));
@@ -70,6 +74,7 @@ public class CustomerSegmentController {
      * Create new segment.
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
     public ResponseEntity<CustomerSegmentResponse> create(@Valid @RequestBody CustomerSegmentRequest request) {
         CustomerSegment segment = service.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(segment));
@@ -79,6 +84,7 @@ public class CustomerSegmentController {
      * Update existing segment.
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
     public ResponseEntity<CustomerSegmentResponse> update(
         @PathVariable UUID id,
         @Valid @RequestBody CustomerSegmentRequest request
@@ -91,6 +97,7 @@ public class CustomerSegmentController {
      * Delete segment (soft delete).
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
