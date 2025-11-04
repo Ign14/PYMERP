@@ -29,6 +29,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -75,21 +76,25 @@ public class SalesController {
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public SaleRes create(@Valid @RequestBody SaleReq req) {
     return createSaleUseCase.handle(req);
   }
 
   @PutMapping("/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public SaleRes update(@PathVariable UUID id, @RequestBody SaleUpdateRequest req) {
     return updateSaleUseCase.handle(id, req);
   }
 
   @PostMapping("/{id}/cancel")
+  @PreAuthorize("hasRole('ADMIN')")
   public SaleRes cancel(@PathVariable UUID id) {
     return cancelSaleUseCase.handle(id);
   }
 
   @GetMapping
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public Page<SaleSummary> list(@RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "10") int size,
                                 @RequestParam(required = false) String status,
@@ -106,27 +111,32 @@ public class SalesController {
   }
 
   @GetMapping("/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public SaleDetail detail(@PathVariable UUID id) {
     return getSaleDetailUseCase.handle(id);
   }
 
   @GetMapping("/metrics")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public SalesWindowMetrics windowMetrics(@RequestParam(defaultValue = "14d") String window) {
     return salesWindowMetricsUseCase.handle(window);
   }
 
   @GetMapping("/metrics/daily")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<SalesDailyPoint> metrics(@RequestParam(defaultValue = "14") int days) {
     return dailySalesMetricsUseCase.handle(days);
   }
 
   @GetMapping("/metrics/daily-range")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<SalesDailyPoint> metricsByRange(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
     return dailySalesMetricsByRangeUseCase.handle(from, to);
   }
 
   @GetMapping("/kpis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public com.datakomerz.pymes.sales.dto.SalesKPIs salesKPIs(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -138,6 +148,7 @@ public class SalesController {
   }
 
   @GetMapping("/abc-analysis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<com.datakomerz.pymes.sales.dto.SaleABCClassification> salesABCAnalysis(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -149,6 +160,7 @@ public class SalesController {
   }
 
   @GetMapping("/forecast")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<com.datakomerz.pymes.sales.dto.SaleForecast> salesForecast(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -161,6 +173,7 @@ public class SalesController {
   }
 
   @GetMapping("/export")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public void exportToCSV(
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String docType,

@@ -25,6 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,6 +46,7 @@ public class PurchaseController {
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public Map<String,Object> create(@Valid @RequestBody PurchaseReq req) {
     var id = service.create(req);
     return Map.of("id", id);
@@ -52,6 +54,7 @@ public class PurchaseController {
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public Map<String,Object> createWithFile(
       @RequestPart("data") @Valid PurchaseReq req,
       @RequestPart(value = "file", required = false) MultipartFile file) {
@@ -60,16 +63,19 @@ public class PurchaseController {
   }
 
   @PutMapping("/{id}")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public PurchaseSummary update(@PathVariable UUID id, @RequestBody PurchaseUpdateRequest req) {
     return service.update(id, req);
   }
 
   @PostMapping("/{id}/cancel")
+  @PreAuthorize("hasRole('ADMIN')")
   public PurchaseSummary cancel(@PathVariable UUID id) {
     return service.cancel(id);
   }
 
   @GetMapping
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public Page<PurchaseSummary> list(@RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "10") int size,
                                     @RequestParam(required = false) String status,
@@ -85,11 +91,13 @@ public class PurchaseController {
   }
 
   @GetMapping("/metrics/daily")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<PurchaseDailyPoint> metrics(@RequestParam(defaultValue = "14") int days) {
     return service.dailyMetrics(days);
   }
 
   @GetMapping("/kpis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public com.datakomerz.pymes.purchases.dto.PurchaseKPIs purchaseKPIs(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -101,6 +109,7 @@ public class PurchaseController {
   }
 
   @GetMapping("/abc-analysis")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<com.datakomerz.pymes.purchases.dto.PurchaseABCClassification> purchaseABCAnalysis(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -112,6 +121,7 @@ public class PurchaseController {
   }
 
   @GetMapping("/forecast")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<com.datakomerz.pymes.purchases.dto.PurchaseForecast> purchaseForecast(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -124,6 +134,7 @@ public class PurchaseController {
   }
 
   @GetMapping("/export")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public void exportToCSV(
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String docType,
@@ -178,6 +189,7 @@ public class PurchaseController {
   }
 
   @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public Map<String, Object> importFromCSV(@RequestPart("file") MultipartFile file) throws IOException {
     if (file.isEmpty()) {
       return Map.of("success", false, "message", "Archivo vacío", "imported", 0, "errors", List.of());
