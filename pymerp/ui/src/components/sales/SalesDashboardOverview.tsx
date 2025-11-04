@@ -1,173 +1,124 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import DailyAvgCard from "./DailyAvgCard";
 import Total14DaysCard from "./Total14DaysCard";
-import SalesTrendChart from "./SalesTrendChart";
 import { createCurrencyFormatter } from "../../utils/currency";
-import { getSampleSalesTimeseries } from "../../data/sampleSalesTimeseries";
+import { getSalesWindowMetrics, SalesWindowMetrics } from "../../services/client";
 
 type SalesDashboardOverviewProps = {
-  days?: number;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (date: string) => void;
+  onEndDateChange: (date: string) => void;
 };
 
-type ChartRange = { start: string; end: string } | null;
-
-export default function SalesDashboardOverview({ days = 14 }: SalesDashboardOverviewProps) {
-  const points = useMemo(() => getSampleSalesTimeseries(days), [days]);
-  const [chartRange, setChartRange] = useState<ChartRange>(null);
-
+export default function SalesDashboardOverview({ 
+  startDate, 
+  endDate,
+  onStartDateChange,
+  onEndDateChange 
+}: SalesDashboardOverviewProps) {
   const currencyFormatter = useMemo(() => createCurrencyFormatter(), []);
   const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
 
-  const minDate = points[0]?.date ?? "";
-  const maxDate = points.length > 0 ? points[points.length - 1]?.date ?? "" : "";
+  // Calcular el número de días en el rango
+  const days = useMemo(() => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays;
+  }, [startDate, endDate]);
 
-  useEffect(() => {
-    if (!minDate || !maxDate) {
-      setChartRange(null);
-      return;
-    }
+  // Obtener métricas de ventas del período especificado
+  const {
+    data: salesMetrics,
+    isLoading,
+    error,
+  } = useQuery<SalesWindowMetrics>({
+    queryKey: ["sales-window-metrics", days],
+    queryFn: () => getSalesWindowMetrics(`${days}d`),
+  });
 
-    setChartRange((prev) => {
-      if (!prev) {
-        return { start: minDate, end: maxDate };
-      }
+  const dailyAverage = useMemo(() => {
+    return salesMetrics?.dailyAverage ?? 0;
+  }, [salesMetrics]);
 
-      const normalizedStart = prev.start < minDate ? minDate : prev.start;
-      const normalizedEnd = prev.end > maxDate ? maxDate : prev.end;
+  const totalSales = useMemo(() => {
+    return salesMetrics?.totalWithTax ?? 0;
+  }, [salesMetrics]);
 
-      if (normalizedStart > normalizedEnd) {
-        return { start: minDate, end: maxDate };
-      }
+  const documentCount = useMemo(() => {
+    return salesMetrics?.documentCount ?? 0;
+  }, [salesMetrics]);
 
-      if (normalizedStart !== prev.start || normalizedEnd !== prev.end) {
-        return { start: normalizedStart, end: normalizedEnd };
-      }
+  const rangeLabel = `Últimos ${days} días`;
 
-      return prev;
-    });
-  }, [minDate, maxDate]);
+  if (isLoading) {
+    return (
+      <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+          <header className="mb-4">
+            <h2 id="sales-dashboard-overview-heading" className="text-xl font-semibold text-neutral-100">
+              📊 Resumen de ventas
+            </h2>
+          </header>
 
-  const filteredChartPoints = useMemo(() => {
-    if (!chartRange) {
-      return points;
-    }
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="animate-pulse bg-neutral-800 rounded-lg h-32"></div>
+            <div className="animate-pulse bg-neutral-800 rounded-lg h-32"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
-    const { start, end } = chartRange;
-    if (!start || !end) {
-      return points;
-    }
+  if (error) {
+    return (
+      <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+          <header className="mb-4">
+            <h2 id="sales-dashboard-overview-heading" className="text-xl font-semibold text-neutral-100">
+              📊 Resumen de ventas
+            </h2>
+          </header>
 
-    return points.filter((point) => point.date >= start && point.date <= end);
-  }, [chartRange, points]);
-
-  const filteredTotal = useMemo(
-    () => filteredChartPoints.reduce((acc, point) => acc + point.total, 0),
-    [filteredChartPoints],
-  );
-
-  const filteredAverage = useMemo(() => {
-    if (filteredChartPoints.length === 0) {
-      return 0;
-    }
-    return filteredTotal / filteredChartPoints.length;
-  }, [filteredChartPoints, filteredTotal]);
-
-  const rangeStart = chartRange?.start ?? minDate;
-  const rangeEnd = chartRange?.end ?? maxDate;
-
-  const rangeLabel = rangeStart && rangeEnd ? formatRange(rangeStart, rangeEnd) : "Sin rango";
-
-  const handleStartChange = (value: string) => {
-    if (!value) {
-      return;
-    }
-    setChartRange((prev) => {
-      const safeEnd = prev?.end && prev.end >= value ? prev.end : value;
-      return { start: value, end: safeEnd ?? value };
-    });
-  };
-
-  const handleEndChange = (value: string) => {
-    if (!value) {
-      return;
-    }
-    setChartRange((prev) => {
-      const safeStart = prev?.start && prev.start <= value ? prev.start : value;
-      return { start: safeStart ?? value, end: value };
-    });
-  };
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-red-950 border border-red-800 rounded-lg p-4">
+              <p className="text-red-400">Error al cargar métricas de ventas</p>
+            </div>
+            <div className="bg-red-950 border border-red-800 rounded-lg p-4">
+              <p className="text-red-400">Error al cargar métricas de ventas</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section aria-labelledby="sales-dashboard-overview-heading" className="dashboard-overview">
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <header className="card-header">
-          <div>
-            <h2 id="sales-dashboard-overview-heading">Resumen de ventas</h2>
-          </div>
+    <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+        <header className="mb-4">
+          <h2 id="sales-dashboard-overview-heading" className="text-xl font-semibold text-neutral-100">
+            📊 Resumen de ventas
+          </h2>
         </header>
 
-        <div className="kpi-grid" style={{ marginBottom: "1.5rem" }}>
-          <DailyAvgCard value={filteredAverage} rangeLabel={rangeLabel} formatter={formatCurrency} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <DailyAvgCard 
+            value={dailyAverage} 
+            rangeLabel={rangeLabel} 
+            formatter={formatCurrency} 
+          />
 
-          <Total14DaysCard value={filteredTotal} rangeLabel={rangeLabel} formatter={formatCurrency} />
-        </div>
-      </div>
-
-      <div className="card">
-        <header className="card-header" style={{ gap: "1rem", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            <h2>Tendencia de ventas</h2>
-          </div>
-          <div className="field-group" style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-            <label className="field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <span className="muted small">Desde</span>
-              <input
-                className="input"
-                type="date"
-                value={chartRange?.start ?? minDate}
-                min={minDate}
-                max={chartRange?.end ?? maxDate}
-                onChange={(event) => handleStartChange(event.target.value)}
-                disabled={!minDate}
-              />
-            </label>
-            <label className="field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <span className="muted small">Hasta</span>
-              <input
-                className="input"
-                type="date"
-                value={chartRange?.end ?? maxDate}
-                min={chartRange?.start ?? minDate}
-                max={maxDate}
-                onChange={(event) => handleEndChange(event.target.value)}
-                disabled={!maxDate}
-              />
-            </label>
-          </div>
-        </header>
-
-        <div className="chart-card">
-          {filteredChartPoints.length > 0 ? (
-            <SalesTrendChart points={filteredChartPoints} formatter={formatCurrency} />
-          ) : (
-            <p className="muted" role="status">
-              No hay ventas registradas en el rango seleccionado.
-            </p>
-          )}
+          <Total14DaysCard 
+            value={totalSales} 
+            rangeLabel={rangeLabel} 
+            formatter={formatCurrency} 
+          />
         </div>
       </div>
     </section>
   );
-}
-
-function formatRange(start: string, end: string) {
-  if (!start) {
-    return end;
-  }
-
-  if (!end || start === end) {
-    return start;
-  }
-
-  return `${start} a ${end}`;
 }

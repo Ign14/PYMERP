@@ -1,5 +1,20 @@
 # Pruebas rápidas — Backend protegido (Keycloak + Spring Boot)
 
+## Configuración de red
+
+- **Backend**: Se ejecuta en `http://localhost:8081`
+- **Frontend**: Se ejecuta en `http://172.29.0.1:5173/app` (configurado para WSL/Docker)
+- **Keycloak**: Se ejecuta en `http://localhost:8082`
+
+El backend ya está configurado para aceptar requests CORS desde `http://172.29.0.1:5173`.
+
+## Requisitos de Java (LTS)
+
+- JDK 21 (LTS). El proyecto ya está configurado con Gradle Toolchains para Java 21 (`java.toolchain = 21`), por lo que el propio Gradle puede descargar un JDK compatible automáticamente durante el build.
+- Opcional: si prefieres usar tu JDK local, asegúrate de que `JAVA_HOME` apunte a una instalación de Java 21 y que `java -version` muestre 21.x.
+
+No es necesario instalar manualmente otra versión si usas el wrapper (`gradlew.bat` / `./gradlew`), ya que gestionará el toolchain.
+
 Pasos rápidos
 
 1. Copia `.env.sample` a `.env` en la raíz del proyecto y completa valores si es necesario:

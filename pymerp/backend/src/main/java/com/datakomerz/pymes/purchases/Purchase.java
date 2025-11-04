@@ -18,6 +18,7 @@ public class Purchase {
   private BigDecimal total;
   private String pdfUrl;
   private OffsetDateTime issuedAt;
+  private OffsetDateTime receivedAt;
   private OffsetDateTime createdAt;
 
   @PrePersist public void pre(){
@@ -48,6 +49,8 @@ public class Purchase {
   public void setPdfUrl(String pdfUrl) { this.pdfUrl = pdfUrl; }
   public OffsetDateTime getIssuedAt() { return issuedAt; }
   public void setIssuedAt(OffsetDateTime issuedAt) { this.issuedAt = issuedAt; }
+  public OffsetDateTime getReceivedAt() { return receivedAt; }
+  public void setReceivedAt(OffsetDateTime receivedAt) { this.receivedAt = receivedAt; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
   public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

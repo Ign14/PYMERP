@@ -79,94 +79,40 @@ class BillingRepository implements BillingDataSource {
   @override
   Stream<BillingDocument> watchDocument(String documentId) {
     final controller = StreamController<BillingDocument>();
-    WebSocketChannel? channel;
-    Timer? keepAliveTimer;
+    // FIX: Reemplazar uso complejo de WebSocket por polling HTTP simple.
+    // Esto simplifica el flujo y evita dependencias de WebSocket del servidor.
+    Timer? poller;
 
-    Future<void> connect() async {
-      await channel?.sink.close();
-      channel = null;
-      keepAliveTimer?.cancel();
-      try {
-        final uri = _buildWebSocketUri(documentId);
-        channel = _webSocketConnector(uri);
-        keepAliveTimer = Timer.periodic(_pollingInterval, (_) async {
-          try {
-            final document = await _pollOnce(documentId);
-            if (!controller.isClosed) {
-              controller.add(document);
-            }
-          } catch (error) {
-            if (!controller.isClosed) {
-              controller.addError(error);
-            }
-          }
-        });
-        channel?.stream.listen(
-          (event) {
-            try {
-              final payload = event is String ? jsonDecode(event) : event;
-              if (payload is Map<String, dynamic>) {
-                controller.add(BillingDocument.fromJson(payload));
-              }
-            } catch (error) {
-              controller.addError(error);
-            }
-          },
-          onError: (error, _) {
-            controller.addError(error);
-            // fallback: reconnect later
-            Future<void>.delayed(_pollingInterval, connect);
-          },
-          onDone: () {
-            if (!controller.isClosed) {
-              Future<void>.delayed(_pollingInterval, connect);
-            }
-          },
-          cancelOnError: false,
-        );
-      } catch (error, stackTrace) {
-        // Silently fallback to polling
-        controller.addError(error, stackTrace);
-        keepAliveTimer = Timer.periodic(_pollingInterval, (_) async {
-          try {
-            final document = await _pollOnce(documentId);
-            controller.add(document);
-          } catch (pollError) {
-            controller.addError(pollError);
-          }
-        });
-      }
-    }
-
-    Future<void> emitInitial() async {
+    Future<void> emitOnce() async {
       try {
         final document = await _pollOnce(documentId);
         if (!controller.isClosed) {
           controller.add(document);
         }
-      } catch (error) {
+      } catch (error, stackTrace) {
         if (!controller.isClosed) {
-          controller.addError(error);
+          controller.addError(error, stackTrace);
         }
       }
     }
 
-    void start() {
-      unawaited(emitInitial());
-      unawaited(connect());
+    void startPolling() {
+      // Emit initial immediately
+      unawaited(emitOnce());
+      poller = Timer.periodic(_pollingInterval, (_) {
+        unawaited(emitOnce());
+      });
     }
 
-    controller
-      ..onListen = start
-      ..onResume = start
-      ..onCancel = () async {
-        await channel?.sink.close();
-        channel = null;
-        keepAliveTimer?.cancel();
-        if (!controller.isClosed) {
-          await controller.close();
-        }
-      };
+    controller.onListen = startPolling;
+    controller.onResume = startPolling;
+    controller.onCancel = () async {
+      poller?.cancel();
+      poller = null;
+      if (!controller.isClosed) {
+        await controller.close();
+      }
+    };
 
     return controller.stream;
   }

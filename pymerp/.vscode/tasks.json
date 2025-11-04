@@ -5,7 +5,12 @@
 			"label": "Test Protected Endpoint",
 			"type": "shell",
 			"command": "powershell",
-			"args": ["-ExecutionPolicy","Bypass","-File","scripts/test-protected.ps1"],
+			"args": [
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/test-protected.ps1"
+			],
 			"problemMatcher": []
 		},
 		{
@@ -114,6 +119,99 @@
 			"args": [],
 			"isBackground": false,
 			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Test backend (Windows)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d backend && gradlew.bat clean test --no-daemon"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build UI",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d ui && npm ci && npm run build"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Test backend (Windows)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d backend && gradlew.bat clean test --no-daemon"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Test backend (Windows)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d backend && gradlew.bat clean test --no-daemon"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Backend build",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d backend && gradlew.bat clean build --no-daemon"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flyway migrate (PowerShell)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/flyway-migrate.ps1"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build UI",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d ui && npm ci && npm run build"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Test backend (Windows)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d backend && gradlew.bat clean test --no-daemon"
+			],
+			"group": "build"
+		},
+		{
+			"label": "UI dev server",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d ui && npm run dev -- --host 0.0.0.0 --port 5173"
+			],
+			"isBackground": false,
 			"group": "build"
 		}
 	]

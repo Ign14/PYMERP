@@ -2,31 +2,47 @@ import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelPurchase,
-  listPurchaseDaily,
   listPurchases,
-  PurchaseDailyPoint,
+  listSuppliers,
   PurchaseSummary,
   PurchaseUpdatePayload,
   updatePurchase,
+  exportPurchasesToCSV,
+  importPurchasesFromCSV,
+  downloadDocument,
+  DocumentSummary,
+  DocumentFile,
 } from "../services/client";
 import PageHeader from "../components/layout/PageHeader";
 import PurchaseCreateDialog from "../components/dialogs/PurchaseCreateDialog";
-import DocumentsSummaryCard from "../components/documents/DocumentsSummaryCard";
+import PurchaseImportDialog from "../components/dialogs/PurchaseImportDialog";
+import PurchasesAdvancedKPIs from "../components/purchases/PurchasesAdvancedKPIs";
+import PurchaseABCChart from "../components/purchases/PurchaseABCChart";
+import PurchaseABCTable from "../components/purchases/PurchaseABCTable";
+import PurchaseABCRecommendations from "../components/purchases/PurchaseABCRecommendations";
+import PurchaseForecastChart from "../components/purchases/PurchaseForecastChart";
+import PurchaseForecastTable from "../components/purchases/PurchaseForecastTable";
+import PurchaseForecastInsights from "../components/purchases/PurchaseForecastInsights";
+import PurchasesDashboardOverview from "../components/purchases/PurchasesDashboardOverview";
+import PurchasesTrendSection from "../components/purchases/PurchasesTrendSection";
+import { PurchasesAlertsPanel } from "../components/purchases/PurchasesAlertsPanel";
+import { PurchasesTemporalComparison } from "../components/purchases/PurchasesTemporalComparison";
+import { PurchasesOptimizationPanel } from "../components/purchases/PurchasesOptimizationPanel";
+import { PurchasesSupplierStatsPanel } from "../components/purchases/PurchasesSupplierStatsPanel";
+import PurchasesOrderTimeline from "../components/purchases/PurchasesOrderTimeline";
+import PurchasesTopSuppliersPanel from "../components/purchases/PurchasesTopSuppliersPanel";
+import PurchasesCategoryAnalysis from "../components/purchases/PurchasesCategoryAnalysis";
+import PurchasesPaymentMethodAnalysis from "../components/purchases/PurchasesPaymentMethodAnalysis";
+import PurchasesPerformanceMetrics from "../components/purchases/PurchasesPerformanceMetrics";
+import PurchasesExportDialog from "../components/purchases/PurchasesExportDialog";
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
+  getSortedRowModel,
+  SortingState,
 } from "@tanstack/react-table";
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 
 const PAGE_SIZE = 10;
@@ -36,35 +52,134 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelada" },
 ];
 
+function sanitizeFileSegment(segment: string): string {
+  return segment
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getDefaultExtension(mimeType?: string): string {
+  if (!mimeType) return ".pdf";
+  const lower = mimeType.toLowerCase();
+  if (lower.includes("pdf")) return ".pdf";
+  if (lower.includes("html")) return ".html";
+  if (lower.includes("json")) return ".json";
+  if (lower.includes("xml")) return ".xml";
+  return ".bin";
+}
+
+function buildDocumentFilename(document: DocumentSummary, file?: DocumentFile): string {
+  if (file?.filename) return file.filename;
+  const typeSegment = sanitizeFileSegment(document.type || "documento");
+  const identifierSegment = sanitizeFileSegment(document.number ?? document.id);
+  const extension = getDefaultExtension(file?.mimeType);
+  return `${typeSegment || "documento"}-${identifierSegment || document.id}${extension}`;
+}
+
+function triggerBrowserDownload(file: DocumentFile, filename: string) {
+  const url = URL.createObjectURL(file.blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function PurchasesPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("received");
   const [searchInput, setSearchInput] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  
+  // Filtros avanzados
+  const [docTypeFilter, setDocTypeFilter] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Estado para el rango de fechas
+  const defaultDays = 14;
+  const today = new Date().toISOString().split('T')[0];
+  const defaultStartDate = new Date(Date.now() - (defaultDays - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState<string>(defaultStartDate);
+  const [endDate, setEndDate] = useState<string>(today);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
 
   useEffect(() => {
     setPage(0);
-  }, [statusFilter, debouncedSearch]);
+  }, [statusFilter, debouncedSearch, docTypeFilter]);
+
+  // Query para obtener lista de proveedores
+  const suppliersQuery = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: () => listSuppliers(),
+  });
 
   const purchasesQuery = useQuery({
-    queryKey: ["purchases", page, statusFilter, debouncedSearch],
-    queryFn: () =>
-      listPurchases({
+    queryKey: ["purchases", page, statusFilter, debouncedSearch, docTypeFilter],
+    queryFn: () => {
+      const params: any = {
         page,
         size: PAGE_SIZE,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
-      }),
+        docType: docTypeFilter || undefined,
+      };
+      
+      return listPurchases(params);
+    },
     placeholderData: keepPreviousData,
   });
 
-  const metricsQuery = useQuery<PurchaseDailyPoint[], Error>({
-    queryKey: ["purchases", "metrics", 14],
-    queryFn: () => listPurchaseDaily(14),
-  });
+  // Aplicar filtros del lado del cliente para proveedor y montos
+  const filteredPurchases = useMemo(() => {
+    if (!purchasesQuery.data) return null;
+    
+    let filtered = [...purchasesQuery.data.content];
+    
+    // Filtro por proveedor
+    if (supplierFilter) {
+      filtered = filtered.filter(p => p.supplierId === supplierFilter);
+    }
+    
+    // Filtro por monto mínimo
+    if (minAmount) {
+      const min = parseFloat(minAmount);
+      if (!isNaN(min)) {
+        filtered = filtered.filter(p => {
+          const total = parseFloat(p.total?.toString() ?? "0");
+          return total >= min;
+        });
+      }
+    }
+    
+    // Filtro por monto máximo
+    if (maxAmount) {
+      const max = parseFloat(maxAmount);
+      if (!isNaN(max)) {
+        filtered = filtered.filter(p => {
+          const total = parseFloat(p.total?.toString() ?? "0");
+          return total <= max;
+        });
+      }
+    }
+    
+    return {
+      ...purchasesQuery.data,
+      content: filtered,
+    };
+  }, [purchasesQuery.data, supplierFilter, minAmount, maxAmount]);
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => cancelPurchase(id),
@@ -74,6 +189,42 @@ export default function PurchasesPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: PurchaseUpdatePayload }) => updatePurchase(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+  });
+
+  const quickDownloadMutation = useMutation({
+    mutationFn: async (purchase: PurchaseSummary) => {
+      const document: DocumentSummary = {
+        id: purchase.id,
+        direction: "purchases",
+        type: purchase.docType ?? "Documento",
+        number: purchase.docNumber ?? purchase.id,
+        issuedAt: purchase.issuedAt,
+        total: purchase.total,
+        status: purchase.status,
+      };
+      const file = await downloadDocument(document.id);
+      const filename = buildDocumentFilename(document, file);
+      triggerBrowserDownload(file, filename);
+    },
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const blob = await exportPurchasesToCSV({
+        status: statusFilter || undefined,
+        search: debouncedSearch || undefined,
+        docType: docTypeFilter || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `compras-${new Date().toISOString().split('T')[0]}.csv`;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
   });
 
   const handleCancel = (purchase: PurchaseSummary) => {
@@ -100,53 +251,117 @@ export default function PurchasesPage() {
 
   const columns = useMemo<ColumnDef<PurchaseSummary>[]>(() => [
     {
+      header: "Fecha",
+      accessorKey: "issuedAt",
+      cell: (info) => new Date(info.getValue<string>()).toLocaleDateString("es-ES"),
+      enableSorting: true,
+      sortingFn: "datetime",
+    },
+    {
       header: "Documento",
       accessorKey: "docType",
       cell: (info) => info.getValue<string>() ?? "Factura",
+      enableSorting: false,
     },
     {
       header: "Numero",
       accessorKey: "docNumber",
       cell: (info) => info.getValue<string>() ?? "-",
+      enableSorting: false,
     },
     {
       header: "Proveedor",
       accessorFn: (row) => row.supplierName ?? row.supplierId ?? "-",
       cell: (info) => info.getValue<string>() ?? "-",
+      enableSorting: true,
     },
     {
       header: "Estado",
       accessorKey: "status",
       cell: (info) => {
-        const value = info.getValue<string>() ?? "";
-        return <span className={`status ${value.toLowerCase()}`}>{value}</span>;
+        const value = (info.getValue<string>() ?? "").toLowerCase();
+        
+        // Mapeo de estados a badges con iconos
+        const statusConfig: Record<string, { icon: string; label: string; className: string }> = {
+          received: {
+            icon: '🟢',
+            label: 'Recibida',
+            className: 'bg-green-950 text-green-400 border-green-800',
+          },
+          pending: {
+            icon: '🟡',
+            label: 'Pendiente',
+            className: 'bg-yellow-950 text-yellow-400 border-yellow-800',
+          },
+          cancelled: {
+            icon: '🔴',
+            label: 'Cancelada',
+            className: 'bg-red-950 text-red-400 border-red-800',
+          },
+          intransit: {
+            icon: '⏳',
+            label: 'En tránsito',
+            className: 'bg-blue-950 text-blue-400 border-blue-800',
+          },
+          completed: {
+            icon: '✅',
+            label: 'Completada',
+            className: 'bg-neutral-700 text-neutral-300 border-neutral-600',
+          },
+        };
+
+        const config = statusConfig[value] ?? {
+          icon: '⚪',
+          label: value || 'Desconocido',
+          className: 'bg-neutral-800 text-neutral-400 border-neutral-700',
+        };
+
+        return (
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${config.className}`}
+          >
+            <span>{config.icon}</span>
+            <span>{config.label}</span>
+          </span>
+        );
       },
+      enableSorting: false,
     },
     {
       header: "Neto",
       accessorKey: "net",
       cell: (info) => `$${Number(info.getValue<string>()).toLocaleString()}`,
+      enableSorting: true,
+      sortingFn: "alphanumeric",
     },
     {
       header: "IVA",
       accessorKey: "vat",
       cell: (info) => `$${Number(info.getValue<string>()).toLocaleString()}`,
+      enableSorting: true,
+      sortingFn: "alphanumeric",
     },
     {
       header: "Total",
       accessorKey: "total",
       cell: (info) => `$${Number(info.getValue<string>()).toLocaleString()}`,
-    },
-    {
-      header: "Emitida",
-      accessorKey: "issuedAt",
-      cell: (info) => new Date(info.getValue<string>()).toLocaleString(),
+      enableSorting: true,
+      sortingFn: "alphanumeric",
     },
     {
       id: "actions",
       header: "Acciones",
+      enableSorting: false,
       cell: ({ row }) => (
         <div className="table-actions">
+          <button 
+            className="btn ghost" 
+            type="button" 
+            onClick={() => quickDownloadMutation.mutate(row.original)}
+            disabled={quickDownloadMutation.isPending}
+          >
+            {quickDownloadMutation.isPending ? "Descargando..." : "Descargar"}
+          </button>
           <button className="btn ghost" type="button" onClick={() => handleEdit(row.original)}>
             Editar
           </button>
@@ -160,41 +375,66 @@ export default function PurchasesPage() {
         </div>
       ),
     },
-  ], []);
+  ], [quickDownloadMutation.isPending]);
 
   const table = useReactTable({
-    data: purchasesQuery.data?.content ?? [],
+    data: filteredPurchases?.content ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     manualPagination: true,
-    pageCount: purchasesQuery.data?.totalPages ?? -1,
+    pageCount: filteredPurchases?.totalPages ?? -1,
     state: {
+      sorting,
       pagination: { pageIndex: page, pageSize: PAGE_SIZE },
     },
+    onSortingChange: setSorting,
     onPaginationChange: (updater) => {
       const next = typeof updater === "function" ? updater({ pageIndex: page, pageSize: PAGE_SIZE }).pageIndex : updater.pageIndex;
       setPage(next);
     },
+    enableSorting: true,
   });
 
-  const dailyData = useMemo(() => (metricsQuery.data ?? []).map((point) => ({
-    date: point.date,
-    total: Number(point.total ?? 0),
-    count: point.count,
-  })), [metricsQuery.data]);
-
   return (
-    <div className="page-section">
+    <div className="page-section bg-neutral-950">
       <PageHeader
         title="Compras y abastecimiento"
         description="Controla ordenes, recepciones y presupuestos para evitar quiebres."
         actions={<button className="btn" onClick={() => setDialogOpen(true)}>+ Nueva orden</button>}
       />
 
-      <div className="card">
+      {/* KPIs Avanzados */}
+      <div className="mb-8">
+        <PurchasesAdvancedKPIs />
+      </div>
+
+      {/* Análisis ABC de Proveedores */}
+      <div className="mb-8 space-y-6">
+        <h2 className="text-2xl font-semibold text-white">📊 Análisis ABC de Proveedores</h2>
+        <PurchaseABCChart />
+        <PurchaseABCRecommendations />
+        <PurchaseABCTable />
+      </div>
+
+      {/* Pronóstico de Demanda */}
+      <div className="mb-8 space-y-6">
+        <h2 className="text-2xl font-semibold text-white">🔮 Pronóstico de Demanda</h2>
+        <PurchaseForecastChart />
+        <PurchaseForecastInsights />
+        <PurchaseForecastTable />
+      </div>
+
+      <PurchasesDashboardOverview 
+        startDate={startDate}
+        endDate={endDate}
+        statusFilter={statusFilter}
+      />
+
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
         <div className="filter-bar">
           <input
-            className="input"
+            className="input bg-neutral-800 border-neutral-700 text-neutral-100"
             placeholder="Buscar (doc, numero, proveedor)"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -204,63 +444,192 @@ export default function PurchasesPage() {
               Limpiar
             </button>
           )}
-          <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="input bg-neutral-800 border-neutral-700 text-neutral-100" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             {STATUS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+          <button 
+            className="btn ghost" 
+            type="button" 
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          >
+            {showAdvancedFilters ? "🔽 Ocultar filtros" : "🔼 Más filtros"}
+          </button>
+          <button 
+            className="btn" 
+            type="button" 
+            onClick={() => setExportDialogOpen(true)}
+          >
+            📊 Exportar Avanzado
+          </button>
+          <button 
+            className="btn ghost" 
+            type="button" 
+            onClick={() => setImportDialogOpen(true)}
+          >
+            Importar CSV
+          </button>
         </div>
+
+        {/* Filtros Avanzados */}
+        {showAdvancedFilters && (
+          <div className="filter-bar" style={{ 
+            marginTop: "0.5rem", 
+            paddingTop: "0.5rem", 
+            borderTop: "1px solid #404040",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "0.5rem"
+          }}>
+            <select 
+              className="input bg-neutral-800 border-neutral-700 text-neutral-100" 
+              value={docTypeFilter} 
+              onChange={(e) => setDocTypeFilter(e.target.value)}
+            >
+              <option value="">Todos los tipos de documento</option>
+              <option value="Factura">Factura</option>
+              <option value="Boleta">Boleta</option>
+              <option value="Cotización">Cotización</option>
+              <option value="Orden de Compra">Orden de Compra</option>
+              <option value="Guía de Despacho">Guía de Despacho</option>
+            </select>
+
+            <select 
+              className="input bg-neutral-800 border-neutral-700 text-neutral-100" 
+              value={supplierFilter} 
+              onChange={(e) => setSupplierFilter(e.target.value)}
+            >
+              <option value="">Todos los proveedores</option>
+              {suppliersQuery.data?.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
+
+            <input 
+              className="input bg-neutral-800 border-neutral-700 text-neutral-100" 
+              type="number" 
+              placeholder="Monto mínimo"
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+            />
+
+            <input 
+              className="input bg-neutral-800 border-neutral-700 text-neutral-100" 
+              type="number" 
+              placeholder="Monto máximo"
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+            />
+
+            {(docTypeFilter || supplierFilter || minAmount || maxAmount) && (
+              <button 
+                className="btn ghost" 
+                type="button" 
+                onClick={() => {
+                  setDocTypeFilter("");
+                  setSupplierFilter("");
+                  setMinAmount("");
+                  setMaxAmount("");
+                }}
+              >
+                Limpiar filtros avanzados
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      <section className="kpi-grid">
-        <div className="card stat">
-          <h3>Ordenes en curso</h3>
-          <p className="stat-value">{purchasesQuery.data?.totalElements ?? 0}</p>
-          <span className="stat-trend">Total registros listados</span>
-        </div>
-        <div className="card stat">
-          <h3>Gasto 14 dias</h3>
-          <p className="stat-value">${dailyData.reduce((acc, row) => acc + row.total, 0).toLocaleString()}</p>
-          <span className="stat-trend">Incluye impuestos</span>
-        </div>
-        <div className="card stat">
-          <h3>Ordenes diarias</h3>
-          <p className="stat-value">{dailyData.reduce((acc, row) => acc + row.count, 0)}</p>
-          <span className="stat-trend">Ultimas 2 semanas</span>
-        </div>
-      </section>
-
-      <DocumentsSummaryCard
-        title="Órdenes de compra"
-        type="PURCHASE"
-        viewAllTo="/app/purchases?type=PURCHASE"
-        emptyMessage="No hay órdenes de compra."
+      <PurchasesTrendSection 
+        startDate={startDate}
+        endDate={endDate}
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
       />
 
-      <div className="card">
-        <h3>Tendencia de compras</h3>
-        <div style={{ height: 260 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dailyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="date" stroke="#9aa0a6" tick={{ fontSize: 12 }} />
-              <YAxis stroke="#9aa0a6" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`}/>
-              <Bar dataKey="total" fill="#a855f7" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <PurchasesTemporalComparison 
+          startDate={startDate}
+          endDate={endDate}
+        />
+        <PurchasesAlertsPanel 
+          startDate={startDate}
+          endDate={endDate}
+        />
       </div>
 
-      <div className="card table-card">
-        <h3>Ordenes recientes</h3>
+      <PurchasesOptimizationPanel 
+        startDate={startDate}
+        endDate={endDate}
+      />
+
+      <PurchasesSupplierStatsPanel 
+        startDate={startDate}
+        endDate={endDate}
+      />
+
+      {/* Nuevos componentes Fase 1-3 */}
+      <PurchasesOrderTimeline 
+        startDate={startDate}
+        endDate={endDate}
+        statusFilter={statusFilter}
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
+        <PurchasesTopSuppliersPanel 
+          startDate={startDate}
+          endDate={endDate}
+          statusFilter={statusFilter}
+        />
+        <PurchasesCategoryAnalysis 
+          startDate={startDate}
+          endDate={endDate}
+          statusFilter={statusFilter}
+        />
+      </div>
+
+      <PurchasesPaymentMethodAnalysis 
+        startDate={startDate}
+        endDate={endDate}
+        statusFilter={statusFilter}
+      />
+
+      <PurchasesPerformanceMetrics 
+        startDate={startDate}
+        endDate={endDate}
+        statusFilter={statusFilter}
+      />
+
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 table-card">
+        <h3 className="text-neutral-100">Ordenes recientes</h3>
         <div className="table-wrapper">
           <table className="table">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>
+                    <th
+                      key={header.id}
+                      onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
+                      style={{
+                        cursor: header.column.getCanSort() ? 'pointer' : 'default',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span style={{ opacity: 0.5 }}>
+                            {{
+                              asc: '↑',
+                              desc: '↓',
+                            }[header.column.getIsSorted() as string] ?? '↕'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
                   ))}
                 </tr>
               ))}
@@ -278,8 +647,8 @@ export default function PurchasesPage() {
         </div>
         <div className="pagination">
           <button className="btn" disabled={page === 0} onClick={() => setPage((prev) => Math.max(0, prev - 1))}>Anterior</button>
-          <span className="muted">Pagina {page + 1} de {purchasesQuery.data?.totalPages ?? 1}</span>
-          <button className="btn" disabled={page + 1 >= (purchasesQuery.data?.totalPages ?? 1)} onClick={() => setPage((prev) => prev + 1)}>Siguiente</button>
+          <span className="muted text-neutral-400">Pagina {page + 1} de {filteredPurchases?.totalPages ?? 1}</span>
+          <button className="btn" disabled={page + 1 >= (filteredPurchases?.totalPages ?? 1)} onClick={() => setPage((prev) => prev + 1)}>Siguiente</button>
         </div>
       </div>
 
@@ -287,6 +656,20 @@ export default function PurchasesPage() {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onCreated={() => queryClient.invalidateQueries({ queryKey: ["purchases"] })}
+      />
+      
+      <PurchaseImportDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ["purchases"] })}
+      />
+
+      <PurchasesExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        startDate={startDate}
+        endDate={endDate}
+        statusFilter={statusFilter}
       />
     </div>
   );

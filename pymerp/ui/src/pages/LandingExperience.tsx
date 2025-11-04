@@ -149,18 +149,15 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
       hasOpenedByForceRef.current = false;
       return;
     }
-    if (!isAuthenticated && !hasOpenedByForceRef.current) {
-      setOverlayVisible(true);
-      setPanel("login");
-      hasOpenedByForceRef.current = true;
-    }
-  }, [forceLoginOnMount, isAuthenticated]);
+    // Siempre abrir el panel de login en la ruta /login,
+    // incluso si hay sesión activa (permite cambiar de cuenta)
+    setOverlayVisible(true);
+    setPanel("login");
+    hasOpenedByForceRef.current = true;
+  }, [forceLoginOnMount]);
 
-  useEffect(() => {
-    if (forceLoginOnMount && isAuthenticated) {
-      navigate("/app", { replace: true });
-    }
-  }, [forceLoginOnMount, isAuthenticated, navigate]);
+  // Nota: ya no redirigimos automáticamente a /app cuando hay sesión en /login,
+  // para permitir que el usuario abra el panel de inicio de sesión y cambie de cuenta.
 
   useEffect(() => {
     if (panel === "login") {
@@ -212,10 +209,8 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
   }, [loginCooldownSeconds]);
 
   const overlayInstructions = useMemo(() => {
-    if (!isAuthenticated) {
-      return "Haz clic para iniciar sesión";
-    }
-    return "Haz clic para entrar al panel principal";
+    // Post-login: mostrar CTA de acceso; si no autenticado, invitar a iniciar sesión
+    return isAuthenticated ? "Haz clic aquí para acceder y entrar." : "Haz clic para iniciar sesión";
   }, [isAuthenticated]);
 
   const handleOverlayClick = () => {
@@ -223,8 +218,11 @@ export default function LandingExperience({ children, forceLoginOnMount = false,
       return;
     }
     if (isAuthenticated) {
+      // Post-login: ocultar overlay y llevar al área principal
       setOverlayVisible(false);
+      navigate("/app");
     } else {
+      // No autenticado: llevar a login
       navigate("/login");
     }
   };

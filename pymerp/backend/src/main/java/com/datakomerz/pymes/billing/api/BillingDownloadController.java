@@ -86,9 +86,9 @@ public class BillingDownloadController {
     if (storageLinks == null) {
       return new DocumentLinksResponse(null, null, null);
     }
-    UriComponentsBuilder baseBuilder = UriComponentsBuilder.fromPath("/api/v1/billing/documents/{id}/files")
-        .buildAndExpand(id);
-    String basePath = baseBuilder.toUriString();
+  String basePath = UriComponentsBuilder.fromPath("/api/v1/billing/documents/{id}/files")
+    .buildAndExpand(id)
+    .toUriString();
 
     String localLink = storageLinks.localPdf() != null
         ? basePath + "/LOCAL"

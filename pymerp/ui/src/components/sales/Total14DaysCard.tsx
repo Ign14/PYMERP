@@ -18,7 +18,7 @@ export default function Total14DaysCard({
         {formatter(value)}
       </p>
       <span className="stat-trend">Rango seleccionado: {rangeLabel}</span>
-      <span className="stat-trend">Montos brutos del periodo</span>
+      <span className="muted small">Incluye solo Boleta y Factura</span>
     </article>
   );
 }

@@ -4,8 +4,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -21,6 +23,9 @@ public class Customer {
 
   @Column(nullable = false, length = 120)
   private String name;
+
+  @Column(length = 20)
+  private String rut;
 
   @Column(columnDefinition = "text")
   private String address;
@@ -40,11 +45,39 @@ public class Customer {
   @Column(length = 64)
   private String segment;
 
+  @Column(name = "contact_person", length = 120)
+  private String contactPerson;
+
+  @Column(columnDefinition = "text")
+  private String notes;
+
+  @Column(nullable = false)
+  private Boolean active = true;
+
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt;
+
   @PrePersist
   public void prePersist() {
     if (id == null) {
       id = UUID.randomUUID();
     }
+    Instant now = Instant.now();
+    if (createdAt == null) {
+      createdAt = now;
+    }
+    updatedAt = now;
+    if (active == null) {
+      active = true;
+    }
+  }
+
+  @PreUpdate
+  public void preUpdate() {
+    updatedAt = Instant.now();
   }
 
   public UUID getId() {
@@ -117,5 +150,53 @@ public class Customer {
 
   public void setSegment(String segment) {
     this.segment = segment;
+  }
+
+  public String getRut() {
+    return rut;
+  }
+
+  public void setRut(String rut) {
+    this.rut = rut;
+  }
+
+  public String getContactPerson() {
+    return contactPerson;
+  }
+
+  public void setContactPerson(String contactPerson) {
+    this.contactPerson = contactPerson;
+  }
+
+  public String getNotes() {
+    return notes;
+  }
+
+  public void setNotes(String notes) {
+    this.notes = notes;
+  }
+
+  public Boolean getActive() {
+    return active;
+  }
+
+  public void setActive(Boolean active) {
+    this.active = active;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(Instant createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setUpdatedAt(Instant updatedAt) {
+    this.updatedAt = updatedAt;
   }
 }

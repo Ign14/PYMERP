@@ -12,9 +12,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createSale,
   listProducts,
+  listLocations,
   Page,
   Product,
   Customer,
+  Location,
   SaleItemPayload,
   SalePayload,
   SaleRes,
@@ -36,13 +38,14 @@ interface Props {
 type DocumentOption = (typeof SALE_DOCUMENT_TYPES)[number];
 type PaymentOption = (typeof SALE_PAYMENT_METHODS)[number];
 type ManualLookupType = "auto" | ProductLookupType;
+type DiscountType = "amount" | "percentage";
 
 const DEFAULT_DOC_TYPE: DocumentOption["value"] = SALE_DOCUMENT_TYPES[0].value;
 const DEFAULT_PAYMENT_METHOD: PaymentOption["value"] = SALE_PAYMENT_METHODS[2].value;
 const LOOKUP_ORDER: ProductLookupType[] = ["barcode", "sku", "qr"];
 const SCANNER_TIMEOUT_MS = 100;
-const SCANNER_PREFIX = "";
-const SCANNER_SUFFIX = "";
+const SCANNER_PREFIX: string = "";
+const SCANNER_SUFFIX: string = "";
 
 const MANUAL_TYPE_OPTIONS: { value: ManualLookupType; label: string }[] = [
   { value: "auto", label: "Detección automática" },
@@ -60,6 +63,9 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<DiscountType>("amount");
+  const [discountValue, setDiscountValue] = useState(0);
+  const [applyVat, setApplyVat] = useState(true);
   const [productCache, setProductCache] = useState<Record<string, Product>>({});
   const [showFrequentProducts, setShowFrequentProducts] = useState(false);
   const scannerInputRef = useRef<HTMLInputElement | null>(null);
@@ -79,6 +85,12 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
     queryFn: () => listProducts({ size: 200 }),
     enabled: open,
     staleTime: 30_000,
+  });
+
+  const locationsQuery = useQuery<Location[], Error>({
+    queryKey: ["locations", { dialog: "sales" }],
+    queryFn: () => listLocations(),
+    enabled: open,
   });
 
   const createMutation = useMutation({
@@ -271,9 +283,23 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
     }
   };
 
-  const total = useMemo(() => {
-    return items.reduce((acc, item) => acc + item.qty * item.unitPrice - (item.discount ?? 0), 0);
-  }, [items]);
+  const totals = useMemo(() => {
+    const subtotal = items.reduce((acc, item) => acc + item.qty * item.unitPrice - (item.discount ?? 0), 0);
+    
+    // Aplicar descuento general
+    let discountAmount = 0;
+    if (discountType === "percentage") {
+      discountAmount = subtotal * (discountValue / 100);
+    } else {
+      discountAmount = discountValue;
+    }
+    
+    const net = subtotal - discountAmount;
+    const vat = applyVat ? net * 0.19 : 0; // 19% IVA
+    const total = net + vat;
+    
+    return { subtotal, discountAmount, net, vat, total };
+  }, [items, applyVat, discountType, discountValue]);
 
   const addItem = () => {
     if (!selectedProductId) {
@@ -343,6 +369,8 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
       customerId: selectedCustomer.id,
       docType,
       paymentMethod,
+      discount: discountValue > 0 ? (discountType === "percentage" ? totals.discountAmount : discountValue) : undefined,
+      vatRate: applyVat ? 19 : undefined,
       items,
     };
     createMutation.mutate(payload);
@@ -438,13 +466,57 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
         </label>
 
         <label>
-          <span>Metodo de pago</span>
+          <span>Método de pago</span>
           <select className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentOption["value"])}>
             {SALE_PAYMENT_METHODS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
+
+        <div className="line"></div>
+
+        <div className="section-title">Descuentos e Impuestos</div>
+
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+          gap: "1rem" 
+        }}>
+          <label>
+            <span>Tipo de descuento</span>
+            <select 
+              className="input" 
+              value={discountType} 
+              onChange={(e) => setDiscountType(e.target.value as DiscountType)}
+            >
+              <option value="amount">Monto fijo ($)</option>
+              <option value="percentage">Porcentaje (%)</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Valor descuento</span>
+            <input 
+              className="input" 
+              type="number" 
+              min={0}
+              step={discountType === "percentage" ? 1 : 0.01}
+              value={discountValue} 
+              onChange={(e) => setDiscountValue(Number(e.target.value))}
+              placeholder={discountType === "percentage" ? "0-100" : "0.00"}
+            />
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input 
+              type="checkbox" 
+              checked={applyVat} 
+              onChange={(e) => setApplyVat(e.target.checked)}
+            />
+            <span>Aplicar IVA 19%</span>
+          </label>
+        </div>
 
         <div className="line"></div>
 
@@ -609,9 +681,36 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
           </div>
         )}
 
-        <div className="total-section">
-          <span className="muted">Total estimado</span>
-          <strong>${total.toFixed(2)}</strong>
+        <div className="total-section" style={{ 
+          display: "grid", 
+          gridTemplateColumns: "1fr auto", 
+          gap: "0.5rem",
+          padding: "1rem",
+          background: "#f9f9f9",
+          borderRadius: "4px"
+        }}>
+          <span className="muted">Subtotal:</span>
+          <strong>${totals.subtotal.toFixed(2)}</strong>
+          
+          {discountValue > 0 && (
+            <>
+              <span className="muted">Descuento ({discountType === "percentage" ? `${discountValue}%` : "$"}):</span>
+              <strong>-${totals.discountAmount.toFixed(2)}</strong>
+            </>
+          )}
+          
+          <span className="muted">Neto:</span>
+          <strong>${totals.net.toFixed(2)}</strong>
+          
+          {applyVat && (
+            <>
+              <span className="muted">IVA (19%):</span>
+              <strong>${totals.vat.toFixed(2)}</strong>
+            </>
+          )}
+          
+          <span style={{ fontSize: "1.1rem", fontWeight: "bold" }}>Total:</span>
+          <strong style={{ fontSize: "1.1rem" }}>${totals.total.toFixed(2)}</strong>
         </div>
 
         {createMutation.isError && <p className="error">{(createMutation.error as Error).message}</p>}

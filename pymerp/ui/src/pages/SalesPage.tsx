@@ -13,10 +13,12 @@ import {
   getSalesSummaryByPeriod,
   DocumentSummary,
   DocumentFile,
+  downloadDocument,
   downloadDocumentByLink,
   getBillingDocument,
   getDocumentPreview,
   updateSale,
+  exportSalesToCSV,
 } from "../services/client";
 import PageHeader from "../components/layout/PageHeader";
 import SalesCreateDialog from "../components/dialogs/SalesCreateDialog";
@@ -25,10 +27,25 @@ import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import { SALE_DOCUMENT_TYPES, SALE_PAYMENT_METHODS } from "../constants/sales";
 import SalesDashboardOverview from "../components/sales/SalesDashboardOverview";
+import SalesTrendSection from "../components/sales/SalesTrendSection";
 import SaleDocumentsModal from "../components/sales/SaleDocumentsModal";
+import SalesTopProductsPanel from "../components/sales/SalesTopProductsPanel";
+import SalesPaymentMethodAnalysis from "../components/sales/SalesPaymentMethodAnalysis";
+import SalesDocTypeAnalysis from "../components/sales/SalesDocTypeAnalysis";
+import SalesPerformanceMetrics from "../components/sales/SalesPerformanceMetrics";
+import SalesTopCustomersPanel from "../components/sales/SalesTopCustomersPanel";
+import SalesDailyTimeline from "../components/sales/SalesDailyTimeline";
+import SalesForecastPanel from "../components/sales/SalesForecastPanel";
+import SalesExportDialog from "../components/sales/SalesExportDialog";
+import SalesAdvancedKPIs from "../components/sales/SalesAdvancedKPIs";
+import SalesABCChart from "../components/SalesABCChart";
+import SalesABCTable from "../components/SalesABCTable";
+import SalesABCRecommendations from "../components/SalesABCRecommendations";
+import SalesForecastChart from "../components/SalesForecastChart";
+import SalesForecastTable from "../components/SalesForecastTable";
+import SalesForecastInsights from "../components/SalesForecastInsights";
 
 const PAGE_SIZE = 10;
-const TREND_DEFAULT_DAYS = 14;
 const STATUS_OPTIONS = [
   { value: "", label: "Todos" },
   { value: "emitida", label: "Emitida" },
@@ -189,9 +206,17 @@ export default function SalesPage() {
   const [receiptDocument, setReceiptDocument] = useState<DocumentSummary | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [saleDocumentsModalOpen, setSaleDocumentsModalOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const documentsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const receiptPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
   const receiptCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Estado para el rango de fechas compartido entre dashboard y tendencia
+  const defaultDays = 14;
+  const today = new Date().toISOString().split('T')[0];
+  const defaultStartDate = new Date(Date.now() - (defaultDays - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState<string>(defaultStartDate);
+  const [endDate, setEndDate] = useState<string>(today);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
 
@@ -318,6 +343,43 @@ export default function SalesPage() {
           ? error.message
           : "No se pudo descargar el documento. Intenta nuevamente.",
       );
+    },
+  });
+
+  const quickDownloadMutation = useMutation({
+    mutationFn: async (sale: SaleSummary) => {
+      const document: DocumentSummary = {
+        id: sale.id,
+        direction: "sales",
+        type: sale.docType ?? "Documento",
+        number: getSaleDocumentNumber(sale),
+        issuedAt: sale.issuedAt,
+        total: sale.total,
+        status: sale.status,
+      };
+      const file = await downloadDocument(document.id);
+      const filename = buildDocumentFilename(document, file);
+      triggerBrowserDownload(file, filename);
+    },
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const blob = await exportSalesToCSV({
+        status: statusFilter || undefined,
+        docType: docTypeFilter || undefined,
+        paymentMethod: paymentFilter || undefined,
+        search: debouncedSearch || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ventas-${new Date().toISOString().split('T')[0]}.csv`;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     },
   });
 
@@ -449,28 +511,43 @@ export default function SalesPage() {
       accessorKey: "status",
       cell: (info) => {
         const value = info.getValue<string>() ?? "";
-        return <span className={`status ${value.toLowerCase()}`}>{value}</span>;
+        const statusLower = value.toLowerCase();
+        let badge = "";
+        if (statusLower === "emitida") {
+          badge = "🟢 Emitida";
+        } else if (statusLower === "cancelled") {
+          badge = "🔴 Cancelada";
+        } else {
+          badge = value;
+        }
+        return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+          statusLower === "emitida" 
+            ? "bg-green-950 text-green-400 border border-green-800" 
+            : statusLower === "cancelled"
+            ? "bg-red-950 text-red-400 border border-red-800"
+            : "bg-neutral-800 text-neutral-400 border border-neutral-700"
+        }`}>{badge}</span>;
       },
     },
     {
       header: "Neto",
       accessorKey: "net",
-      cell: (info) => `$${(info.getValue<number>() ?? 0).toLocaleString()}`,
+      cell: (info) => <span className="text-neutral-100">${(info.getValue<number>() ?? 0).toLocaleString()}</span>,
     },
     {
       header: "IVA",
       accessorKey: "vat",
-      cell: (info) => `$${(info.getValue<number>() ?? 0).toLocaleString()}`,
+      cell: (info) => <span className="text-neutral-100">${(info.getValue<number>() ?? 0).toLocaleString()}</span>,
     },
     {
       header: "Total",
       accessorKey: "total",
-      cell: (info) => `$${(info.getValue<number>() ?? 0).toLocaleString()}`,
+      cell: (info) => <span className="font-semibold text-neutral-100">${(info.getValue<number>() ?? 0).toLocaleString()}</span>,
     },
     {
       header: "Emitida",
       accessorKey: "issuedAt",
-      cell: (info) => new Date(info.getValue<string>()).toLocaleString(),
+      cell: (info) => <span className="text-neutral-400 text-sm">{new Date(info.getValue<string>()).toLocaleString()}</span>,
     },
     {
       id: "actions",
@@ -479,6 +556,14 @@ export default function SalesPage() {
         <div className="table-actions">
           <button className="btn ghost" type="button" onClick={() => handleShowReceipt(row.original)}>
             Comprobante
+          </button>
+          <button 
+            className="btn ghost" 
+            type="button" 
+            onClick={() => quickDownloadMutation.mutate(row.original)}
+            disabled={quickDownloadMutation.isPending}
+          >
+            {quickDownloadMutation.isPending ? "Descargando..." : "Descargar"}
           </button>
           <button className="btn ghost" type="button" onClick={() => handleEdit(row.original)}>
             Editar
@@ -494,7 +579,7 @@ export default function SalesPage() {
         </div>
       ),
     },
-  ], [cancelMutation.isPending]);
+  ], [cancelMutation.isPending, quickDownloadMutation.isPending]);
 
   const table = useReactTable({
     data: salesQuery.data?.content ?? [],
@@ -516,124 +601,278 @@ export default function SalesPage() {
   const salesToday = summaryTodayQuery.data;
   const salesWeek = summaryWeekQuery.data;
   const salesMonth = summaryMonthQuery.data;
+
+  // Calcular alertas
+  const alerts = useMemo(() => {
+    const alertList: Array<{ id: string; type: "warning" | "info"; message: string }> = [];
+    
+    // Alerta de ventas bajas del día
+    if (salesToday && salesWeek) {
+      const weekAvg = salesWeek.total / 7;
+      if (salesToday.total > 0 && salesToday.total < weekAvg * 0.5) {
+        alertList.push({
+          id: "low-sales-today",
+          type: "warning",
+          message: `⚠️ Las ventas de hoy están un 50% por debajo del promedio semanal (${formatCurrency(weekAvg)})`,
+        });
+      }
+    }
+
+    // Alerta de documentos cancelados hoy
+    if (salesQuery.data?.content) {
+      const today = new Date().toISOString().split('T')[0];
+      const cancelledToday = salesQuery.data.content.filter((sale) => {
+        const saleDate = new Date(sale.issuedAt).toISOString().split('T')[0];
+        return sale.status?.toLowerCase() === "cancelled" && saleDate === today;
+      });
+      if (cancelledToday.length > 0) {
+        alertList.push({
+          id: "cancelled-today",
+          type: "warning",
+          message: `⚠️ ${cancelledToday.length} documento${cancelledToday.length > 1 ? "s" : ""} cancelado${cancelledToday.length > 1 ? "s" : ""} hoy`,
+        });
+      }
+    }
+
+    // Alerta informativa de cero ventas
+    if (salesToday && salesToday.total === 0 && salesToday.count === 0) {
+      alertList.push({
+        id: "no-sales-today",
+        type: "info",
+        message: `ℹ️ Sin ventas registradas hoy`,
+      });
+    }
+
+    return alertList;
+  }, [salesToday, salesWeek, salesQuery.data]);
+
   return (
-    <div className="page-section">
+    <div className="page-section bg-neutral-950">
       <PageHeader
         title="Ventas"
         description="Gestiona documentos, monitorea cobranzas y analiza el desempeno."
         actions={<button className="btn" onClick={() => setDialogOpen(true)}>+ Registrar venta</button>}
       />
 
-      <SalesDashboardOverview days={TREND_DEFAULT_DAYS} />
+      {/* Sección de KPIs Avanzados */}
+      <div style={{ marginBottom: "2rem" }}>
+        <SalesAdvancedKPIs />
+      </div>
 
-      <div className="card">
-        <div className="filter-bar">
+      {/* Sección de Análisis ABC de Productos */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h2 className="text-xl font-bold text-white mb-4">Análisis ABC de Productos</h2>
+        <div className="grid grid-cols-1 gap-6">
+          <SalesABCChart />
+          <SalesABCTable />
+          <SalesABCRecommendations />
+        </div>
+      </div>
+
+      {/* Sección de Pronóstico de Demanda */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h2 className="text-xl font-bold text-white mb-4">Pronóstico de Demanda</h2>
+        <div className="grid grid-cols-1 gap-6">
+          <SalesForecastChart />
+          <SalesForecastTable />
+          <SalesForecastInsights />
+        </div>
+      </div>
+
+      <SalesDashboardOverview 
+        startDate={startDate} 
+        endDate={endDate} 
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
+      />
+
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+          <h3 className="text-neutral-100 text-sm font-medium mb-2">💰 Ventas del día</h3>
+          <p className="text-3xl font-bold text-neutral-100 mb-1">
+            {summaryTodayQuery.isLoading
+              ? "..."
+              : summaryTodayQuery.isError
+              ? "—"
+              : formatCurrency(salesToday?.total)}
+          </p>
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-neutral-400">
+              {summaryTodayQuery.isError
+                ? "Sin datos disponibles."
+                : `${formatNumber(salesToday?.count)} docs`}
+            </span>
+            {!summaryTodayQuery.isLoading && !summaryTodayQuery.isError && salesToday && salesWeek && salesWeek.total > 0 ? (() => {
+              const weekAvg = salesWeek.total / 7;
+              const diff = ((salesToday.total - weekAvg) / weekAvg) * 100;
+              const isPositive = diff > 0;
+              return (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  isPositive ? "bg-green-950 text-green-400 border border-green-800" : "bg-red-950 text-red-400 border border-red-800"
+                }`}>
+                  {isPositive ? "🟢" : "🔴"} {diff > 0 ? "+" : ""}{diff.toFixed(1)}%
+                </span>
+              );
+            })() : null}
+          </div>
+        </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+          <h3 className="text-neutral-100 text-sm font-medium mb-2">📈 Ventas de la semana</h3>
+          <p className="text-3xl font-bold text-neutral-100 mb-1">
+            {summaryWeekQuery.isLoading
+              ? "..."
+              : summaryWeekQuery.isError
+              ? "—"
+              : formatCurrency(salesWeek?.total)}
+          </p>
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-neutral-400">
+              {summaryWeekQuery.isError
+                ? "Sin datos disponibles."
+                : `${formatNumber(salesWeek?.count)} docs`}
+            </span>
+            {!summaryWeekQuery.isLoading && !summaryWeekQuery.isError && salesWeek && salesMonth && salesMonth.total > 0 ? (() => {
+              const monthAvgWeek = salesMonth.total / 4;
+              const diff = ((salesWeek.total - monthAvgWeek) / monthAvgWeek) * 100;
+              const isPositive = diff > 0;
+              return (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  isPositive ? "bg-green-950 text-green-400 border border-green-800" : "bg-red-950 text-red-400 border border-red-800"
+                }`}>
+                  {isPositive ? "🟢" : "🔴"} {diff > 0 ? "+" : ""}{diff.toFixed(1)}%
+                </span>
+              );
+            })() : null}
+          </div>
+        </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+          <h3 className="text-neutral-100 text-sm font-medium mb-2">📊 Ventas del mes</h3>
+          <p className="text-3xl font-bold text-neutral-100 mb-1">
+            {summaryMonthQuery.isLoading
+              ? "..."
+              : summaryMonthQuery.isError
+              ? "—"
+              : formatCurrency(salesMonth?.total)}
+          </p>
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-neutral-400">
+              {summaryMonthQuery.isError
+                ? "Sin datos disponibles."
+                : `${formatNumber(salesMonth?.count)} docs`}
+            </span>
+            {!summaryMonthQuery.isLoading && !summaryMonthQuery.isError && salesMonth && salesWeek ? (() => {
+              const monthlyTrend = salesWeek.count > 0 ? (salesMonth.count / salesWeek.count) : 0;
+              const trendLabel = monthlyTrend >= 4 ? "tendencia alta" : monthlyTrend >= 2 ? "tendencia media" : "tendencia baja";
+              return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-neutral-800 text-neutral-400 border border-neutral-700">
+                  📊 {trendLabel}
+                </span>
+              );
+            })() : null}
+          </div>
+        </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+          <h3 className="text-neutral-100 text-sm font-medium mb-2">📄 Total documentos</h3>
+          <p className="text-3xl font-bold text-neutral-100 mb-1">
+            {salesQuery.isLoading
+              ? "..."
+              : salesQuery.isError
+              ? "—"
+              : (salesQuery.data?.totalElements ?? 0).toLocaleString("es-CL")}
+          </p>
+          <button
+            type="button"
+            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            onClick={handleOpenDocumentsModal}
+            ref={documentsTriggerRef}
+          >
+            Ver documentos →
+          </button>
+        </div>
+      </section>
+
+      {/* Alertas inteligentes */}
+      {alerts.length > 0 && (
+        <section className="mb-6 space-y-3">
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`flex items-start gap-3 p-4 rounded-xl border ${
+                alert.type === "warning"
+                  ? "bg-yellow-950 border-yellow-800 text-yellow-400"
+                  : "bg-blue-950 border-blue-800 text-blue-400"
+              }`}
+            >
+              <span className="text-lg">{alert.type === "warning" ? "⚠️" : "ℹ️"}</span>
+              <p className="text-sm font-medium flex-1">{alert.message}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <SalesTrendSection 
+        startDate={startDate} 
+        endDate={endDate} 
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
+      />
+
+      {/* Paneles de análisis avanzado */}
+      <SalesTopProductsPanel startDate={startDate} endDate={endDate} />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <SalesPaymentMethodAnalysis startDate={startDate} endDate={endDate} />
+        <SalesDocTypeAnalysis startDate={startDate} endDate={endDate} />
+      </div>
+
+      <SalesPerformanceMetrics startDate={startDate} endDate={endDate} />
+
+      <SalesTopCustomersPanel startDate={startDate} endDate={endDate} />
+      
+      <SalesDailyTimeline date={endDate} />
+
+      <SalesForecastPanel days={7} />
+
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 mb-6">
+        <div className="flex flex-wrap gap-3 items-center mb-4">
           <input
-            className="input"
+            className="input bg-neutral-800 border-neutral-700 text-neutral-100 flex-1 min-w-[200px]"
             placeholder="Buscar (cliente, doc, pago)"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
           {searchInput && (
-            <button className="btn ghost" type="button" onClick={() => setSearchInput("")}>
+            <button className="btn ghost text-neutral-400 hover:text-neutral-100" type="button" onClick={() => setSearchInput("")}>
               Limpiar
             </button>
           )}
-          <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="input bg-neutral-800 border-neutral-700 text-neutral-100" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             {STATUS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <select className="input" value={docTypeFilter} onChange={(e) => setDocTypeFilter(e.target.value)}>
+          <select className="input bg-neutral-800 border-neutral-700 text-neutral-100" value={docTypeFilter} onChange={(e) => setDocTypeFilter(e.target.value)}>
             {DOC_TYPE_FILTERS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <select className="input" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+          <select className="input bg-neutral-800 border-neutral-700 text-neutral-100" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
             {PAYMENT_METHOD_FILTERS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+          <button 
+            className="btn bg-cyan-600 hover:bg-cyan-700 text-white font-medium" 
+            type="button" 
+            onClick={() => setExportDialogOpen(true)}
+          >
+            📥 Exportar
+          </button>
         </div>
       </div>
 
-      <section className="kpi-grid">
-        <div className="card stat">
-          <h3>Ventas del día</h3>
-          <p className="stat-value">
-            {summaryTodayQuery.isLoading
-              ? "Cargando..."
-              : summaryTodayQuery.isError
-              ? "—"
-              : formatCurrency(salesToday?.total)}
-          </p>
-          <span className="stat-trend">
-            {summaryTodayQuery.isError
-              ? "Sin datos disponibles."
-              : `${formatNumber(salesToday?.count)} documentos`}
-          </span>
-        </div>
-        <div className="card stat">
-          <h3>Ventas de la semana</h3>
-          <p className="stat-value">
-            {summaryWeekQuery.isLoading
-              ? "Cargando..."
-              : summaryWeekQuery.isError
-              ? "—"
-              : formatCurrency(salesWeek?.total)}
-          </p>
-          <span className="stat-trend">
-            {summaryWeekQuery.isError
-              ? "Sin datos disponibles."
-              : `${formatNumber(salesWeek?.count)} documentos`}
-          </span>
-        </div>
-        <div className="card stat">
-          <h3>Ventas del mes</h3>
-          <p className="stat-value">
-            {summaryMonthQuery.isLoading
-              ? "Cargando..."
-              : summaryMonthQuery.isError
-              ? "—"
-              : formatCurrency(salesMonth?.total)}
-          </p>
-          <span className="stat-trend">
-            {summaryMonthQuery.isError
-              ? "Sin datos disponibles."
-              : `${formatNumber(salesMonth?.count)} documentos`}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="card documents-card documents-card--action"
-          onClick={handleOpenDocumentsModal}
-          ref={documentsTriggerRef}
-          aria-describedby="sales-documents-card-description"
-        >
-          <header className="documents-card__header">
-            <div>
-              <h3>Número de documentos</h3>
-              <p className="documents-card__total">
-                {salesQuery.isLoading
-                  ? "Cargando..."
-                  : salesQuery.isError
-                  ? "—"
-                  : (salesQuery.data?.totalElements ?? 0).toLocaleString("es-CL")}
-              </p>
-              <span className="muted small">
-                {salesQuery.isError ? "No se pudo obtener el total actual." : "Total documentos"}
-              </span>
-            </div>
-          </header>
-          <span className="documents-card__action-hint">Ver documentos</span>
-          <span id="sales-documents-card-description" className="muted small">
-            Abre la lista completa en una ventana emergente.
-          </span>
-        </button>
-      </section>
-
-      <div className="card table-card">
-        <h3>Documentos recientes</h3>
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
+        <h3 className="text-neutral-100 mb-4">Documentos recientes</h3>
         <div className="table-wrapper">
           <table className="table">
             <thead>
@@ -658,17 +897,17 @@ export default function SalesPage() {
             </tbody>
           </table>
         </div>
-        <div className="pagination">
-          <button className="btn" disabled={page === 0} onClick={() => setPage((prev) => Math.max(0, prev - 1))}>
-            Anterior
+        <div className="flex gap-2 mt-4 justify-between items-center border-t border-neutral-700 pt-4">
+          <button className="btn bg-neutral-800 border-neutral-700 text-neutral-100 hover:bg-neutral-700" disabled={page === 0} onClick={() => setPage((prev) => Math.max(0, prev - 1))}>
+            ← Anterior
           </button>
-          <span className="muted">Pagina {page + 1} de {salesQuery.data?.totalPages ?? 1}</span>
+          <span className="text-neutral-400">Página {page + 1} de {salesQuery.data?.totalPages ?? 1}</span>
           <button
-            className="btn"
+            className="btn bg-neutral-800 border-neutral-700 text-neutral-100 hover:bg-neutral-700"
             disabled={page + 1 >= (salesQuery.data?.totalPages ?? 1)}
             onClick={() => setPage((prev) => prev + 1)}
           >
-            Siguiente
+            Siguiente →
           </button>
         </div>
       </div>
@@ -845,6 +1084,20 @@ export default function SalesPage() {
           </div>
         )}
       </Modal>
+
+      <SalesExportDialog
+        isOpen={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        filters={{
+          status: statusFilter,
+          docType: docTypeFilter,
+          paymentMethod: paymentFilter,
+          search: debouncedSearch,
+          startDate: startDate,
+          endDate: endDate,
+        }}
+        totalRecords={salesQuery.data?.totalElements ?? 0}
+      />
     </div>
   );
 }

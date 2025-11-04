@@ -24,24 +24,40 @@ function Read-EnvFile($path) {
 $envPath = Join-Path $repoRoot '.env'
 $envs = Read-EnvFile $envPath
 
-function PromptIfMissing([string]$key, [string]$prompt) {
+function Resolve([string]$key, [string]$default) {
     if ($envs.ContainsKey($key) -and $envs[$key]) { return $envs[$key] }
-    $val = Read-Host $prompt
-    if (-not $val) { Write-Error "Valor requerido: $key"; exit 1 }
-    return $val
+    $val = (Get-Item -Path Env:$key -ErrorAction SilentlyContinue).Value
+    if ($val) { return $val }
+    return $default
 }
 
-$KEYCLOAK_URL = PromptIfMissing 'KEYCLOAK_URL' "KEYCLOAK_URL (e.g. http://localhost:8082):"
-$KEYCLOAK_REALM = PromptIfMissing 'KEYCLOAK_REALM' "KEYCLOAK_REALM (e.g. pymerp):"
-$KEYCLOAK_CLIENT_ID = PromptIfMissing 'KEYCLOAK_CLIENT_ID' "KEYCLOAK_CLIENT_ID (public client id):"
-$OIDC_USERNAME = PromptIfMissing 'OIDC_USERNAME' "OIDC_USERNAME (user):"
-$OIDC_PASSWORD = PromptIfMissing 'OIDC_PASSWORD' "OIDC_PASSWORD (password):"
-$COMPANY_ID = PromptIfMissing 'COMPANY_ID' "COMPANY_ID (uuid):"
-$BACKEND_BASE = PromptIfMissing 'BACKEND_BASE' "BACKEND_BASE (e.g. http://localhost:8081):"
+# Valores por defecto seguros para entorno dev
+$AUTH_MODE = Resolve 'AUTH_MODE' 'internal'  # 'internal' | 'keycloak'
+$KEYCLOAK_URL = Resolve 'KEYCLOAK_URL' 'http://localhost:8082'
+$KEYCLOAK_REALM = Resolve 'KEYCLOAK_REALM' 'pymerp'
+$KEYCLOAK_CLIENT_ID = Resolve 'KEYCLOAK_CLIENT_ID' 'pymerp-frontend'
+$OIDC_USERNAME = Resolve 'OIDC_USERNAME' 'admin'
+$OIDC_PASSWORD = Resolve 'OIDC_PASSWORD' 'Admin1234'
+$COMPANY_ID = Resolve 'COMPANY_ID' '00000000-0000-0000-0000-000000000001'
+$BACKEND_BASE = Resolve 'BACKEND_BASE' 'http://localhost:8081'
 
 Write-Host "Using Keycloak: $KEYCLOAK_URL (realm: $KEYCLOAK_REALM), client: $KEYCLOAK_CLIENT_ID"
 
 function Get-Token() {
+    if ($AUTH_MODE -ieq 'internal') {
+        $loginUrl = "$BACKEND_BASE/api/v1/auth/login"
+        $body = @{ email = $OIDC_USERNAME; password = $OIDC_PASSWORD } | ConvertTo-Json -Depth 2
+        try {
+            $resp = Invoke-RestMethod -Method Post -Uri $loginUrl -ContentType 'application/json' -Body $body -Headers @{ 'X-Company-Id' = $COMPANY_ID } -UseBasicParsing
+            return @{ access_token = $resp.token; expires_in = $resp.expiresIn }
+        } catch {
+            Write-Host "Internal login failed: $($_.Exception.Message)" -ForegroundColor Red
+            if ($_.Exception.Response) {
+                $r = $_.Exception.Response.GetResponseStream(); $sr = New-Object System.IO.StreamReader($r); $text = $sr.ReadToEnd(); Write-Host $text
+            }
+            exit 2
+        }
+    }
     $tokenUrl = "$KEYCLOAK_URL/realms/$KEYCLOAK_REALM/protocol/openid-connect/token"
     $body = @{ grant_type = 'password'; client_id = $KEYCLOAK_CLIENT_ID; username = $OIDC_USERNAME; password = $OIDC_PASSWORD }
     try {

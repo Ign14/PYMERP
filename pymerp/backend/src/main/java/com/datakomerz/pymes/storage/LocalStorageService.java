@@ -57,6 +57,22 @@ public class LocalStorageService implements StorageService {
   }
 
   @Override
+  public String storePurchaseDocument(UUID companyId, UUID purchaseId, MultipartFile file) throws IOException {
+    if (file == null || file.isEmpty()) {
+      throw new IllegalArgumentException("Document file is empty");
+    }
+    String extension = extractExtension(file.getOriginalFilename());
+    String filename = "document-" + System.currentTimeMillis() + extension;
+    Path directory = resolvePurchaseDirectory(companyId, purchaseId);
+    Files.createDirectories(directory);
+    Path target = directory.resolve(filename);
+    try (InputStream inputStream = file.getInputStream()) {
+      Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+    return buildPurchasePublicUrl(companyId, purchaseId, filename);
+  }
+
+  @Override
   public StoredFile load(String publicUrl) throws IOException {
     if (publicUrl == null || publicUrl.isBlank()) {
       throw new IllegalArgumentException("File path cannot be empty");
@@ -97,12 +113,34 @@ public class LocalStorageService implements StorageService {
       .resolve(productId.toString());
   }
 
+  private Path resolvePurchaseDirectory(UUID companyId, UUID purchaseId) {
+    return basePath
+      .resolve("tenants")
+      .resolve(companyId.toString())
+      .resolve("purchases")
+      .resolve(purchaseId.toString());
+  }
+
   private String buildPublicUrl(UUID companyId, UUID productId, String filename) {
     String suffix = String.join("/",
       "tenants",
       companyId.toString(),
       "products",
       productId.toString(),
+      filename
+    );
+    if (publicPrefix.endsWith("/")) {
+      return publicPrefix + suffix;
+    }
+    return publicPrefix + "/" + suffix;
+  }
+
+  private String buildPurchasePublicUrl(UUID companyId, UUID purchaseId, String filename) {
+    String suffix = String.join("/",
+      "tenants",
+      companyId.toString(),
+      "purchases",
+      purchaseId.toString(),
       filename
     );
     if (publicPrefix.endsWith("/")) {

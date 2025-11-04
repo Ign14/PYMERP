@@ -11,12 +11,18 @@ public class CustomerMapper {
     return new CustomerResponse(
       customer.getId(),
       customer.getName(),
+      customer.getRut(),
       customer.getAddress(),
       customer.getLat(),
       customer.getLng(),
       customer.getPhone(),
       customer.getEmail(),
-      customer.getSegment()
+      customer.getSegment(),
+      customer.getContactPerson(),
+      customer.getNotes(),
+      customer.getActive(),
+      customer.getCreatedAt(),
+      customer.getUpdatedAt()
     );
   }
 }

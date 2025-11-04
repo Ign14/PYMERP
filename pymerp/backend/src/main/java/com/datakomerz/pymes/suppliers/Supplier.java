@@ -31,12 +31,15 @@ public class Supplier {
   private String phone;
   @Column(length=120)
   private String email;
+  @Column(nullable=false)
+  private Boolean active;
   @Column(name="created_at")
   private OffsetDateTime createdAt;
 
   @PrePersist public void prePersist() {
     if(id==null) id=UUID.randomUUID();
     if(createdAt==null) createdAt=OffsetDateTime.now();
+    if(active==null) active=true;
   }
 
   // Getters & Setters
@@ -58,6 +61,8 @@ public class Supplier {
   public void setPhone(String phone) { this.phone = phone; }
   public String getEmail() { return email; }
   public void setEmail(String email) { this.email = email; }
+  public Boolean getActive() { return active; }
+  public void setActive(Boolean active) { this.active = active; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
   public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

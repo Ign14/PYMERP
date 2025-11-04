@@ -97,7 +97,8 @@ export default function SupplierFormDialog({ open, supplier, onClose, onSaved }:
     setFieldErrors({});
     setGlobalError(null);
     mutation.reset();
-  }, [open, supplier, mutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, supplier]);
 
   const clearFieldError = (field: keyof FormState) => {
     setFieldErrors((prev) => {

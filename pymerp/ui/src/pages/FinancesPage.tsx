@@ -1,62 +1,24 @@
 import PageHeader from "../components/layout/PageHeader";
-
-const cashflow = [
-  { period: "Semana 38", income: "$6.2M", expense: "$4.9M", balance: "$1.3M" },
-  { period: "Semana 37", income: "$5.8M", expense: "$5.1M", balance: "$0.7M" },
-  { period: "Semana 36", income: "$6.5M", expense: "$5.6M", balance: "$0.9M" }
-];
+import FinanceSummaryCards from "../components/finances/FinanceSummaryCards";
+import AccountsReceivablePanel from "../components/finances/AccountsReceivablePanel";
+import AccountsPayablePanel from "../components/finances/AccountsPayablePanel";
+import CashflowChart from "../components/finances/CashflowChart";
 
 export default function FinancesPage() {
   return (
-    <div className="page-section">
+    <div className="p-6 space-y-6 bg-neutral-950">
       <PageHeader
         title="Finanzas"
-        description="Concilia cuentas por cobrar/pagar y planifica flujo de caja."
-        actions={<button className="btn">Exportar flujo</button>}
+        description="GestiÃ³n integral de cuentas por cobrar, cuentas por pagar y proyecciones de flujo de caja."
+        actions={null}
       />
 
-      <section className="kpi-grid">
-        <div className="card stat">
-          <h3>Caja disponible</h3>
-          <p className="stat-value">$9.4M</p>
-          <span className="stat-trend">Cobros próximos 7 días: $3.2M</span>
-        </div>
-        <div className="card stat">
-          <h3>Cuentas por cobrar</h3>
-          <p className="stat-value">$5.1M</p>
-          <span className="stat-trend">18 documentos | 4 vencidos</span>
-        </div>
-        <div className="card stat">
-          <h3>Cuentas por pagar</h3>
-          <p className="stat-value">$3.7M</p>
-          <span className="stat-trend">7 facturas próximas</span>
-        </div>
-      </section>
+      <FinanceSummaryCards />
 
-      <div className="card table-card">
-        <h3>Flujo semanal</h3>
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Periodo</th>
-                <th>Ingresos</th>
-                <th>Egresos</th>
-                <th>Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cashflow.map((row) => (
-                <tr key={row.period}>
-                  <td>{row.period}</td>
-                  <td className="mono">{row.income}</td>
-                  <td className="mono">{row.expense}</td>
-                  <td className="mono">{row.balance}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-1 gap-6">
+        <CashflowChart />
+        <AccountsReceivablePanel />
+        <AccountsPayablePanel />
       </div>
     </div>
   );

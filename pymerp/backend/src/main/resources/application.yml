@@ -12,15 +12,16 @@ spring:
     open-in-view: false
     properties:
       hibernate:
-        jdbc.time_zone: UTC
-        format_sql: true
+        '[jdbc.time_zone]': UTC
+        '[format_sql]': true
         dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
     enabled: true
     baseline-on-migrate: true
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -30,7 +31,7 @@ spring:
       mail:
         smtp:
           auth: ${MAIL_SMTP_AUTH:false}
-          starttls.enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+          '[starttls.enable]': ${MAIL_SMTP_STARTTLS_ENABLE:false}
     default-encoding: UTF-8
 
 billing:
@@ -69,10 +70,12 @@ app:
     allowed-origins:
       - http://localhost:5173
       - http://localhost:5174
+      - http://172.29.0.1:5173
     allowed-origin-patterns:
       - http://localhost:*
       - http://127.0.0.1:*
       - http://0.0.0.0:*
+      - http://172.29.0.1:*
   security:
     jwt:
       secret: change-this-dev-secret-at-least-32-chars-long

@@ -32,7 +32,8 @@ public class BillingController {
                            BillingResponseMapper responseMapper) {
     this.billingService = billingService;
     this.payloadFactory = payloadFactory;
-    this.responseMapper = responseMapper;
+    // FIX: Provide a safe fallback mapper when running tests or if injector didn't supply one.
+    this.responseMapper = responseMapper != null ? responseMapper : new BillingResponseMapper();
   }
 
   @PostMapping("/invoices")

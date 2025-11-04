@@ -16,6 +16,14 @@ public class InventoryMovement {
   private String refType;
   @Column(columnDefinition="uuid") private UUID refId;
   @Column(name="note") private String note;
+  
+  // Campos de auditoría y trazabilidad
+  @Column(name="created_by") private String createdBy;
+  @Column(name="user_ip") private String userIp;
+  @Column(name="reason_code") private String reasonCode;
+  @Column(name="previous_qty") private BigDecimal previousQty;
+  @Column(name="new_qty") private BigDecimal newQty;
+  
   @Column(name="created_at") private OffsetDateTime createdAt;
 
   @PrePersist public void pre(){
@@ -41,6 +49,16 @@ public class InventoryMovement {
   public void setRefId(UUID refId) { this.refId = refId; }
   public String getNote() { return note; }
   public void setNote(String note) { this.note = note; }
+  public String getCreatedBy() { return createdBy; }
+  public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+  public String getUserIp() { return userIp; }
+  public void setUserIp(String userIp) { this.userIp = userIp; }
+  public String getReasonCode() { return reasonCode; }
+  public void setReasonCode(String reasonCode) { this.reasonCode = reasonCode; }
+  public BigDecimal getPreviousQty() { return previousQty; }
+  public void setPreviousQty(BigDecimal previousQty) { this.previousQty = previousQty; }
+  public BigDecimal getNewQty() { return newQty; }
+  public void setNewQty(BigDecimal newQty) { this.newQty = newQty; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
   public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -1,18 +1,11 @@
 import type { CSSProperties } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, CartesianGrid, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoneyCLP } from "../../utils/currency";
 
 type SalesTrendChartProps = {
   points: Array<{ date: string; total: number }>;
   formatter?: (value: number) => string;
+  averageLine?: number;
 };
 
 const hiddenListStyles: CSSProperties = {
@@ -27,8 +20,13 @@ const hiddenListStyles: CSSProperties = {
   border: 0,
 };
 
-export default function SalesTrendChart({ points, formatter = formatMoneyCLP }: SalesTrendChartProps) {
-  const data = points.map((point) => ({ ...point }));
+export default function SalesTrendChart({ points, formatter = formatMoneyCLP, averageLine }: SalesTrendChartProps) {
+  // Convertir los puntos de ventas para el gráfico
+  const data = points.map((point) => ({
+    date: point.date,
+    total: point.total ?? 0,
+  }));
+  
   const hasActivity = data.some((point) => point.total > 0);
 
   return (
@@ -38,24 +36,56 @@ export default function SalesTrendChart({ points, formatter = formatMoneyCLP }: 
           <AreaChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="salesTrendGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.85} />
-                <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-            <XAxis dataKey="date" stroke="#9aa0a6" tick={{ fontSize: 12 }} />
-            <YAxis stroke="#9aa0a6" tickFormatter={(value) => formatter(Number(value))} width={96} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#404040" />
+            <XAxis dataKey="date" stroke="#a3a3a3" tick={{ fontSize: 12, fill: "#a3a3a3" }} />
+            <YAxis stroke="#a3a3a3" tick={{ fill: "#a3a3a3" }} tickFormatter={(value) => formatter(Number(value))} width={96} />
             <Tooltip
-              formatter={(value: number) => formatter(value)}
+              contentStyle={{ 
+                backgroundColor: "#171717", 
+                border: "1px solid #404040", 
+                borderRadius: "0.5rem",
+                color: "#f5f5f5"
+              }}
+              formatter={(value: number, name) => {
+                const label = name === "total" ? "Venta del día" : "Promedio período";
+                return [formatter(value), label];
+              }}
               labelFormatter={(label) => `Fecha: ${label}`}
             />
-            <Area type="monotone" dataKey="total" stroke="#60a5fa" fill="url(#salesTrendGradient)" />
+            {/* Relleno bajo ventas del día */}
+            <Area 
+              type="monotone" 
+              dataKey="total" 
+              stroke="#22d3ee" 
+              strokeWidth={2}
+              fill="url(#salesTrendGradient)"
+              dot={{ r: 4, strokeWidth: 2, fill: "#0891b2", stroke: "#22d3ee" }}
+              activeDot={{ r: 6, fill: "#06b6d4", stroke: "#22d3ee", strokeWidth: 2 }}
+            />
+            {/* Línea de promedio de ventas diarias */}
+            {averageLine !== undefined && averageLine > 0 && (
+              <ReferenceLine 
+                y={averageLine} 
+                stroke="#fb923c" 
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                label={{ 
+                  value: `Promedio: ${formatter(averageLine)}`, 
+                  position: "right",
+                  style: { fill: "#fb923c", fontSize: 12, fontWeight: 600 }
+                }}
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
       {!hasActivity && (
-        <p className="muted" role="status">
-          Sin ventas registradas en los últimos días.
+        <p className="text-neutral-400" role="status">
+          Sin ventas registradas en el período seleccionado.
         </p>
       )}
       <ul style={hiddenListStyles} data-testid="sales-trend-points">

@@ -1,35 +1,33 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteSupplier, listSuppliers, Supplier } from "../services/client";
-import SupplierFormDialog from "./dialogs/SupplierFormDialog";
+import SupplierContactsDialog from "./SupplierContactsDialog";
 
-type Props = Record<string, never>;
+type Props = {
+  onOpenCreateDialog?: () => void;
+  onOpenEditDialog?: (supplier: Supplier) => void;
+};
 
 export type SuppliersCardHandle = {
   openCreate: () => void;
 };
 
-const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
+const SuppliersCard = forwardRef<SuppliersCardHandle, Props>(({ onOpenCreateDialog, onOpenEditDialog }, ref) => {
   const queryClient = useQueryClient();
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<boolean | undefined>(true);
+  const [contactsDialogOpen, setContactsDialogOpen] = useState(false);
 
   const suppliersQuery = useQuery<Supplier[], Error>({
-    queryKey: ["suppliers"],
-    queryFn: listSuppliers,
+    queryKey: ["suppliers", query, activeFilter],
+    queryFn: () => listSuppliers(query || undefined, activeFilter),
     refetchOnWindowFocus: false,
   });
 
   const openCreate = useCallback(() => {
-    setEditingSupplier(null);
-    setDialogOpen(true);
-  }, []);
-
-  const closeDialog = useCallback(() => {
-    setDialogOpen(false);
-    setEditingSupplier(null);
-  }, []);
+    onOpenCreateDialog?.();
+  }, [onOpenCreateDialog]);
 
   useImperativeHandle(ref, () => ({
     openCreate,
@@ -55,21 +53,14 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
     },
   });
 
-  const handleSaved = (supplier: Supplier) => {
-    queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-    setSelectedSupplier(supplier);
-    closeDialog();
-  };
-
   const handleEdit = () => {
     if (!selectedSupplier) return;
-    setEditingSupplier(selectedSupplier);
-    setDialogOpen(true);
+    onOpenEditDialog?.(selectedSupplier);
   };
 
   const handleDelete = () => {
     if (!selectedSupplier || deleteMutation.isPending) return;
-    if (window.confirm(`Eliminar proveedor ${selectedSupplier.name}?`)) {
+    if (window.confirm(`¿Eliminar proveedor ${selectedSupplier.name}?`)) {
       deleteMutation.mutate(selectedSupplier.id);
     }
   };
@@ -97,20 +88,55 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
     : [];
 
   return (
-    <div className="card">
+    <div className="card-content">
       <div className="card-header">
         <h2>Proveedores</h2>
-        <button className="btn" onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? "Cargando" : "Refrescar"}
+        <button className="btn btn-secondary" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Cargando..." : "🔄 Refrescar"}
+        </button>
+      </div>
+
+      <div className="search-box">
+        <input
+          type="text"
+          placeholder="Buscar por nombre, RUT, email o teléfono..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      <div className="filter-buttons">
+        <button
+          className={`btn ${activeFilter === undefined ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setActiveFilter(undefined)}
+        >
+          Todos
+        </button>
+        <button
+          className={`btn ${activeFilter === true ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setActiveFilter(true)}
+        >
+          Activos
+        </button>
+        <button
+          className={`btn ${activeFilter === false ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setActiveFilter(false)}
+        >
+          Inactivos
         </button>
       </div>
 
       <div className="inline-actions">
-        <button className="btn" type="button" onClick={openCreate}>
-          + Proveedor
-        </button>
         <button className="btn ghost" type="button" onClick={handleEdit} disabled={!selectedSupplier}>
-          Editar
+          ✏️ Editar
+        </button>
+        <button
+          className="btn ghost"
+          type="button"
+          onClick={() => setContactsDialogOpen(true)}
+          disabled={!selectedSupplier}
+        >
+          👥 Contactos
         </button>
         <button
           className="btn ghost"
@@ -118,14 +144,14 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
           onClick={handleDelete}
           disabled={!selectedSupplier || deleteMutation.isPending}
         >
-          {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+          {deleteMutation.isPending ? "Eliminando..." : "🗑️ Eliminar"}
         </button>
       </div>
       {deleteMutation.isError && (
         <p className="error">{(deleteMutation.error as Error)?.message ?? "No se pudo eliminar el proveedor"}</p>
       )}
 
-      {isLoading && <p>Loading...</p>}
+      {isLoading && <p>Cargando proveedores...</p>}
       {isError && <p className="error">{error?.message ?? "No se pudieron cargar los proveedores"}</p>}
 
       {!isLoading && !isError && (
@@ -138,10 +164,10 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
                 onClick={() => setSelectedSupplier(supplier)}
               >
                 <strong>{supplier.name}</strong>
-                {supplier.rut ? <span className="mono small"> rut {supplier.rut}</span> : null}
+                {supplier.rut ? <span className="mono small"> RUT {supplier.rut}</span> : null}
               </li>
             ))}
-            {(data ?? []).length === 0 && <li className="muted">Sin proveedores</li>}
+            {(data ?? []).length === 0 && <li className="muted">No hay proveedores registrados</li>}
           </ul>
           {selectedSupplier ? (
             <div className="supplier-details" aria-live="polite">
@@ -164,12 +190,14 @@ const SuppliersCard = forwardRef<SuppliersCardHandle, Props>((_, ref) => {
         </>
       )}
 
-      <SupplierFormDialog
-        open={dialogOpen}
-        supplier={editingSupplier}
-        onClose={closeDialog}
-        onSaved={handleSaved}
-      />
+      {selectedSupplier && (
+        <SupplierContactsDialog
+          supplierId={selectedSupplier.id}
+          supplierName={selectedSupplier.name}
+          isOpen={contactsDialogOpen}
+          onClose={() => setContactsDialogOpen(false)}
+        />
+      )}
     </div>
   );
 });

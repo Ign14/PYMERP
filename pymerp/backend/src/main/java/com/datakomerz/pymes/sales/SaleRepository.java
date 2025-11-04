@@ -41,7 +41,26 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
 
   List<Sale> findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(UUID companyId, OffsetDateTime issuedAt);
 
+  List<Sale> findByCompanyIdAndIssuedAtBetweenOrderByIssuedAtAsc(UUID companyId, OffsetDateTime from, OffsetDateTime to);
+
   Page<Sale> findByCompanyIdOrderByIssuedAtDesc(UUID companyId, Pageable pageable);
 
   Optional<Sale> findByIdAndCompanyId(UUID id, UUID companyId);
+
+  // Customer-specific queries
+  Page<Sale> findByCompanyIdAndCustomerIdOrderByIssuedAtDesc(UUID companyId, UUID customerId, Pageable pageable);
+
+  @Query("""
+      SELECT COUNT(s)
+      FROM Sale s
+      WHERE s.companyId = :companyId AND s.customerId = :customerId
+    """)
+  Integer countByCompanyIdAndCustomerId(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId);
+
+  @Query("""
+      SELECT COALESCE(SUM(s.total), 0)
+      FROM Sale s
+      WHERE s.companyId = :companyId AND s.customerId = :customerId
+    """)
+  java.math.BigDecimal sumTotalByCompanyIdAndCustomerId(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId);
 }

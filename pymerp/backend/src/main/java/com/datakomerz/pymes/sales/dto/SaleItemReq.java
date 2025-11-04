@@ -10,5 +10,7 @@ public record SaleItemReq(
   @NotNull UUID productId,
   @NotNull @DecimalMin(value = "0.000", inclusive = false) BigDecimal qty,
   @NotNull @DecimalMin(value = "0.0001", inclusive = false) BigDecimal unitPrice,
-  BigDecimal discount
+  BigDecimal discount,
+  UUID locationId,
+  UUID lotId
 ) {}

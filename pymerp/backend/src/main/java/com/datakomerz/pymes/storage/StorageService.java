@@ -10,6 +10,8 @@ public interface StorageService {
 
   String storeProductQr(UUID companyId, UUID productId, byte[] content, String extension) throws IOException;
 
+  String storePurchaseDocument(UUID companyId, UUID purchaseId, MultipartFile file) throws IOException;
+
   StoredFile load(String publicUrl) throws IOException;
 
   record StoredFile(Resource resource, String filename, String contentType) {}

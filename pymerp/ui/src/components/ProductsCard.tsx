@@ -494,112 +494,106 @@ export default function ProductsCard() {
 
       {!productsQuery.isLoading && !productsQuery.isError && (
         <>
-          <div className="table-wrapper">
-            <table className="table products-table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Precio actual</th>
-                  <th>Stock</th>
-                  <th>Stock crítico</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product: Product) => {
-                  const pendingValue = pendingCriticalStock[product.id];
-                  const stockValue = getDisplayStock(product);
-                  const criticalValue = getDisplayCriticalStock(product);
-                  const criticalError = criticalErrors[product.id];
-                  const imageSource =
-                    typeof product.imageUrl === "string" && product.imageUrl.trim().length > 0
-                      ? product.imageUrl
-                      : placeholderImage;
-                  const rowClass = [
-                    selectedProduct?.id === product.id ? "selected" : "",
-                    isStockCritical(product) ? "product-row--critical" : "",
-                    hasPendingCriticalChange(product.id) ? "product-row--pending" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || undefined;
+          <div className="products-grid">
+            {products.map((product: Product) => {
+              const pendingValue = pendingCriticalStock[product.id];
+              const stockValue = getDisplayStock(product);
+              const criticalValue = getDisplayCriticalStock(product);
+              const criticalError = criticalErrors[product.id];
+              const imageSource =
+                typeof product.imageUrl === "string" && product.imageUrl.trim().length > 0
+                  ? product.imageUrl
+                  : placeholderImage;
+              const isSelected = selectedProduct?.id === product.id;
+              const isCritical = isStockCritical(product);
+              const hasPending = hasPendingCriticalChange(product.id);
 
-                  return (
-                    <tr
-                      key={product.id}
-                      className={rowClass}
-                      onClick={() => {
-                        setSelectedProduct(product);
-                        setPriceForm({ price: resolveNumeric(product.currentPrice) ?? 0 });
-                      }}
-                    >
-                      <td>
-                        <div className="product-cell">
-                          <button
-                            type="button"
-                            className="product-thumbnail"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openImageModal(product);
-                            }}
-                            aria-label={`Ver imagen de ${product.name}`}
-                          >
-                            <img src={imageSource} alt={`Imagen de ${product.name}`} />
-                          </button>
-                          <div className="product-meta">
-                            <span className="product-name">{product.name}</span>
-                            <span className="product-sku mono">{product.sku}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="mono">{formatPriceLabel(product.currentPrice)}</td>
-                      <td>
-                        <span className={`stock-badge${isStockCritical(product) ? " stock-badge--alert" : ""}`}>
+              return (
+                <div
+                  key={product.id}
+                  className={`product-card${isSelected ? " product-card--selected" : ""}${isCritical ? " product-card--critical" : ""}${hasPending ? " product-card--pending" : ""}`}
+                  onClick={() => {
+                    setSelectedProduct(product);
+                    setPriceForm({ price: resolveNumeric(product.currentPrice) ?? 0 });
+                  }}
+                >
+                  <div className="product-card-image" onClick={(e) => {
+                    e.stopPropagation();
+                    openImageModal(product);
+                  }}>
+                    <img src={imageSource} alt={product.name} />
+                    {!product.active && (
+                      <div className="product-badge product-badge--inactive">Inactivo</div>
+                    )}
+                    {isCritical && product.active && (
+                      <div className="product-badge product-badge--critical">⚠️ Stock Bajo</div>
+                    )}
+                  </div>
+                  
+                  <div className="product-card-body">
+                    <div className="product-card-header">
+                      <h4 className="product-card-title">{product.name}</h4>
+                      <span className="product-card-sku mono small muted">{product.sku}</span>
+                    </div>
+
+                    <div className="product-card-stats">
+                      <div className="product-stat">
+                        <span className="product-stat-label muted small">Precio</span>
+                        <span className="product-stat-value mono">{formatPriceLabel(product.currentPrice)}</span>
+                      </div>
+                      <div className="product-stat">
+                        <span className="product-stat-label muted small">Stock</span>
+                        <span className={`product-stat-value ${isCritical ? "text-critical" : ""}`}>
                           {stockValue}
+                          {isCritical && <span className="stock-indicator">⚠️</span>}
                         </span>
-                      </td>
-                      <td>
-                        <div className="critical-cell">
-                          <span
-                            className={`critical-value${typeof pendingValue === "number" ? " critical-value--pending" : ""}`}
-                          >
-                            {criticalValue}
-                          </span>
-                          {typeof pendingValue === "number" && <span className="critical-tag">Pendiente</span>}
-                          {criticalError && <span className="error small">{criticalError}</span>}
-                        </div>
-                      </td>
-                      <td>{product.active ? "Activo" : "Inactivo"}</td>
-                      <td>
-                        <div className="row-actions">
-                          <button
-                            className="btn ghost"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openCriticalStockModal(product);
-                            }}
-                          >
-                            Stock crítico
-                          </button>
-                          <button
-                            className="btn ghost"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openQrModal(product);
-                            }}
-                          >
-                            Ver QR
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                      <div className="product-stat">
+                        <span className="product-stat-label muted small">Crítico</span>
+                        <span className={`product-stat-value${hasPending ? " text-pending" : ""}`}>
+                          {criticalValue}
+                          {hasPending && <span className="pending-indicator">●</span>}
+                        </span>
+                      </div>
+                    </div>
+
+                    {criticalError && (
+                      <p className="error small" style={{ marginTop: "0.5rem" }}>{criticalError}</p>
+                    )}
+
+                    <div className="product-card-actions">
+                      <button
+                        className="btn ghost small"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCriticalStockModal(product);
+                        }}
+                      >
+                        Stock crítico
+                      </button>
+                      <button
+                        className="btn ghost small"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openQrModal(product);
+                        }}
+                      >
+                        QR
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+
+          {products.length === 0 && (
+            <div className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+              <p>No se encontraron productos</p>
+            </div>
+          )}
 
           {totalPages > 1 && (
             <div className="pagination">
@@ -668,7 +662,7 @@ export default function ProductsCard() {
                   Stock total: {stockQuery.isLoading ? "Cargando..." : stockQuery.data ? stockQuery.data.total : "Sin datos"}
                 </p>
                 <p className="muted">Stock crítico configurado: {selectedCriticalStock}</p>
-                <button className="btn ghost" type="button" onClick={openCriticalStockModal}>
+                <button className="btn ghost" type="button" onClick={() => openCriticalStockModal()}>
                   Definir stock crítico
                 </button>
                 {stockQuery.isError && (

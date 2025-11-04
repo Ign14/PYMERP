@@ -13,11 +13,12 @@ import jakarta.validation.constraints.NotNull;
 public record PurchaseReq(
   @NotNull UUID supplierId,
   @NotBlank String docType,
-  @NotBlank String docNumber,
+  String docNumber,
   @NotNull BigDecimal net,
   @NotNull BigDecimal vat,
   @NotNull BigDecimal total,
   String pdfUrl,
   @NotNull OffsetDateTime issuedAt,
+  OffsetDateTime receivedAt,
   @NotEmpty List<@Valid PurchaseItemReq> items
 ) {}

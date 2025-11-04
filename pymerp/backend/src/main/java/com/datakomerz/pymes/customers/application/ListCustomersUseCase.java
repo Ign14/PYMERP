@@ -20,11 +20,11 @@ public class ListCustomersUseCase {
     this.mapper = mapper;
   }
 
-  public PagedResponse<CustomerResponse> handle(String query, String segment, int page, int size) {
+  public PagedResponse<CustomerResponse> handle(String query, String segment, Boolean active, int page, int size) {
     int pageIndex = Math.max(page, 0);
     int pageSize = size <= 0 ? 20 : Math.min(size, 100);
-    Pageable pageable = PageRequest.of(pageIndex, pageSize, Sort.by("name").ascending());
-    Page<CustomerResponse> result = service.find(query, segment, pageable).map(mapper::toResponse);
+    Pageable pageable = PageRequest.of(pageIndex, pageSize, Sort.by("createdAt").descending());
+    Page<CustomerResponse> result = service.search(query, segment, active, pageable).map(mapper::toResponse);
     return PagedResponse.from(result);
   }
 }
