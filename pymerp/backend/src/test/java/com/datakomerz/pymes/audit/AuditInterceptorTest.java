@@ -40,11 +40,7 @@ class AuditInterceptorTest {
 
   @BeforeEach
   void setUp() {
-    // Mock common request attributes
-    when(request.getRequestURI()).thenReturn("/api/v1/customers/123");
-    when(request.getMethod()).thenReturn("DELETE");
-    when(request.getRemoteAddr()).thenReturn("192.168.1.1");
-    when(request.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
+    // Mocks se configuran en cada test según sea necesario
   }
 
   @Test
@@ -79,6 +75,10 @@ class AuditInterceptorTest {
   @Test
   void afterCompletion_ShouldLogActionForAuditedEndpoint() throws Exception {
     // Given
+    when(request.getRequestURI()).thenReturn("/api/v1/customers/123");
+    when(request.getMethod()).thenReturn("DELETE");
+    when(request.getRemoteAddr()).thenReturn("192.168.1.1");
+    when(request.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
     Method method = TestController.class.getMethod("deleteCustomer", Long.class);
     Audited audited = method.getAnnotation(Audited.class);
 
