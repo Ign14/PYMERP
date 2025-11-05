@@ -134,12 +134,12 @@ public class SecurityConfig {
    */
   @Bean
   public JwtAuthenticationConverter jwtAuthenticationConverter() {
-    JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-    converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+    JwtAuthenticationConverter jwtConverter = new JwtAuthenticationConverter();
+    jwtConverter.setJwtGrantedAuthoritiesConverter(jwt -> {
       // delegate to our utility which works with a claims map
       Map<String, Object> claims = jwt.getClaims();
       return com.datakomerz.pymes.security.OidcRoleMapper.mapRolesFromClaims(claims);
     });
-    return converter;
+    return jwtConverter;
   }
 }

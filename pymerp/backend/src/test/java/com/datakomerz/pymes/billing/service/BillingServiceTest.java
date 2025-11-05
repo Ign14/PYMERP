@@ -9,7 +9,6 @@ import com.company.billing.persistence.DocumentFileVersion;
 import com.company.billing.persistence.FiscalDocument;
 import com.company.billing.persistence.FiscalDocumentRepository;
 import com.company.billing.persistence.FiscalDocumentStatus;
-import com.company.billing.persistence.SiiDocumentType;
 import com.company.billing.persistence.NonFiscalDocumentType;
 import com.datakomerz.pymes.billing.model.InvoicePayload;
 import com.datakomerz.pymes.billing.provider.BillingProvider;

@@ -228,3 +228,51 @@ GET {{BACKEND_BASE}}/api/v1/products
 Authorization: Bearer {{access_token}}
 X-Company-Id: 00000000-0000-0000-0000-000000000001
 
+---
+
+## Auditoría y Logging
+
+PYMERP registra todas las acciones críticas en la tabla `audit_logs` para cumplir con estándares de compliance:
+
+- **ISO 27001** (A.12.4): Registro de eventos de acceso y administración
+- **SOC 2** (CC7.2): Monitoreo de actividades y alertas de seguridad
+- **GDPR** (Art. 30): Registro de actividades de tratamiento de datos personales
+
+### Eventos Auditados
+
+1. **CRUD en entidades críticas**: CREATE, READ, UPDATE, DELETE en Customer, Product, Sale, Purchase, etc.
+2. **Autenticación**: LOGIN (exitoso), FAILED_LOGIN (401), LOGOUT
+3. **Autorización**: ACCESS_DENIED (403 Forbidden)
+
+### Uso: Marcar Endpoints con `@Audited`
+
+```java
+@DeleteMapping("/{id}")
+@PreAuthorize("hasAnyRole('ADMIN', 'ERP_USER')")
+@Audited(action = "DELETE", entityType = "Customer")
+public ResponseEntity<Void> deleteCustomer(@PathVariable Long id) {
+    customerService.delete(id);
+    return ResponseEntity.noContent().build();
+}
+```
+
+### Consultar Audit Logs (ADMIN-only)
+
+```bash
+# Obtener todos los logs
+curl http://localhost:8081/api/v1/audit/logs?page=0&size=20 \
+  -H "Authorization: Bearer <admin-token>"
+
+# Filtrar por usuario
+curl http://localhost:8081/api/v1/audit/logs/user/admin@company.com
+
+# Filtrar por acción (ACCESS_DENIED, DELETE, etc.)
+curl http://localhost:8081/api/v1/audit/logs/action/ACCESS_DENIED
+
+# Detectar ataques de fuerza bruta
+curl http://localhost:8081/api/v1/audit/security/failed-attempts/hacker@evil.com
+```
+
+**Ver documentación completa**: [AUDIT_GUIDE.md](docs/AUDIT_GUIDE.md)
+
+
