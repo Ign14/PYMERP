@@ -78,6 +78,7 @@ class AuditInterceptorTest {
     when(request.getRequestURI()).thenReturn("/api/v1/customers/123");
     when(request.getMethod()).thenReturn("DELETE");
     when(request.getRemoteAddr()).thenReturn("192.168.1.1");
+    when(request.getHeader("X-Forwarded-For")).thenReturn(null); // Mock for getClientIp()
     when(request.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
     Method method = TestController.class.getMethod("deleteCustomer", Long.class);
     Audited audited = method.getAnnotation(Audited.class);
