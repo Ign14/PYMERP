@@ -2,14 +2,17 @@ package com.datakomerz.pymes.config;
 
 import com.datakomerz.pymes.audit.AuditInterceptor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Configuración de Spring MVC para registrar interceptors.
+ * Solo activo cuando NO estamos en perfil "test".
  */
 @Configuration
+@Profile("!test")
 public class WebConfig implements WebMvcConfigurer {
 
   private final AuditInterceptor auditInterceptor;
