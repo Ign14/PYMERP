@@ -2,7 +2,6 @@ package com.datakomerz.pymes.auth;
 
 import com.datakomerz.pymes.auth.dto.AuthRequest;
 import com.datakomerz.pymes.auth.dto.AuthResponse;
-import com.datakomerz.pymes.auth.RefreshToken;
 import com.datakomerz.pymes.auth.dto.RefreshRequest;
 import com.datakomerz.pymes.company.Company;
 import com.datakomerz.pymes.company.CompanyRepository;
