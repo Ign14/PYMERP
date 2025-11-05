@@ -1,12 +1,20 @@
 package com.datakomerz.pymes.products;
 
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.ParamDef;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "products", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id","sku"}))
+@TenantFiltered
+@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "tenantId", type = org.hibernate.type.descriptor.java.UUIDJavaType.class))
+@Filter(name = "tenantFilter", condition = "company_id = :tenantId")
 public class Product {
 
   @Id
