@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
@@ -26,6 +27,7 @@ import com.datakomerz.pymes.config.AppProperties;
 })
 @Import({CryptoConfiguration.class, DefaultCryptoService.class})
 @EnableScheduling
+@EnableAsync
 public class PymesApplication {
   public static void main(String[] args) {
     SpringApplication.run(PymesApplication.class, args);
