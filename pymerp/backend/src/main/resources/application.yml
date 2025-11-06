@@ -78,7 +78,7 @@ app:
       - http://172.29.0.1:*
   security:
     jwt:
-      secret: change-this-dev-secret-at-least-32-chars-long
+      secret: ${JWT_SECRET:ZGV2LWp3dC1zZWNyZXQta2V5LWZvci1sb2NhbC1kZXZlbG9wbWVudC12YWxpZC1rZXktMTIzNDU2Nzg5MA==}
       expiration-seconds: 86400
       refresh-expiration-seconds: 2592000
     captcha:

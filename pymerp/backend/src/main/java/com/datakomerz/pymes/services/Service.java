@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.services;
 
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -17,13 +19,11 @@ import java.util.UUID;
         @Index(name = "idx_service_active", columnList = "active")
     }
 )
-public class Service {
+@TenantFiltered
+public class Service extends TenantAwareEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-
-    @Column(name = "company_id", nullable = false, columnDefinition = "uuid")
-    private UUID companyId;
 
     @Column(nullable = false, length = 50)
     private String code;
@@ -55,14 +55,6 @@ public class Service {
 
     public void setId(UUID id) {
         this.id = id;
-    }
-
-    public UUID getCompanyId() {
-        return companyId;
-    }
-
-    public void setCompanyId(UUID companyId) {
-        this.companyId = companyId;
     }
 
     public String getCode() {

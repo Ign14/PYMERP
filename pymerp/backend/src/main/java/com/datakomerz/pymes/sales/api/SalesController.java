@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.sales.api;
 
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
+import com.datakomerz.pymes.sales.Sale;
 import com.datakomerz.pymes.sales.application.CancelSaleUseCase;
 import com.datakomerz.pymes.sales.application.CreateSaleUseCase;
 import com.datakomerz.pymes.sales.application.DailySalesMetricsUseCase;
@@ -83,12 +85,14 @@ public class SalesController {
 
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
+  @ValidateTenant(entityClass = Sale.class)
   public SaleRes update(@PathVariable UUID id, @RequestBody SaleUpdateRequest req) {
     return updateSaleUseCase.handle(id, req);
   }
 
   @PostMapping("/{id}/cancel")
   @PreAuthorize("hasRole('ADMIN')")
+  @ValidateTenant(entityClass = Sale.class)
   public SaleRes cancel(@PathVariable UUID id) {
     return cancelSaleUseCase.handle(id);
   }
@@ -112,6 +116,7 @@ public class SalesController {
 
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
+  @ValidateTenant(entityClass = Sale.class)
   public SaleDetail detail(@PathVariable UUID id) {
     return getSaleDetailUseCase.handle(id);
   }

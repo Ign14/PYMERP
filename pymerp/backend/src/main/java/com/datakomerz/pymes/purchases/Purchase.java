@@ -1,14 +1,16 @@
 package com.datakomerz.pymes.purchases;
 
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity @Table(name="purchases")
-public class Purchase {
+@TenantFiltered
+public class Purchase extends TenantAwareEntity {
   @Id @Column(columnDefinition="uuid") private UUID id;
-  @Column(name="company_id", nullable=false, columnDefinition="uuid") private UUID companyId;
   @Column(name="supplier_id", columnDefinition="uuid") private UUID supplierId;
   private String docType;
   private String docNumber;
@@ -29,8 +31,6 @@ public class Purchase {
   // Getters & Setters
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }
-  public UUID getCompanyId() { return companyId; }
-  public void setCompanyId(UUID companyId) { this.companyId = companyId; }
   public UUID getSupplierId() { return supplierId; }
   public void setSupplierId(UUID supplierId) { this.supplierId = supplierId; }
   public String getDocType() { return docType; }

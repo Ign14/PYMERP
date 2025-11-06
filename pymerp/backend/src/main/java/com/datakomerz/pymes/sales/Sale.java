@@ -1,14 +1,16 @@
 package com.datakomerz.pymes.sales;
 
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity @Table(name="sales")
-public class Sale {
+@TenantFiltered
+public class Sale extends TenantAwareEntity {
   @Id @Column(columnDefinition="uuid") private UUID id;
-  @Column(name="company_id", nullable=false, columnDefinition="uuid") private UUID companyId;
   @Column(name="customer_id", columnDefinition="uuid") private UUID customerId;
   @Column(nullable=false) private String status;
   @Column(nullable=false, precision=14, scale=2) private BigDecimal net;
@@ -24,8 +26,6 @@ public class Sale {
   // Getters & Setters
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }
-  public UUID getCompanyId() { return companyId; }
-  public void setCompanyId(UUID companyId) { this.companyId = companyId; }
   public UUID getCustomerId() { return customerId; }
   public void setCustomerId(UUID customerId) { this.customerId = customerId; }
   public String getStatus() { return status; }

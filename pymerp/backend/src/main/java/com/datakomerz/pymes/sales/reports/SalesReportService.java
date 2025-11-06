@@ -1,6 +1,5 @@
 package com.datakomerz.pymes.sales.reports;
 
-import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.sales.Sale;
 import com.datakomerz.pymes.sales.SaleRepository;
 import java.math.BigDecimal;
@@ -13,7 +12,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,14 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class SalesReportService {
 
   private final SaleRepository saleRepository;
-  private final CompanyContext companyContext;
   private final Clock clock;
 
   public SalesReportService(SaleRepository saleRepository,
-                            CompanyContext companyContext,
                             Clock clock) {
     this.saleRepository = saleRepository;
-    this.companyContext = companyContext;
     this.clock = clock;
   }
 
@@ -51,7 +46,6 @@ public class SalesReportService {
       throw new IllegalArgumentException("days must be greater than zero");
     }
 
-    UUID companyId = companyContext.require();
     ZoneId zone = clock.getZone();
     LocalDate end = LocalDate.now(clock);
     LocalDate start = end.minusDays(days - 1L);
@@ -59,7 +53,7 @@ public class SalesReportService {
     OffsetDateTime toExclusive = end.plusDays(1L).atStartOfDay(zone).toOffsetDateTime();
 
     List<Sale> range = saleRepository
-      .findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(companyId, from);
+      .findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(from);
 
     Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
     LocalDate cursor = start;

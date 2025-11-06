@@ -42,11 +42,11 @@ public class ProductsApiSecurityIT {
 
   @Test
   void returns200_when_tokenHasRole_or_scope_and_companyHeaderPresent() throws Exception {
-    Mockito.when(productRepository.findByCompanyIdAndDeletedAtIsNullAndNameContainingIgnoreCase(
-            Mockito.any(), Mockito.anyString(), Mockito.any()))
+    Mockito.when(productRepository.findByDeletedAtIsNullAndNameContainingIgnoreCase(
+            Mockito.anyString(), Mockito.any()))
         .thenReturn(new PageImpl<>(List.of()));
-    Mockito.when(productRepository.findByCompanyIdAndDeletedAtIsNullAndActiveIsAndNameContainingIgnoreCase(
-            Mockito.any(), Mockito.anyBoolean(), Mockito.anyString(), Mockito.any()))
+    Mockito.when(productRepository.findByDeletedAtIsNullAndActiveIsAndNameContainingIgnoreCase(
+            Mockito.anyBoolean(), Mockito.anyString(), Mockito.any()))
         .thenReturn(new PageImpl<>(List.of()));
 
     // with realm role

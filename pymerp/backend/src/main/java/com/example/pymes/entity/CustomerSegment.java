@@ -1,5 +1,7 @@
 package com.example.pymes.entity;
 
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -20,14 +22,12 @@ import java.util.UUID;
     name = "customer_segment",
     uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "code"})
 )
-public class CustomerSegment {
+@TenantFiltered
+public class CustomerSegment extends TenantAwareEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-
-    @Column(name = "company_id", nullable = false)
-    private UUID companyId;
 
     @Column(nullable = false, length = 100)
     private String code;
@@ -69,14 +69,6 @@ public class CustomerSegment {
 
     public void setId(UUID id) {
         this.id = id;
-    }
-
-    public UUID getCompanyId() {
-        return companyId;
-    }
-
-    public void setCompanyId(UUID companyId) {
-        this.companyId = companyId;
     }
 
     public String getCode() {

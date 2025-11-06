@@ -1,28 +1,33 @@
 package com.datakomerz.pymes.core.tenancy;
 
+import org.springframework.stereotype.Component;
+
+import com.datakomerz.pymes.multitenancy.TenantContext;
+import com.datakomerz.pymes.multitenancy.TenantNotFoundException;
+
 import java.util.Optional;
 import java.util.UUID;
-
-import org.springframework.stereotype.Component;
 
 @Component
 public class CompanyContext {
 
-  private final ThreadLocal<UUID> current = new ThreadLocal<>();
-
   void set(UUID companyId) {
-    current.set(companyId);
+    TenantContext.setTenantId(companyId);
   }
 
   public Optional<UUID> current() {
-    return Optional.ofNullable(current.get());
+    return Optional.ofNullable(TenantContext.getTenantId());
   }
 
   public UUID require() {
-    return current().orElseThrow(() -> new IllegalStateException("Company could not be resolved for request"));
+    try {
+      return TenantContext.require();
+    } catch (TenantNotFoundException ex) {
+      throw new IllegalStateException("Company could not be resolved for request", ex);
+    }
   }
 
   void clear() {
-    current.remove();
+    TenantContext.clear();
   }
 }

@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.customers;
 
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -12,14 +14,12 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "customers")
-public class Customer {
+@TenantFiltered
+public class Customer extends TenantAwareEntity {
 
   @Id
   @Column(columnDefinition = "uuid")
   private UUID id;
-
-  @Column(name = "company_id", nullable = false, columnDefinition = "uuid")
-  private UUID companyId;
 
   @Column(nullable = false, length = 120)
   private String name;
@@ -86,14 +86,6 @@ public class Customer {
 
   public void setId(UUID id) {
     this.id = id;
-  }
-
-  public UUID getCompanyId() {
-    return companyId;
-  }
-
-  public void setCompanyId(UUID companyId) {
-    this.companyId = companyId;
   }
 
   public String getName() {

@@ -210,21 +210,19 @@ public class PurchaseService {
                                     OffsetDateTime from,
                                     OffsetDateTime to,
                                     Pageable pageable) {
-    UUID companyId = companyContext.require();
     Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("issuedAt").descending());
-    Page<Purchase> page = purchases.search(companyId, emptyToNull(status), emptyToNull(docType), emptyToNull(search), from, to, sorted);
-    Map<UUID, String> supplierNames = resolveSupplierNames(companyId, page.getContent());
+    Page<Purchase> page = purchases.search(emptyToNull(status), emptyToNull(docType), emptyToNull(search), from, to, sorted);
+    Map<UUID, String> supplierNames = resolveSupplierNames(page.getContent());
     return page.map(purchase -> mapToSummary(purchase, supplierNames.get(purchase.getSupplierId())));
   }
 
   @Transactional
   public PurchaseSummary update(UUID id, PurchaseUpdateRequest req) {
-    UUID companyId = companyContext.require();
-    Purchase purchase = purchases.findByIdAndCompanyId(id, companyId)
+    Purchase purchase = purchases.findById(id)
       .orElseThrow(() -> new IllegalStateException("Purchase not found: " + id));
 
     if (req == null) {
-      String supplierName = resolveSupplierName(companyId, purchase.getSupplierId());
+      String supplierName = resolveSupplierName(purchase.getSupplierId());
       return mapToSummary(purchase, supplierName);
     }
 
@@ -243,18 +241,17 @@ public class PurchaseService {
     }
 
     purchases.save(purchase);
-    String supplierName = resolveSupplierName(companyId, purchase.getSupplierId());
+    String supplierName = resolveSupplierName(purchase.getSupplierId());
     return mapToSummary(purchase, supplierName);
   }
 
   @Transactional
   public PurchaseSummary cancel(UUID id) {
-    UUID companyId = companyContext.require();
-    Purchase purchase = purchases.findByIdAndCompanyId(id, companyId)
+    Purchase purchase = purchases.findById(id)
       .orElseThrow(() -> new IllegalStateException("Purchase not found: " + id));
 
     if ("cancelled".equalsIgnoreCase(purchase.getStatus())) {
-      String supplierName = resolveSupplierName(companyId, purchase.getSupplierId());
+      String supplierName = resolveSupplierName(purchase.getSupplierId());
       return mapToSummary(purchase, supplierName);
     }
 
@@ -270,7 +267,7 @@ public class PurchaseService {
         lots.save(lot);
 
         InventoryMovement movement = new InventoryMovement();
-        movement.setCompanyId(companyId);
+        movement.setCompanyId(purchase.getCompanyId());
         movement.setProductId(item.getProductId());
         movement.setLotId(lot.getId());
         movement.setType("PURCHASE_CANCEL");
@@ -283,15 +280,14 @@ public class PurchaseService {
 
     purchase.setStatus("cancelled");
     purchases.save(purchase);
-    String supplierName = resolveSupplierName(companyId, purchase.getSupplierId());
+    String supplierName = resolveSupplierName(purchase.getSupplierId());
     return mapToSummary(purchase, supplierName);
   }
 
   @Transactional(readOnly = true)
   public List<PurchaseDailyPoint> dailyMetrics(int days) {
-    UUID companyId = companyContext.require();
     OffsetDateTime from = OffsetDateTime.now().minusDays(days);
-    List<Purchase> range = purchases.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(companyId, from);
+    List<Purchase> range = purchases.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(from);
     return range.stream()
       .collect(Collectors.groupingBy(p -> p.getIssuedAt().toLocalDate()))
       .entrySet().stream()
@@ -321,7 +317,7 @@ public class PurchaseService {
     );
   }
 
-  private Map<UUID, String> resolveSupplierNames(UUID companyId, List<Purchase> purchaseList) {
+  private Map<UUID, String> resolveSupplierNames(List<Purchase> purchaseList) {
     Set<UUID> ids = purchaseList.stream()
       .map(Purchase::getSupplierId)
       .filter(Objects::nonNull)
@@ -330,22 +326,16 @@ public class PurchaseService {
       return Collections.emptyMap();
     }
     Map<UUID, String> map = new HashMap<>();
-    suppliers.findAllById(ids).forEach(supplier -> {
-      if (companyId.equals(supplier.getCompanyId())) {
-        map.put(supplier.getId(), supplier.getName());
-      }
-    });
+    suppliers.findAllById(ids).forEach(supplier -> map.put(supplier.getId(), supplier.getName()));
     return map;
   }
 
-  private String resolveSupplierName(UUID companyId, UUID supplierId) {
+  private String resolveSupplierName(UUID supplierId) {
     if (supplierId == null) {
       return null;
     }
     Optional<Supplier> supplier = suppliers.findById(supplierId);
-    return supplier.filter(s -> companyId.equals(s.getCompanyId()))
-      .map(Supplier::getName)
-      .orElse(null);
+    return supplier.map(Supplier::getName).orElse(null);
   }
 
   private String emptyToNull(String value) {
@@ -359,11 +349,8 @@ public class PurchaseService {
    * @return PurchaseKPIs con métricas del período
    */
   public com.datakomerz.pymes.purchases.dto.PurchaseKPIs getPurchaseKPIs(LocalDate startDate, LocalDate endDate) {
-    UUID companyId = companyContext.require();
-    
     // Obtener todas las compras del período
     List<Purchase> periodPurchases = purchases.findAll().stream()
-        .filter(p -> p.getCompanyId().equals(companyId))
         .filter(p -> p.getCreatedAt() != null)
         .filter(p -> {
           LocalDate purchaseDate = p.getCreatedAt().toLocalDate();
@@ -406,7 +393,6 @@ public class PurchaseService {
     // Purchase Growth (comparar con período anterior)
     LocalDate prevStartDate = startDate.minusDays(endDate.toEpochDay() - startDate.toEpochDay() + 1);
     List<Purchase> prevPeriodPurchases = purchases.findAll().stream()
-        .filter(p -> p.getCompanyId().equals(companyId))
         .filter(p -> "received".equalsIgnoreCase(p.getStatus()))
         .filter(p -> p.getCreatedAt() != null)
         .filter(p -> {
@@ -507,14 +493,11 @@ public class PurchaseService {
    * Clasifica proveedores en A (80% del gasto), B (15% del gasto), C (5% del gasto)
    */
   public List<com.datakomerz.pymes.purchases.dto.PurchaseABCClassification> getPurchaseABCAnalysis(LocalDate startDate, LocalDate endDate) {
-    UUID companyId = companyContext.require();
-    
     OffsetDateTime start = startDate.atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime();
     OffsetDateTime end = endDate.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime();
     
     // Obtener todas las compras recibidas del período
     List<Purchase> periodPurchases = purchases.findAll().stream()
-        .filter(p -> p.getCompanyId().equals(companyId))
         .filter(p -> p.getCreatedAt() != null)
         .filter(p -> !p.getCreatedAt().isBefore(start) && p.getCreatedAt().isBefore(end))
         .filter(p -> "received".equals(p.getStatus()))
@@ -655,14 +638,11 @@ public class PurchaseService {
    * Analiza los últimos 90 días y proyecta el próximo mes.
    */
   public List<com.datakomerz.pymes.purchases.dto.PurchaseForecast> getPurchaseForecast(LocalDate startDate, LocalDate endDate, int horizonDays) {
-    UUID companyId = companyContext.require();
-    
     OffsetDateTime start = startDate.atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime();
     OffsetDateTime end = endDate.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime();
     
     // Obtener compras recibidas del período
     List<Purchase> historicalPurchases = purchases.findAll().stream()
-        .filter(p -> p.getCompanyId().equals(companyId))
         .filter(p -> p.getCreatedAt() != null)
         .filter(p -> !p.getCreatedAt().isBefore(start) && p.getCreatedAt().isBefore(end))
         .filter(p -> "received".equals(p.getStatus()))

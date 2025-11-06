@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.inventory;
 
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -7,9 +9,9 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity @Table(name="inventory_lots")
-public class InventoryLot {
+@TenantFiltered
+public class InventoryLot extends TenantAwareEntity {
   @Id @Column(columnDefinition="uuid") private UUID id;
-  @Column(name="company_id", nullable=false, columnDefinition="uuid") private UUID companyId;
   @Column(name="product_id", nullable=false, columnDefinition="uuid") private UUID productId;
   @Column(name="purchase_item_id", columnDefinition="uuid") private UUID purchaseItemId;
   @Column(name="location_id", columnDefinition="uuid") private UUID locationId;
@@ -27,8 +29,6 @@ public class InventoryLot {
   // Getters & Setters
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }
-  public UUID getCompanyId() { return companyId; }
-  public void setCompanyId(UUID companyId) { this.companyId = companyId; }
   public UUID getProductId() { return productId; }
   public void setProductId(UUID productId) { this.productId = productId; }
   public UUID getPurchaseItemId() { return purchaseItemId; }

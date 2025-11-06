@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.suppliers;
 
+import com.datakomerz.pymes.products.Product;
+import com.datakomerz.pymes.products.ProductRepository;
 import com.datakomerz.pymes.purchases.Purchase;
 import com.datakomerz.pymes.purchases.PurchaseRepository;
 import com.datakomerz.pymes.purchases.PurchaseItem;
@@ -22,26 +24,28 @@ public class SupplierService {
   private final SupplierRepository supplierRepository;
   private final PurchaseRepository purchaseRepository;
   private final PurchaseItemRepository purchaseItemRepository;
+  private final ProductRepository productRepository;
 
   public SupplierService(SupplierRepository supplierRepository, 
                         PurchaseRepository purchaseRepository,
-                        PurchaseItemRepository purchaseItemRepository) {
+                        PurchaseItemRepository purchaseItemRepository,
+                        ProductRepository productRepository) {
     this.supplierRepository = supplierRepository;
     this.purchaseRepository = purchaseRepository;
     this.purchaseItemRepository = purchaseItemRepository;
+    this.productRepository = productRepository;
   }
 
   /**
    * Calcula métricas de compras para un proveedor específico
    */
-  public SupplierMetrics getSupplierMetrics(UUID supplierId, UUID companyId) {
-    // Verificar que el proveedor existe y pertenece a la compañía
-    supplierRepository.findByIdAndCompanyId(supplierId, companyId)
+  public SupplierMetrics getSupplierMetrics(UUID supplierId) {
+    // Verificar que el proveedor existe
+    supplierRepository.findById(supplierId)
         .orElseThrow(() -> new RuntimeException("Proveedor no encontrado"));
 
     // Obtener todas las compras del proveedor
-    List<Purchase> allPurchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
+    List<Purchase> allPurchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
         OffsetDateTime.now().minusYears(5) // Últimos 5 años para historial completo
     ).stream()
         .filter(p -> supplierId.equals(p.getSupplierId()))
@@ -114,17 +118,14 @@ public class SupplierService {
   /**
    * Genera alertas para todos los proveedores de una compañía
    */
-  public List<SupplierAlert> getSupplierAlerts(UUID companyId) {
+  public List<SupplierAlert> getSupplierAlerts() {
     List<SupplierAlert> alerts = new ArrayList<>();
 
-    List<Supplier> suppliers = supplierRepository.findByCompanyIdOrderByNameAsc(companyId);
+    List<Supplier> suppliers = supplierRepository.findAllByOrderByNameAsc();
 
     // Obtener todas las compras de los últimos 12 meses
     OffsetDateTime oneYearAgo = OffsetDateTime.now().minusYears(1);
-    List<Purchase> recentPurchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
-        oneYearAgo
-    );
+    List<Purchase> recentPurchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(oneYearAgo);
 
     // Calcular total de compras para análisis de concentración
     BigDecimal totalPurchaseAmount = recentPurchases.stream()
@@ -238,13 +239,12 @@ public class SupplierService {
   /**
    * Genera ranking de proveedores por diferentes criterios
    */
-  public List<SupplierRanking> getSupplierRanking(UUID companyId, String criteria) {
-    List<Supplier> suppliers = supplierRepository.findByCompanyIdOrderByNameAsc(companyId);
-    
+  public List<SupplierRanking> getSupplierRanking(String criteria) {
+    List<Supplier> suppliers = supplierRepository.findAllByOrderByNameAsc();
+
     // Obtener compras del último año
     OffsetDateTime oneYearAgo = OffsetDateTime.now().minusYears(1);
-    List<Purchase> recentPurchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
+    List<Purchase> recentPurchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
         oneYearAgo
     );
 
@@ -313,22 +313,33 @@ public class SupplierService {
   /**
    * Análisis de concentración de riesgo (ABC)
    */
-  public SupplierRiskAnalysis getRiskAnalysis(UUID companyId) {
-    List<Supplier> suppliers = supplierRepository.findByCompanyIdOrderByNameAsc(companyId);
-    
+  public SupplierRiskAnalysis getRiskAnalysis() {
+    List<Supplier> suppliers = supplierRepository.findAllByOrderByNameAsc();
+
     // Obtener compras del último año
     OffsetDateTime oneYearAgo = OffsetDateTime.now().minusYears(1);
-    List<Purchase> recentPurchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
+    List<Purchase> recentPurchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
         oneYearAgo
     );
+    Map<UUID, List<PurchaseItem>> itemsByPurchase = groupItemsByPurchase(recentPurchases);
 
     // Agrupar por proveedor y calcular montos
     Map<UUID, BigDecimal> amountBySupplier = new HashMap<>();
+    Map<UUID, Set<UUID>> productSuppliers = new HashMap<>();
     for (Purchase purchase : recentPurchases) {
-      if (purchase.getSupplierId() == null) continue;
+      UUID supplierId = purchase.getSupplierId();
+      if (supplierId == null) continue;
+
       BigDecimal amount = purchase.getTotal() != null ? purchase.getTotal() : BigDecimal.ZERO;
-      amountBySupplier.merge(purchase.getSupplierId(), amount, BigDecimal::add);
+      amountBySupplier.merge(supplierId, amount, BigDecimal::add);
+
+      List<PurchaseItem> items = itemsByPurchase.getOrDefault(purchase.getId(), Collections.emptyList());
+      for (PurchaseItem item : items) {
+        UUID productId = item.getProductId();
+        if (productId != null) {
+          productSuppliers.computeIfAbsent(productId, id -> new HashSet<>()).add(supplierId);
+        }
+      }
     }
 
     // Calcular total
@@ -378,8 +389,9 @@ public class SupplierService {
         .map(c -> Math.pow(c.getPercentage() / 100.0, 2))
         .reduce(0.0, Double::sum);
 
-    // TODO: Calcular productos con proveedor único (requiere datos de productos)
-    Integer singleSourceProducts = 0;
+    int singleSourceProducts = (int) productSuppliers.values().stream()
+        .filter(suppliersSet -> suppliersSet.size() == 1)
+        .count();
 
     SupplierRiskAnalysis analysis = new SupplierRiskAnalysis();
     analysis.setCategoryA(categoryA);
@@ -393,6 +405,57 @@ public class SupplierService {
   }
 
   // Métodos auxiliares privados
+
+  private Map<UUID, List<PurchaseItem>> groupItemsByPurchase(List<Purchase> purchases) {
+    if (purchases == null || purchases.isEmpty()) {
+      return Collections.emptyMap();
+    }
+    Set<UUID> purchaseIds = purchases.stream()
+        .map(Purchase::getId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+    if (purchaseIds.isEmpty()) {
+      return Collections.emptyMap();
+    }
+    List<PurchaseItem> items = purchaseItemRepository.findByPurchaseIdIn(purchaseIds);
+    Map<UUID, List<PurchaseItem>> grouped = new HashMap<>();
+    for (PurchaseItem item : items) {
+      grouped.computeIfAbsent(item.getPurchaseId(), id -> new ArrayList<>()).add(item);
+    }
+    return grouped;
+  }
+
+    private Map<UUID, String> resolveProductNames(Collection<UUID> productIds) {
+    if (productIds == null || productIds.isEmpty()) {
+      return Collections.emptyMap();
+    }
+    List<Product> products = productRepository.findByIdIn(productIds);
+    Map<UUID, String> names = new HashMap<>();
+    for (Product product : products) {
+      names.put(product.getId(), product.getName());
+    }
+    for (UUID productId : productIds) {
+      names.putIfAbsent(productId, fallbackProductName(productId));
+    }
+    return names;
+  }
+
+    private String resolveProductName(UUID productId) {
+    if (productId == null) {
+      return "Todos los productos";
+    }
+    return productRepository.findById(productId)
+      .map(Product::getName)
+        .orElse(fallbackProductName(productId));
+  }
+
+  private String fallbackProductName(UUID productId) {
+    if (productId == null) {
+      return "Producto desconocido";
+    }
+    String id = productId.toString();
+    return "Producto " + id.substring(0, Math.min(8, id.length()));
+  }
 
   private Double calculateReliability(List<Purchase> purchases) {
     if (purchases.isEmpty()) return 0.0;
@@ -435,31 +498,31 @@ public class SupplierService {
   /**
    * Obtiene el historial de precios de un producto específico de un proveedor
    */
-  public SupplierPriceHistory getPriceHistory(UUID supplierId, UUID productId, UUID companyId) {
+  public SupplierPriceHistory getPriceHistory(UUID supplierId, UUID productId) {
     // Verificar que el proveedor existe
-    Supplier supplier = supplierRepository.findByIdAndCompanyId(supplierId, companyId)
+    Supplier supplier = supplierRepository.findById(supplierId)
         .orElseThrow(() -> new RuntimeException("Proveedor no encontrado"));
 
     SupplierPriceHistory history = new SupplierPriceHistory();
     history.setSupplierId(supplierId);
     history.setSupplierName(supplier.getName());
     history.setProductId(productId);
-    history.setProductName("Producto " + productId.toString().substring(0, 8)); // TODO: obtener nombre real
+    history.setProductName(resolveProductName(productId));
 
     // Obtener compras del último año del proveedor
     OffsetDateTime oneYearAgo = OffsetDateTime.now().minus(1, ChronoUnit.YEARS);
-    List<Purchase> purchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
-        oneYearAgo
-    ).stream()
+    List<Purchase> purchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
+          oneYearAgo
+      ).stream()
         .filter(p -> supplierId.equals(p.getSupplierId()))
         .collect(Collectors.toList());
+    Map<UUID, List<PurchaseItem>> itemsByPurchase = groupItemsByPurchase(purchases);
 
     // Obtener items del producto en estas compras
     List<SupplierPriceHistory.PricePoint> pricePoints = new ArrayList<>();
     
     for (Purchase purchase : purchases) {
-      List<PurchaseItem> items = purchaseItemRepository.findByPurchaseId(purchase.getId());
+      List<PurchaseItem> items = itemsByPurchase.getOrDefault(purchase.getId(), Collections.emptyList());
       for (PurchaseItem item : items) {
         if (productId.equals(item.getProductId())) {
           LocalDate date = purchase.getIssuedAt() != null 
@@ -561,22 +624,22 @@ public class SupplierService {
    * Identifica oportunidades de negociación con proveedores
    * Busca productos donde el precio actual está significativamente por encima del promedio del mercado
    */
-  public List<NegotiationOpportunity> getNegotiationOpportunities(UUID companyId) {
+  public List<NegotiationOpportunity> getNegotiationOpportunities() {
     List<NegotiationOpportunity> opportunities = new ArrayList<>();
-    
+
     // Obtener compras del último año
     OffsetDateTime oneYearAgo = OffsetDateTime.now().minus(1, ChronoUnit.YEARS);
-    List<Purchase> purchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
+    List<Purchase> purchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
         oneYearAgo
     );
+    Map<UUID, List<PurchaseItem>> itemsByPurchase = groupItemsByPurchase(purchases);
 
     // Agrupar por producto y calcular precios promedio por proveedor
     Map<UUID, Map<UUID, List<BigDecimal>>> productSupplierPrices = new HashMap<>();
     Map<UUID, Map<UUID, Long>> productSupplierCounts = new HashMap<>();
     
     for (Purchase purchase : purchases) {
-      List<PurchaseItem> items = purchaseItemRepository.findByPurchaseId(purchase.getId());
+      List<PurchaseItem> items = itemsByPurchase.getOrDefault(purchase.getId(), Collections.emptyList());
       for (PurchaseItem item : items) {
         UUID productId = item.getProductId();
         UUID supplierId = purchase.getSupplierId();
@@ -595,6 +658,7 @@ public class SupplierService {
     }
 
     // Analizar cada producto que tiene múltiples proveedores
+    Map<UUID, String> productNames = resolveProductNames(productSupplierPrices.keySet());
     for (Map.Entry<UUID, Map<UUID, List<BigDecimal>>> entry : productSupplierPrices.entrySet()) {
       UUID productId = entry.getKey();
       Map<UUID, List<BigDecimal>> supplierPrices = entry.getValue();
@@ -636,7 +700,7 @@ public class SupplierService {
           opp.setSupplierId(supplierId);
           opp.setSupplierName(getSupplierName(supplierId));
           opp.setProductId(productId);
-          opp.setProductName("Producto " + productId.toString().substring(0, 8)); // TODO: nombre real
+          opp.setProductName(productNames.getOrDefault(productId, fallbackProductName(productId)));
           opp.setCurrentPrice(avgPrice);
           opp.setMarketAverage(marketAvg);
           opp.setPriceDifference(difference);
@@ -671,15 +735,15 @@ public class SupplierService {
   /**
    * Identifica productos que solo tienen un proveedor (riesgo de concentración)
    */
-  public List<SingleSourceProduct> getSingleSourceProducts(UUID companyId) {
+    public List<SingleSourceProduct> getSingleSourceProducts() {
     List<SingleSourceProduct> singleSourceProducts = new ArrayList<>();
     
     // Obtener compras del último año
     OffsetDateTime oneYearAgo = OffsetDateTime.now().minus(1, ChronoUnit.YEARS);
-    List<Purchase> purchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
+    List<Purchase> purchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
         oneYearAgo
     );
+    Map<UUID, List<PurchaseItem>> itemsByPurchase = groupItemsByPurchase(purchases);
 
     // Agrupar por producto y contar proveedores únicos
     Map<UUID, Set<UUID>> productSuppliers = new HashMap<>();
@@ -687,7 +751,7 @@ public class SupplierService {
     Map<UUID, LocalDate> productLastPurchase = new HashMap<>();
     
     for (Purchase purchase : purchases) {
-      List<PurchaseItem> items = purchaseItemRepository.findByPurchaseId(purchase.getId());
+      List<PurchaseItem> items = itemsByPurchase.getOrDefault(purchase.getId(), Collections.emptyList());
       for (PurchaseItem item : items) {
         UUID productId = item.getProductId();
         UUID supplierId = purchase.getSupplierId();
@@ -706,6 +770,7 @@ public class SupplierService {
     }
 
     // Identificar productos con un solo proveedor
+    Map<UUID, String> productNames = resolveProductNames(productSuppliers.keySet());
     for (Map.Entry<UUID, Set<UUID>> entry : productSuppliers.entrySet()) {
       UUID productId = entry.getKey();
       Set<UUID> suppliers = entry.getValue();
@@ -713,6 +778,9 @@ public class SupplierService {
       if (suppliers.size() == 1) {
         UUID supplierId = suppliers.iterator().next();
         List<PurchaseItem> items = productItems.get(productId);
+        if (items == null || items.isEmpty()) {
+          continue;
+        }
         
         // Calcular métricas
         Long purchaseCount = (long) items.size();
@@ -727,7 +795,7 @@ public class SupplierService {
 
         SingleSourceProduct product = new SingleSourceProduct();
         product.setProductId(productId);
-        product.setProductName("Producto " + productId.toString().substring(0, 8)); // TODO: nombre real
+        product.setProductName(productNames.getOrDefault(productId, fallbackProductName(productId)));
         product.setSupplierId(supplierId);
         product.setSupplierName(getSupplierName(supplierId));
         product.setCurrentPrice(avgPrice);
@@ -769,8 +837,8 @@ public class SupplierService {
   /**
    * Genera forecast de compras por proveedor basado en historial
    */
-  public PurchaseForecast getPurchaseForecast(UUID supplierId, UUID companyId) {
-    Supplier supplier = supplierRepository.findByIdAndCompanyId(supplierId, companyId)
+  public PurchaseForecast getPurchaseForecast(UUID supplierId) {
+    Supplier supplier = supplierRepository.findById(supplierId)
         .orElseThrow(() -> new RuntimeException("Proveedor no encontrado"));
 
     PurchaseForecast forecast = new PurchaseForecast();
@@ -779,8 +847,7 @@ public class SupplierService {
 
     // Obtener compras de los últimos 12 meses
     OffsetDateTime twelveMonthsAgo = OffsetDateTime.now().minus(12, ChronoUnit.MONTHS);
-    List<Purchase> purchases = purchaseRepository.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
-        companyId,
+    List<Purchase> purchases = purchaseRepository.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(
         twelveMonthsAgo
     ).stream()
         .filter(p -> supplierId.equals(p.getSupplierId()))

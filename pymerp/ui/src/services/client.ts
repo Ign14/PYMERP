@@ -341,6 +341,7 @@ const demoState: DemoState = {
       commune: 'Providencia',
       phone: '+56 2 2456 7788',
       email: 'ventas@proveedorandes.cl',
+      createdAt: iso(daysAgo(140)),
     },
     {
       id: 'sup-demo-002',
@@ -351,6 +352,7 @@ const demoState: DemoState = {
       commune: 'Pudahuel',
       phone: '+56 2 2988 1100',
       email: 'contacto@granoslatino.cl',
+      createdAt: iso(daysAgo(60)),
     },
     {
       id: 'sup-demo-003',
@@ -361,6 +363,7 @@ const demoState: DemoState = {
       commune: 'Santiago',
       phone: '+56 2 2311 4455',
       email: 'ventas@ecopackaging.cl',
+      createdAt: iso(daysAgo(12)),
     },
   ],
   customers: [
@@ -1192,6 +1195,7 @@ function fallbackCreateSupplier(payload: SupplierPayload): Supplier {
     businessActivity: payload.businessActivity ?? null,
     phone: payload.phone ?? null,
     email: payload.email ?? null,
+    createdAt: iso(new Date()),
   }
   demoState.suppliers = [...demoState.suppliers, supplier]
   return supplier
@@ -2146,6 +2150,7 @@ export type Supplier = {
   phone?: string | null
   email?: string | null
   active?: boolean
+  createdAt?: string | null
 }
 
 export type SupplierPayload = {

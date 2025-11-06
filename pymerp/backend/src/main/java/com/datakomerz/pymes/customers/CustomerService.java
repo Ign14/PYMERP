@@ -5,6 +5,7 @@ import com.datakomerz.pymes.customers.dto.CustomerRequest;
 import com.datakomerz.pymes.customers.dto.CustomerSaleHistoryItem;
 import com.datakomerz.pymes.customers.dto.CustomerSegmentSummary;
 import com.datakomerz.pymes.customers.dto.CustomerStatsResponse;
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.sales.Sale;
 import com.datakomerz.pymes.sales.SaleRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -42,7 +43,7 @@ public class CustomerService {
 
   @Transactional(Transactional.TxType.SUPPORTS)
   public Page<Customer> search(String query, String segment, Boolean active, Pageable pageable) {
-    UUID companyId = companyContext.require();
+    companyContext.require();
     String search = query == null ? "" : query.trim();
     String normalizedSegment = segment == null ? null : segment.trim();
     
@@ -52,7 +53,6 @@ public class CustomerService {
     }
     
     return repository.searchCustomers(
-      companyId,
       search.isEmpty() ? null : search,
       normalizedSegment,
       active,
@@ -67,31 +67,37 @@ public class CustomerService {
     return repository.save(entity);
   }
 
+  @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
   public Customer update(UUID id, CustomerRequest request) {
-    Customer entity = repository.findByIdAndCompanyId(id, companyContext.require())
+    companyContext.require();
+    Customer entity = repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + id));
     apply(entity, request);
     return repository.save(entity);
   }
 
+  @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
   public void delete(UUID id) {
-    Customer entity = repository.findByIdAndCompanyId(id, companyContext.require())
+    companyContext.require();
+    Customer entity = repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + id));
     // Soft delete: marcar como inactivo
     entity.setActive(false);
     repository.save(entity);
   }
 
+  @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
   @Transactional(Transactional.TxType.SUPPORTS)
   public Customer get(UUID id) {
-    return repository.findByIdAndCompanyId(id, companyContext.require())
+    companyContext.require();
+    return repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + id));
   }
 
   @Transactional(Transactional.TxType.SUPPORTS)
   public List<CustomerSegmentSummary> summarizeSegments() {
-    UUID companyId = companyContext.require();
-    return repository.summarizeBySegment(companyId).stream()
+    companyContext.require();
+    return repository.summarizeBySegment().stream()
       .map(view -> new CustomerSegmentSummary(
         view.getSegment() == null || view.getSegment().isBlank() ? "Sin segmentar" : view.getSegment(),
         view.getSegment() == null || view.getSegment().isBlank() ? UNASSIGNED_SEGMENT_CODE : view.getSegment(),
@@ -121,19 +127,16 @@ public class CustomerService {
   }
 
   @Transactional(Transactional.TxType.SUPPORTS)
+  @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
   public CustomerStatsResponse getCustomerStats(UUID customerId) {
-    UUID companyId = companyContext.require();
-    
-    // Verify customer exists and belongs to company
-    repository.findByIdAndCompanyId(customerId, companyId)
+    repository.findById(customerId)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + customerId));
 
-    Integer totalSales = saleRepository.countByCompanyIdAndCustomerId(companyId, customerId);
-    BigDecimal totalRevenue = saleRepository.sumTotalByCompanyIdAndCustomerId(companyId, customerId);
+    Integer totalSales = saleRepository.countByCustomerId(customerId);
+    BigDecimal totalRevenue = saleRepository.sumTotalByCustomerId(customerId);
     
     // Get last sale date
-    Page<Sale> recentSales = saleRepository.findByCompanyIdAndCustomerIdOrderByIssuedAtDesc(
-      companyId, 
+    Page<Sale> recentSales = saleRepository.findByCustomerIdOrderByIssuedAtDesc(
       customerId, 
       PageRequest.of(0, 1)
     );
@@ -151,15 +154,12 @@ public class CustomerService {
   }
 
   @Transactional(Transactional.TxType.SUPPORTS)
+  @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
   public Page<CustomerSaleHistoryItem> getCustomerSaleHistory(UUID customerId, Pageable pageable) {
-    UUID companyId = companyContext.require();
-    
-    // Verify customer exists and belongs to company
-    repository.findByIdAndCompanyId(customerId, companyId)
+    repository.findById(customerId)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + customerId));
 
-    Page<Sale> sales = saleRepository.findByCompanyIdAndCustomerIdOrderByIssuedAtDesc(
-      companyId, 
+    Page<Sale> sales = saleRepository.findByCustomerIdOrderByIssuedAtDesc(
       customerId, 
       pageable
     );
@@ -179,7 +179,6 @@ public class CustomerService {
    */
   @Transactional(Transactional.TxType.SUPPORTS)
   public List<Customer> exportToCSV(String query, String segment, Boolean active) {
-    UUID companyId = companyContext.require();
     String search = query == null ? "" : query.trim();
     String normalizedSegment = segment == null ? null : segment.trim();
     
@@ -190,7 +189,6 @@ public class CustomerService {
     
     // Get all customers without pagination
     return repository.searchCustomers(
-      companyId,
       search.isEmpty() ? null : search,
       normalizedSegment,
       active,
@@ -198,4 +196,3 @@ public class CustomerService {
     ).getContent();
   }
 }
-

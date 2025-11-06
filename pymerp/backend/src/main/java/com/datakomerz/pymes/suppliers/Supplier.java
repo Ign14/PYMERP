@@ -3,6 +3,8 @@ package com.datakomerz.pymes.suppliers;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -10,12 +12,12 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 
-@Entity @Table(name="suppliers")
-public class Supplier {
+@Entity 
+@Table(name="suppliers")
+@TenantFiltered
+public class Supplier extends TenantAwareEntity {
   @Id @Column(columnDefinition="uuid")
   private UUID id;
-  @Column(name="company_id", nullable=false, columnDefinition="uuid")
-  private UUID companyId;
   @NotBlank
   @Column(nullable=false, length=100)
   private String name;
@@ -45,8 +47,6 @@ public class Supplier {
   // Getters & Setters
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }
-  public UUID getCompanyId() { return companyId; }
-  public void setCompanyId(UUID companyId) { this.companyId = companyId; }
   public String getName() { return name; }
   public void setName(String name) { this.name = name; }
   public String getRut() { return rut; }
