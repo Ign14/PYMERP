@@ -6,6 +6,8 @@ import java.util.UUID;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,12 +29,14 @@ public class CompanyService {
     return repository.findAllByOrderByBusinessNameAsc();
   }
 
+  @CacheEvict(value = "companySettings", allEntries = true)
   public Company create(CompanyRequest request) {
     Company company = new Company();
     apply(company, request, null);
     return repository.save(company);
   }
 
+  @CacheEvict(value = "companySettings", allEntries = true)
   public Company update(UUID id, CompanyRequest request) {
     Company company = repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Company not found: " + id));
@@ -40,6 +44,7 @@ public class CompanyService {
     return repository.save(company);
   }
 
+  @Cacheable(value = "companySettings", key = "#id")
   @Transactional(Transactional.TxType.SUPPORTS)
   public Company get(UUID id) {
     return repository.findById(id)

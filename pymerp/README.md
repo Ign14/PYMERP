@@ -20,6 +20,13 @@
 - Dominios cubiertos: compañías, productos, pricing, inventario con lotes FIFO, ventas, compras, clientes, proveedores y solicitudes de cuenta con captcha.
 - Integraciones: almacenamiento local/S3, generación de códigos QR, Actuator/metrics y semillas de datos demo.
 
+#### Caché Redis
+- Redis 7 actúa como caché distribuido con `RedisCacheManager` y TTL diferenciados: `products` 10 min, `customers` 5 min, `suppliers` 15 min y `companySettings` 1 hora.
+- Las llaves siempre llevan prefijo de compañía (`{companyId}:{id}` o `{companyId}:all:{page}`) para respetar la multitenencia; las mutaciones (`save`, `update`, `delete`) invalidan tanto el item puntual como las páginas cacheadas.
+- Servicios cubiertos: `ProductService`, `CustomerService`, `SupplierService` y `CompanyService` (configuración) con invalidación automática desde los controladores REST.
+- Métricas disponibles vía Actuator: `GET /actuator/metrics/cache.gets?tag=cache:products`, `cache.puts`, `cache.evictions` y el gauge `cache.size` por caché.
+- Pruebas de integración con Redis/Testcontainers: `cd backend && ./gradlew test --tests "com.datakomerz.pymes.service.*CacheTest"`.
+
 ### Frontend web (React)
 - Shell protegido con sidebar/topbar, navegación modular (dashboard, ventas, compras, inventario, clientes, proveedores, finanzas, reportes, configuración).
 - Persistencia de sesión en `localStorage`, refresco automático de tokens y controles de acceso por módulos.

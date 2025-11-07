@@ -48,6 +48,8 @@ public class ProductsApiSecurityIT {
     Mockito.when(productRepository.findByDeletedAtIsNullAndActiveIsAndNameContainingIgnoreCase(
             Mockito.anyBoolean(), Mockito.anyString(), Mockito.any()))
         .thenReturn(new PageImpl<>(List.of()));
+    Mockito.when(productRepository.findByDeletedAtIsNullAndActiveIsTrue(Mockito.any()))
+        .thenReturn(new PageImpl<>(List.of()));
 
     // with realm role
     mockMvc.perform(get("/api/v1/products")

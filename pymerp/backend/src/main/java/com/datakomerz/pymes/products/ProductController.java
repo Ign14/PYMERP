@@ -17,7 +17,6 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +55,7 @@ public class ProductController {
   private final StorageService storageService;
   private final QrCodeService qrCodeService;
   private final InventoryService inventoryService;
+  private final ProductService productService;
 
   private static final long MAX_IMAGE_BYTES = 1_048_576; // 1 MB
   private static final List<String> ALLOWED_IMAGE_TYPES = List.of(
@@ -69,13 +69,15 @@ public class ProductController {
                            PricingService pricingService,
                            StorageService storageService,
                            QrCodeService qrCodeService,
-                           InventoryService inventoryService) {
+                           InventoryService inventoryService,
+                           ProductService productService) {
     this.repo = repo;
     this.companyContext = companyContext;
     this.pricingService = pricingService;
     this.storageService = storageService;
     this.qrCodeService = qrCodeService;
     this.inventoryService = inventoryService;
+    this.productService = productService;
   }
 
   @GetMapping
@@ -84,12 +86,14 @@ public class ProductController {
                                @RequestParam(defaultValue = "0") int page,
                                @RequestParam(defaultValue = "20") int size,
                                @RequestParam(defaultValue = "active") String status) {
-    companyContext.require();
+    UUID companyId = companyContext.require();
     Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
     Boolean activeFilter = resolveActiveFilter(status);
     Page<Product> products;
     String query = (q == null) ? "" : q.trim();
-    if (query.isEmpty()) {
+    if (query.isEmpty() && Boolean.TRUE.equals(activeFilter)) {
+      products = productService.findAll(companyId, pageable);
+    } else if (query.isEmpty()) {
       products = findByName("", pageable, activeFilter);
     } else if (query.matches("^\\d+$")) {
       products = findByBarcode(query, pageable, activeFilter);
@@ -113,10 +117,10 @@ public class ProductController {
     if (entity.getCriticalStock() == null) {
       entity.setCriticalStock(BigDecimal.ZERO);
     }
-    Product saved = repo.save(entity);
+    Product saved = productService.save(entity);
     handleImageUpload(companyId, saved, image, req.imageUrl());
     ensureQr(companyId, saved, true);
-    Product persisted = repo.save(saved);
+    Product persisted = productService.save(saved);
     return toResponse(persisted);
   }
 
@@ -127,15 +131,15 @@ public class ProductController {
                            @Valid @RequestPart("product") ProductReq req,
                            @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
     UUID companyId = companyContext.require();
-    Product entity = repo.findById(id)
+    Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     String previousSku = entity.getSku();
     apply(entity, req);
-    Product saved = repo.save(entity);
+    Product saved = productService.save(entity);
     handleImageUpload(companyId, saved, image, req.imageUrl());
     boolean skuChanged = previousSku != null && !previousSku.equals(saved.getSku());
     ensureQr(companyId, saved, skuChanged);
-    Product persisted = repo.save(saved);
+    Product persisted = productService.save(saved);
     return toResponse(persisted);
   }
 
@@ -143,11 +147,11 @@ public class ProductController {
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductRes updateStatus(@PathVariable UUID id, @Valid @RequestBody ProductStatusRequest req) {
-    companyContext.require();
-    Product entity = repo.findById(id)
+    UUID companyId = companyContext.require();
+    Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     entity.setActive(req.active());
-    Product saved = repo.save(entity);
+    Product saved = productService.save(entity);
     return toResponse(saved);
   }
 
@@ -156,11 +160,11 @@ public class ProductController {
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductRes updateInventoryAlert(@PathVariable UUID id,
                                          @Valid @RequestBody ProductInventoryAlertRequest req) {
-    companyContext.require();
-    Product entity = repo.findById(id)
+    UUID companyId = companyContext.require();
+    Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     entity.setCriticalStock(req.criticalStock());
-    Product saved = repo.save(entity);
+    Product saved = productService.save(entity);
     return toResponse(saved);
   }
 
@@ -169,11 +173,11 @@ public class ProductController {
   public ResponseEntity<Resource> getQr(@PathVariable UUID id,
                                         @RequestParam(name = "download", defaultValue = "false") boolean download) throws IOException {
     UUID companyId = companyContext.require();
-    Product entity = repo.findById(id)
+    Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     boolean regenerated = ensureQr(companyId, entity, entity.getQrUrl() == null || entity.getQrUrl().isBlank());
     if (regenerated) {
-      repo.save(entity);
+      productService.save(entity);
     }
     if (entity.getQrUrl() == null || entity.getQrUrl().isBlank()) {
       throw new EntityNotFoundException("QR code not available for product: " + id);
@@ -184,7 +188,7 @@ public class ProductController {
     } catch (IOException ex) {
       boolean regeneratedNow = ensureQr(companyId, entity, true);
       if (regeneratedNow) {
-        repo.save(entity);
+        productService.save(entity);
       }
       file = storageService.load(entity.getQrUrl());
     }
@@ -202,8 +206,8 @@ public class ProductController {
   @GetMapping("/{id}/stock")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductStockResponse stock(@PathVariable UUID id) {
-    companyContext.require();
-    Product entity = repo.findById(id)
+    UUID companyId = companyContext.require();
+    Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     List<InventoryLot> lots = inventoryService.lotsForProduct(entity.getId());
     BigDecimal total = BigDecimal.ZERO;
@@ -225,11 +229,8 @@ public class ProductController {
   @PreAuthorize("hasRole('ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public void delete(@PathVariable UUID id) {
-    companyContext.require();
-    Product entity = repo.findById(id)
-      .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
-    entity.setDeletedAt(OffsetDateTime.now());
-    repo.save(entity);
+    UUID companyId = companyContext.require();
+    productService.delete(companyId, id);
   }
 
   private Page<Product> findByName(String query, Pageable pageable, Boolean activeFilter) {

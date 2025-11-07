@@ -14,6 +14,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -41,6 +44,13 @@ public class CustomerService {
     return search(query, segment, null, pageable);
   }
 
+  @Cacheable(value = "customers", key = "T(com.datakomerz.pymes.multitenancy.TenantContext).require() + ':all:' + #pageable.pageNumber")
+  @Transactional(Transactional.TxType.SUPPORTS)
+  public Page<Customer> findAll(Pageable pageable) {
+    companyContext.require();
+    return repository.searchCustomers(null, null, Boolean.TRUE, pageable);
+  }
+
   @Transactional(Transactional.TxType.SUPPORTS)
   public Page<Customer> search(String query, String segment, Boolean active, Pageable pageable) {
     companyContext.require();
@@ -60,6 +70,7 @@ public class CustomerService {
     );
   }
 
+  @CacheEvict(value = "customers", allEntries = true)
   public Customer create(CustomerRequest request) {
     Customer entity = new Customer();
     entity.setCompanyId(companyContext.require());
@@ -68,6 +79,7 @@ public class CustomerService {
   }
 
   @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
+  @CacheEvict(value = "customers", allEntries = true)
   public Customer update(UUID id, CustomerRequest request) {
     companyContext.require();
     Customer entity = repository.findById(id)
@@ -77,6 +89,10 @@ public class CustomerService {
   }
 
   @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
+  @Caching(evict = {
+    @CacheEvict(value = "customers", key = "T(com.datakomerz.pymes.multitenancy.TenantContext).require() + ':' + #id"),
+    @CacheEvict(value = "customers", allEntries = true)
+  })
   public void delete(UUID id) {
     companyContext.require();
     Customer entity = repository.findById(id)
@@ -87,6 +103,7 @@ public class CustomerService {
   }
 
   @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
+  @Cacheable(value = "customers", key = "T(com.datakomerz.pymes.multitenancy.TenantContext).require() + ':' + #id")
   @Transactional(Transactional.TxType.SUPPORTS)
   public Customer get(UUID id) {
     companyContext.require();

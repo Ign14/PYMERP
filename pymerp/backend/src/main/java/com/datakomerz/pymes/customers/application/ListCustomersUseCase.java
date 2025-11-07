@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class ListCustomersUseCase {
@@ -24,7 +25,15 @@ public class ListCustomersUseCase {
     int pageIndex = Math.max(page, 0);
     int pageSize = size <= 0 ? 20 : Math.min(size, 100);
     Pageable pageable = PageRequest.of(pageIndex, pageSize, Sort.by("createdAt").descending());
-    Page<CustomerResponse> result = service.search(query, segment, active, pageable).map(mapper::toResponse);
+    boolean hasQuery = StringUtils.hasText(query);
+    boolean hasSegment = StringUtils.hasText(segment);
+    boolean activeOnly = active == null || Boolean.TRUE.equals(active);
+    Page<CustomerResponse> result;
+    if (!hasQuery && !hasSegment && activeOnly) {
+      result = service.findAll(pageable).map(mapper::toResponse);
+    } else {
+      result = service.search(query, segment, active, pageable).map(mapper::toResponse);
+    }
     return PagedResponse.from(result);
   }
 }
