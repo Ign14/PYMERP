@@ -1,7 +1,9 @@
 package com.datakomerz.pymes.pricing;
 
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.pricing.dto.PriceChangeRequest;
+import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -31,11 +33,13 @@ public class PricingService {
   }
 
   @Transactional(Transactional.TxType.SUPPORTS)
+  @ValidateTenant(entityClass = Product.class, entityParam = "productId", entityParamIndex = 0)
   public Page<PriceHistory> history(UUID productId, Pageable pageable) {
     ensureOwnership(productId);
     return priceHistoryRepository.findByProductIdOrderByValidFromDesc(productId, pageable);
   }
 
+  @ValidateTenant(entityClass = Product.class, entityParam = "productId", entityParamIndex = 0)
   public PriceHistory registerPrice(UUID productId, PriceChangeRequest request) {
     var product = ensureOwnership(productId);
     PriceHistory entry = new PriceHistory();
@@ -51,9 +55,9 @@ public class PricingService {
       .map(PriceHistory::getPrice);
   }
 
-  private com.datakomerz.pymes.products.Product ensureOwnership(UUID productId) {
-    UUID companyId = companyContext.require();
-    return productRepository.findByIdAndCompanyId(productId, companyId)
+  private Product ensureOwnership(UUID productId) {
+    companyContext.require();
+    return productRepository.findById(productId)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + productId));
   }
 }

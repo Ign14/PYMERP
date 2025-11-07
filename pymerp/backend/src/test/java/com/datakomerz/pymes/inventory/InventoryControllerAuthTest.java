@@ -1,5 +1,6 @@
 package com.datakomerz.pymes.inventory;
 
+import static com.datakomerz.pymes.testsupport.AuthTestUtils.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -9,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+ 
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -29,26 +30,30 @@ class InventoryControllerAuthTest {
 
   @Autowired
   private MockMvc mockMvc;
+  private static final String COMPANY_ID = "00000000-0000-0000-0000-000000000001";
+  private static final java.util.UUID PRODUCT_ID = java.util.UUID.randomUUID();
 
   @Test
-  @WithMockUser(roles = "READONLY")
   @DisplayName("POST /api/v1/inventory/adjust - READONLY cannot adjust inventory (403 Forbidden)")
   void testAdjustInventory_ReadonlyRole_Forbidden() throws Exception {
-    mockMvc.perform(post("/api/v1/inventory/adjust")
-        .header("X-Company-Id", UUID.randomUUID().toString())
+    mockMvc.perform(post("/api/v1/inventory/adjustments")
+        .with(readonly())
+        .header("X-Company-Id", COMPANY_ID)
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"productId\":\"" + UUID.randomUUID() + "\",\"quantity\":10}"))
+        .content("{\"productId\":\"" + PRODUCT_ID +
+                 "\",\"quantity\":10.5,\"reason\":\"stock count\",\"direction\":\"increase\"}"))
       .andExpect(status().isForbidden());
   }
 
   @Test
-  @WithMockUser(roles = "SETTINGS")
   @DisplayName("POST /api/v1/inventory/adjust - SETTINGS cannot adjust (403 Forbidden)")
   void testAdjustInventory_SettingsRole_Forbidden() throws Exception {
-    mockMvc.perform(post("/api/v1/inventory/adjust")
-        .header("X-Company-Id", UUID.randomUUID().toString())
+    mockMvc.perform(post("/api/v1/inventory/adjustments")
+        .with(settings())
+        .header("X-Company-Id", COMPANY_ID)
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"productId\":\"" + UUID.randomUUID() + "\",\"quantity\":10}"))
+        .content("{\"productId\":\"" + PRODUCT_ID +
+                 "\",\"quantity\":10.5,\"reason\":\"stock count\",\"direction\":\"increase\"}"))
       .andExpect(status().isForbidden());
   }
 }

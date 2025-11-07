@@ -1,6 +1,8 @@
 package com.datakomerz.pymes.sales;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.sales.reports.SalesReportService;
@@ -16,7 +18,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
@@ -27,16 +28,16 @@ class SalesReportServiceTest {
   private SaleRepository saleRepository;
 
   private SalesReportService service;
-  private CompanyContext companyContext;
   private UUID companyId;
+  private CompanyContext companyContext;
 
   @BeforeEach
   void setUp() {
     companyId = UUID.randomUUID();
-    companyContext = Mockito.mock(CompanyContext.class);
-    Mockito.when(companyContext.require()).thenReturn(companyId);
     Clock clock = Clock.fixed(Instant.parse("2024-05-15T12:00:00Z"), ZoneOffset.UTC);
-    service = new SalesReportService(saleRepository, companyContext, clock);
+    companyContext = mock(CompanyContext.class);
+    when(companyContext.require()).thenReturn(companyId);
+    service = new SalesReportService(saleRepository, clock, companyContext);
   }
 
   @Test

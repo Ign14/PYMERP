@@ -10,6 +10,7 @@ import com.datakomerz.pymes.products.dto.ProductRes;
 import com.datakomerz.pymes.products.dto.ProductStatusRequest;
 import com.datakomerz.pymes.products.dto.ProductStockLot;
 import com.datakomerz.pymes.products.dto.ProductStockResponse;
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.storage.StorageService;
 import com.datakomerz.pymes.storage.StorageService.StoredFile;
 import jakarta.persistence.EntityNotFoundException;
@@ -78,24 +79,24 @@ public class ProductController {
   }
 
   @GetMapping
-  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN') or hasAuthority('SCOPE_products:read')")
   public Page<ProductRes> list(@RequestParam(defaultValue = "") String q,
                                @RequestParam(defaultValue = "0") int page,
                                @RequestParam(defaultValue = "20") int size,
                                @RequestParam(defaultValue = "active") String status) {
-    UUID companyId = companyContext.require();
+    companyContext.require();
     Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
     Boolean activeFilter = resolveActiveFilter(status);
     Page<Product> products;
     String query = (q == null) ? "" : q.trim();
     if (query.isEmpty()) {
-      products = findByName(companyId, "", pageable, activeFilter);
+      products = findByName("", pageable, activeFilter);
     } else if (query.matches("^\\d+$")) {
-      products = findByBarcode(companyId, query, pageable, activeFilter);
+      products = findByBarcode(query, pageable, activeFilter);
     } else if (query.toUpperCase().startsWith("SKU-")) {
-      products = findBySku(companyId, query, pageable, activeFilter);
+      products = findBySku(query, pageable, activeFilter);
     } else {
-      products = findByName(companyId, query, pageable, activeFilter);
+      products = findByName(query, pageable, activeFilter);
     }
     return products.map(this::toResponse);
   }
@@ -121,11 +122,12 @@ public class ProductController {
 
   @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductRes update(@PathVariable UUID id,
                            @Valid @RequestPart("product") ProductReq req,
                            @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
     UUID companyId = companyContext.require();
-    Product entity = repo.findByIdAndCompanyId(id, companyId)
+    Product entity = repo.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     String previousSku = entity.getSku();
     apply(entity, req);
@@ -139,9 +141,10 @@ public class ProductController {
 
   @PatchMapping("/{id}/status")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductRes updateStatus(@PathVariable UUID id, @Valid @RequestBody ProductStatusRequest req) {
-    UUID companyId = companyContext.require();
-    Product entity = repo.findByIdAndCompanyId(id, companyId)
+    companyContext.require();
+    Product entity = repo.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     entity.setActive(req.active());
     Product saved = repo.save(entity);
@@ -150,10 +153,11 @@ public class ProductController {
 
   @PatchMapping("/{id}/inventory-alert")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductRes updateInventoryAlert(@PathVariable UUID id,
                                          @Valid @RequestBody ProductInventoryAlertRequest req) {
-    UUID companyId = companyContext.require();
-    Product entity = repo.findByIdAndCompanyId(id, companyId)
+    companyContext.require();
+    Product entity = repo.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     entity.setCriticalStock(req.criticalStock());
     Product saved = repo.save(entity);
@@ -161,10 +165,11 @@ public class ProductController {
   }
 
   @GetMapping("/{id}/qr")
+  @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ResponseEntity<Resource> getQr(@PathVariable UUID id,
                                         @RequestParam(name = "download", defaultValue = "false") boolean download) throws IOException {
     UUID companyId = companyContext.require();
-    Product entity = repo.findByIdAndCompanyId(id, companyId)
+    Product entity = repo.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     boolean regenerated = ensureQr(companyId, entity, entity.getQrUrl() == null || entity.getQrUrl().isBlank());
     if (regenerated) {
@@ -195,9 +200,10 @@ public class ProductController {
   }
 
   @GetMapping("/{id}/stock")
+  @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public ProductStockResponse stock(@PathVariable UUID id) {
-    UUID companyId = companyContext.require();
-    Product entity = repo.findByIdAndCompanyId(id, companyId)
+    companyContext.require();
+    Product entity = repo.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     List<InventoryLot> lots = inventoryService.lotsForProduct(entity.getId());
     BigDecimal total = BigDecimal.ZERO;
@@ -216,33 +222,35 @@ public class ProductController {
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
+  @PreAuthorize("hasRole('ADMIN')")
+  @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public void delete(@PathVariable UUID id) {
-    UUID companyId = companyContext.require();
-    Product entity = repo.findByIdAndCompanyId(id, companyId)
+    companyContext.require();
+    Product entity = repo.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     entity.setDeletedAt(OffsetDateTime.now());
     repo.save(entity);
   }
 
-  private Page<Product> findByName(UUID companyId, String query, Pageable pageable, Boolean activeFilter) {
+  private Page<Product> findByName(String query, Pageable pageable, Boolean activeFilter) {
     if (activeFilter == null) {
-      return repo.findByCompanyIdAndDeletedAtIsNullAndNameContainingIgnoreCase(companyId, query, pageable);
+      return repo.findByDeletedAtIsNullAndNameContainingIgnoreCase(query, pageable);
     }
-    return repo.findByCompanyIdAndDeletedAtIsNullAndActiveIsAndNameContainingIgnoreCase(companyId, activeFilter, query, pageable);
+    return repo.findByDeletedAtIsNullAndActiveIsAndNameContainingIgnoreCase(activeFilter, query, pageable);
   }
 
-  private Page<Product> findBySku(UUID companyId, String query, Pageable pageable, Boolean activeFilter) {
+  private Page<Product> findBySku(String query, Pageable pageable, Boolean activeFilter) {
     if (activeFilter == null) {
-      return repo.findByCompanyIdAndDeletedAtIsNullAndSkuContainingIgnoreCase(companyId, query, pageable);
+      return repo.findByDeletedAtIsNullAndSkuContainingIgnoreCase(query, pageable);
     }
-    return repo.findByCompanyIdAndDeletedAtIsNullAndActiveIsAndSkuContainingIgnoreCase(companyId, activeFilter, query, pageable);
+    return repo.findByDeletedAtIsNullAndActiveIsAndSkuContainingIgnoreCase(activeFilter, query, pageable);
   }
 
-  private Page<Product> findByBarcode(UUID companyId, String query, Pageable pageable, Boolean activeFilter) {
+  private Page<Product> findByBarcode(String query, Pageable pageable, Boolean activeFilter) {
     if (activeFilter == null) {
-      return repo.findByCompanyIdAndDeletedAtIsNullAndBarcode(companyId, query, pageable);
+      return repo.findByDeletedAtIsNullAndBarcode(query, pageable);
     }
-    return repo.findByCompanyIdAndDeletedAtIsNullAndActiveIsAndBarcode(companyId, activeFilter, query, pageable);
+    return repo.findByDeletedAtIsNullAndActiveIsAndBarcode(activeFilter, query, pageable);
   }
 
   private Boolean resolveActiveFilter(String status) {

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,12 +24,25 @@ import java.util.UUID;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(com.datakomerz.pymes.config.TestJwtDecoderConfig.class)
 class CompanyControllerAuthTest {
 
   @Autowired
   private MockMvc mockMvc;
 
   private static final UUID COMPANY_ID = UUID.randomUUID();
+  private static final String COMPANY_PAYLOAD = """
+      {
+        "businessName": "Updated Company",
+        "rut": "76000000-0",
+        "businessActivity": "Servicios",
+        "address": "Av. Principal 123",
+        "commune": "Santiago",
+        "phone": "+56 2 1234 5678",
+        "email": "contacto@empresa.test",
+        "receiptFooterMessage": "Gracias por su preferencia"
+      }
+      """;
 
   @Test
   @WithMockUser(roles = "ERP_USER")
@@ -37,18 +50,19 @@ class CompanyControllerAuthTest {
   void testUpdateCompany_ErpUserRole_Forbidden() throws Exception {
     mockMvc.perform(put("/api/v1/companies/{id}", COMPANY_ID)
         .header("X-Company-Id", COMPANY_ID.toString())
-        .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"name\":\"Updated Company\"}"))
+        .contentType("application/json")
+        .content(COMPANY_PAYLOAD))
       .andExpect(status().isForbidden());
   }
 
   @Test
   @WithMockUser(roles = "READONLY")
-  @DisplayName("PUT /api/v1/companies/{id}/logo - READONLY cannot update logo (403 Forbidden)")
-  void testUpdateCompanyLogo_ReadonlyRole_Forbidden() throws Exception {
-    mockMvc.perform(put("/api/v1/companies/{id}/logo", COMPANY_ID)
-        .header("X-Company-Id", COMPANY_ID.toString())
-        .contentType(MediaType.MULTIPART_FORM_DATA))
+  @DisplayName("POST /api/v1/companies - READONLY cannot create company (403 Forbidden)")
+  void testCreateCompany_ReadonlyRole_Forbidden() throws Exception {
+    mockMvc.perform(post("/api/v1/companies")
+        .header("X-Company-Id", UUID.randomUUID().toString())
+        .contentType("application/json")
+        .content(COMPANY_PAYLOAD))
       .andExpect(status().isForbidden());
   }
 }

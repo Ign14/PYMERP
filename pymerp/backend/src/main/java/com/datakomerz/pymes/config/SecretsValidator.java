@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,8 +13,11 @@ import java.util.List;
 /**
  * Validates that security-critical secrets are properly configured on application startup.
  * Prevents deployment with insecure default values.
+ * 
+ * NOTE: Temporarily disabled for dev profile to allow local development.
  */
 @Component
+@ConditionalOnProperty(name = "app.security.secrets-validation.enabled", havingValue = "true", matchIfMissing = true)
 public class SecretsValidator implements ApplicationRunner {
 
   private static final Logger log = LoggerFactory.getLogger(SecretsValidator.class);

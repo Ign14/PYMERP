@@ -1,5 +1,6 @@
 package com.datakomerz.pymes.controller;
 
+import static com.datakomerz.pymes.testsupport.AuthTestUtils.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -8,8 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,41 +26,59 @@ import java.util.UUID;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(com.datakomerz.pymes.config.TestJwtDecoderConfig.class)
 class CustomerSegmentControllerAuthTest {
 
   @Autowired
   private MockMvc mockMvc;
 
   private static final UUID SEGMENT_ID = UUID.randomUUID();
+  private static final String COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
   @Test
-  @WithMockUser(roles = "ERP_USER")
   @DisplayName("POST /api/v1/segments - ERP_USER cannot create (403 Forbidden)")
   void testCreateSegment_ErpUserRole_Forbidden() throws Exception {
-    mockMvc.perform(post("/api/v1/segments")
-        .header("X-Company-Id", UUID.randomUUID().toString())
+    mockMvc.perform(post("/api/v1/customer-segments")
+        .with(erpUser())
+        .header("X-Company-Id", COMPANY_ID)
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"name\":\"VIP Customers\"}"))
+        .content("""
+          {
+            "code": "VIP",
+            "name": "VIP Customers",
+            "description": "Premium segment",
+            "color": "#FFAA00",
+            "active": true
+          }
+          """))
       .andExpect(status().isForbidden());
   }
 
   @Test
-  @WithMockUser(roles = "READONLY")
   @DisplayName("PUT /api/v1/segments/{id} - READONLY cannot update (403 Forbidden)")
   void testUpdateSegment_ReadonlyRole_Forbidden() throws Exception {
-    mockMvc.perform(put("/api/v1/segments/{id}", SEGMENT_ID)
-        .header("X-Company-Id", UUID.randomUUID().toString())
+    mockMvc.perform(put("/api/v1/customer-segments/{id}", SEGMENT_ID)
+        .with(readonly())
+        .header("X-Company-Id", COMPANY_ID)
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"name\":\"Premium Customers\"}"))
+        .content("""
+          {
+            "code": "VIP",
+            "name": "Premium Customers",
+            "description": "Updated segment",
+            "color": "#00AACC",
+            "active": true
+          }
+          """))
       .andExpect(status().isForbidden());
   }
 
   @Test
-  @WithMockUser(roles = "SETTINGS")
   @DisplayName("DELETE /api/v1/segments/{id} - SETTINGS cannot delete (403 Forbidden)")
   void testDeleteSegment_SettingsRole_Forbidden() throws Exception {
-    mockMvc.perform(delete("/api/v1/segments/{id}", SEGMENT_ID)
-        .header("X-Company-Id", UUID.randomUUID().toString()))
+    mockMvc.perform(delete("/api/v1/customer-segments/{id}", SEGMENT_ID)
+        .with(settings())
+        .header("X-Company-Id", COMPANY_ID))
       .andExpect(status().isForbidden());
   }
 }

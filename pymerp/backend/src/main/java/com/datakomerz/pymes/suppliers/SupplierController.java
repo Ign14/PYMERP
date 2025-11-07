@@ -1,6 +1,7 @@
 package com.datakomerz.pymes.suppliers;
 
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -52,8 +53,7 @@ public class SupplierController {
     public List<Supplier> list(
         @RequestParam(required = false) String query,
         @RequestParam(required = false) Boolean active) {
-        UUID companyId = companyContext.require();
-        return repo.searchSuppliers(companyId, active, query);
+        return repo.searchSuppliers(active, query);
     }  @PostMapping
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public Supplier create(@Valid @RequestBody SupplierRequest request) {
@@ -65,8 +65,10 @@ public class SupplierController {
 
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Supplier.class)
   public Supplier update(@PathVariable UUID id, @Valid @RequestBody SupplierRequest request) {
-    Supplier supplier = ensureOwnership(id);
+    Supplier supplier = repo.findById(id)
+        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
     apply(supplier, request);
     return repo.save(supplier);
   }
@@ -74,23 +76,31 @@ public class SupplierController {
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   @PreAuthorize("hasRole('ADMIN')")
+  @ValidateTenant(entityClass = Supplier.class)
   public void delete(@PathVariable UUID id) {
-    Supplier supplier = ensureOwnership(id);
+    Supplier supplier = repo.findById(id)
+        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
     supplier.setActive(false);
     repo.save(supplier);
   }
 
   @GetMapping("/{id}/contacts")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Supplier.class)
   public List<SupplierContact> listContacts(@PathVariable UUID id) {
-    ensureOwnership(id);
+    // Verificar que el supplier existe y pertenece al tenant actual (automático via filter)
+    repo.findById(id)
+        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
     return contacts.findBySupplierId(id);
   }
 
   @PostMapping("/{id}/contacts")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Supplier.class)
   public SupplierContact addContact(@PathVariable UUID id, @Valid @RequestBody SupplierContact contact) {
-    ensureOwnership(id);
+    // Verificar que el supplier existe y pertenece al tenant actual (automático via filter)
+    repo.findById(id)
+        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
     contact.setSupplierId(id);
     return contacts.save(contact);
   }
@@ -102,8 +112,7 @@ public class SupplierController {
       @RequestParam(required = false) Boolean active,
       HttpServletResponse response) throws IOException {
 
-    UUID companyId = companyContext.require();
-    List<Supplier> suppliers = repo.searchSuppliers(companyId, active, query);
+    List<Supplier> suppliers = repo.searchSuppliers(active, query);
 
     response.setContentType("text/csv; charset=UTF-8");
     response.setHeader("Content-Disposition", "attachment; filename=\"suppliers.csv\"");
@@ -235,12 +244,6 @@ public class SupplierController {
     supplier.setEmail(normalize(request.email()));
   }
 
-  private Supplier ensureOwnership(UUID supplierId) {
-    UUID companyId = companyContext.require();
-    return repo.findByIdAndCompanyId(supplierId, companyId)
-      .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + supplierId));
-  }
-
   private String normalize(String value) {
     if (value == null) {
       return null;
@@ -254,9 +257,9 @@ public class SupplierController {
    */
   @GetMapping("/{id}/metrics")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  @ValidateTenant(entityClass = Supplier.class)
   public SupplierMetrics getSupplierMetrics(@PathVariable UUID id) {
-    UUID companyId = companyContext.require();
-    return supplierService.getSupplierMetrics(id, companyId);
+    return supplierService.getSupplierMetrics(id);
   }
 
   /**
@@ -265,8 +268,7 @@ public class SupplierController {
   @GetMapping("/alerts")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<SupplierAlert> getSupplierAlerts() {
-    UUID companyId = companyContext.require();
-    return supplierService.getSupplierAlerts(companyId);
+    return supplierService.getSupplierAlerts();
   }
 
   /**
@@ -276,8 +278,7 @@ public class SupplierController {
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<SupplierRanking> getSupplierRanking(
       @RequestParam(defaultValue = "total_purchases") String criteria) {
-    UUID companyId = companyContext.require();
-    return supplierService.getSupplierRanking(companyId, criteria);
+    return supplierService.getSupplierRanking(criteria);
   }
 
   /**
@@ -286,8 +287,7 @@ public class SupplierController {
   @GetMapping("/risk-analysis")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public SupplierRiskAnalysis analyzeSupplierRisk() {
-    UUID companyId = companyContext.require();
-    return supplierService.getRiskAnalysis(companyId);
+    return supplierService.getRiskAnalysis();
   }
 
   /**
@@ -298,8 +298,7 @@ public class SupplierController {
   public SupplierPriceHistory getSupplierPriceHistory(
       @PathVariable UUID supplierId,
       @RequestParam(required = false) UUID productId) {
-    UUID companyId = companyContext.require();
-    return supplierService.getPriceHistory(supplierId, productId, companyId);
+    return supplierService.getPriceHistory(supplierId, productId);
   }
 
   /**
@@ -308,8 +307,7 @@ public class SupplierController {
   @GetMapping("/negotiation-opportunities")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<NegotiationOpportunity> getNegotiationOpportunities() {
-    UUID companyId = companyContext.require();
-    return supplierService.getNegotiationOpportunities(companyId);
+    return supplierService.getNegotiationOpportunities();
   }
 
   /**
@@ -318,16 +316,14 @@ public class SupplierController {
   @GetMapping("/single-source-products")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<SingleSourceProduct> getSingleSourceProducts() {
-    UUID companyId = companyContext.require();
-    return supplierService.getSingleSourceProducts(companyId);
+    return supplierService.getSingleSourceProducts();
   }
 
   @GetMapping("/{supplierId}/forecast")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public ResponseEntity<?> getSupplierForecast(
       @PathVariable UUID supplierId) {
-    UUID companyId = companyContext.require();
-    PurchaseForecast forecast = supplierService.getPurchaseForecast(supplierId, companyId);
+    PurchaseForecast forecast = supplierService.getPurchaseForecast(supplierId);
     return ResponseEntity.ok(forecast);
   }
 }

@@ -61,6 +61,8 @@ management:
       enabled: false
 app:
   security:
+    secrets-validation:
+      enabled: false  # Disabled for dev to allow default secrets
     captcha:
       enabled: true
       min-operand: 2

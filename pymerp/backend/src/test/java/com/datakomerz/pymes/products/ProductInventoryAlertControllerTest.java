@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.datakomerz.pymes.config.TestJwtDecoderConfig;
 import com.datakomerz.pymes.inventory.InventoryService;
+import com.datakomerz.pymes.multitenancy.TenantValidationAspect;
 import com.datakomerz.pymes.pricing.PricingService;
 import com.datakomerz.pymes.storage.StorageService;
 import java.math.BigDecimal;
@@ -50,6 +51,9 @@ class ProductInventoryAlertControllerTest {
   @MockBean
   InventoryService inventoryService;
 
+  @MockBean
+  TenantValidationAspect tenantValidationAspect;
+
   @Test
   void updatesCriticalStock() throws Exception {
     UUID productId = UUID.randomUUID();
@@ -61,15 +65,15 @@ class ProductInventoryAlertControllerTest {
     product.setCriticalStock(BigDecimal.ZERO);
     product.setActive(Boolean.TRUE);
 
-    when(productRepository.findByIdAndCompanyId(productId, UUID.fromString(COMPANY_ID))).thenReturn(Optional.of(product));
+    when(productRepository.findById(productId)).thenReturn(Optional.of(product));
     when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
     when(pricingService.latestPrice(productId)).thenReturn(Optional.empty());
 
     mockMvc.perform(patch("/api/v1/products/{id}/inventory-alert", productId)
         .contentType(MediaType.APPLICATION_JSON)
         .content("{\"criticalStock\":5}")
-        .with(jwt().jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("erp_user"))))
-          .authorities(new SimpleGrantedAuthority("ROLE_ERP_USER")))
+        .with(jwt().jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("settings"))))
+          .authorities(new SimpleGrantedAuthority("ROLE_SETTINGS")))
         .header("X-Company-Id", COMPANY_ID))
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.criticalStock").value(5));

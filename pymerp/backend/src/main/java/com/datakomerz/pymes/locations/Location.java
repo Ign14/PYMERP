@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.locations;
 
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -11,14 +13,12 @@ import java.util.UUID;
 @Table(name = "locations", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"company_id", "code"})
 })
-public class Location {
+@TenantFiltered
+public class Location extends TenantAwareEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
-
-    @Column(name = "company_id", nullable = false)
-    private UUID companyId;
 
     @Column(nullable = false, length = 50)
     private String code;
@@ -52,14 +52,6 @@ public class Location {
 
     public void setId(UUID id) {
         this.id = id;
-    }
-
-    public UUID getCompanyId() {
-        return companyId;
-    }
-
-    public void setCompanyId(UUID companyId) {
-        this.companyId = companyId;
     }
 
     public String getCode() {

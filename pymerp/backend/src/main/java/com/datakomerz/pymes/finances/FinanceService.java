@@ -1,6 +1,5 @@
 package com.datakomerz.pymes.finances;
 
-import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.customers.CustomerRepository;
 import com.datakomerz.pymes.finances.dto.AccountPayable;
 import com.datakomerz.pymes.finances.dto.AccountReceivable;
@@ -33,34 +32,29 @@ public class FinanceService {
   private final PurchaseRepository purchaseRepository;
   private final CustomerRepository customerRepository;
   private final SupplierRepository supplierRepository;
-  private final CompanyContext companyContext;
 
   public FinanceService(
       SaleRepository saleRepository,
       PurchaseRepository purchaseRepository,
       CustomerRepository customerRepository,
-      SupplierRepository supplierRepository,
-      CompanyContext companyContext) {
+      SupplierRepository supplierRepository) {
     this.saleRepository = saleRepository;
     this.purchaseRepository = purchaseRepository;
     this.customerRepository = customerRepository;
     this.supplierRepository = supplierRepository;
-    this.companyContext = companyContext;
   }
 
   @Transactional(readOnly = true)
   public FinanceSummary getSummary() {
-    UUID companyId = companyContext.require();
-    
     // Obtener todas las ventas pendientes de pago (excluyendo canceladas)
-    List<Sale> pendingSales = saleRepository.findByCompanyIdOrderByIssuedAtDesc(companyId, Pageable.unpaged())
+    List<Sale> pendingSales = saleRepository.findAllByOrderByIssuedAtDesc(Pageable.unpaged())
         .getContent()
         .stream()
         .filter(s -> s.getStatus() != null && !"cancelled".equalsIgnoreCase(s.getStatus()))
         .toList();
     
     // Obtener todas las compras pendientes de pago (excluyendo canceladas)
-    List<Purchase> pendingPurchases = purchaseRepository.findByCompanyIdOrderByIssuedAtDesc(companyId, Pageable.unpaged())
+    List<Purchase> pendingPurchases = purchaseRepository.findAllByOrderByIssuedAtDesc(Pageable.unpaged())
         .getContent()
         .stream()
         .filter(p -> p.getStatus() != null && !"cancelled".equalsIgnoreCase(p.getStatus()))
@@ -129,9 +123,7 @@ public class FinanceService {
 
   @Transactional(readOnly = true)
   public Page<AccountReceivable> getAccountsReceivable(String status, Pageable pageable) {
-    UUID companyId = companyContext.require();
-    
-    List<Sale> sales = saleRepository.findByCompanyIdOrderByIssuedAtDesc(companyId, Pageable.unpaged())
+    List<Sale> sales = saleRepository.findAllByOrderByIssuedAtDesc(Pageable.unpaged())
         .getContent()
         .stream()
         .filter(s -> s.getStatus() != null && !"cancelled".equalsIgnoreCase(s.getStatus()))
@@ -209,9 +201,7 @@ public class FinanceService {
 
   @Transactional(readOnly = true)
   public Page<AccountPayable> getAccountsPayable(String status, Pageable pageable) {
-    UUID companyId = companyContext.require();
-    
-    List<Purchase> purchases = purchaseRepository.findByCompanyIdOrderByIssuedAtDesc(companyId, Pageable.unpaged())
+    List<Purchase> purchases = purchaseRepository.findAllByOrderByIssuedAtDesc(Pageable.unpaged())
         .getContent()
         .stream()
         .filter(p -> p.getStatus() != null && !"cancelled".equalsIgnoreCase(p.getStatus()))
@@ -289,15 +279,13 @@ public class FinanceService {
 
   @Transactional(readOnly = true)
   public List<CashflowProjection> getCashflowProjection(int days) {
-    UUID companyId = companyContext.require();
-    
-    List<Sale> sales = saleRepository.findByCompanyIdOrderByIssuedAtDesc(companyId, Pageable.unpaged())
+    List<Sale> sales = saleRepository.findAllByOrderByIssuedAtDesc(Pageable.unpaged())
         .getContent()
         .stream()
         .filter(s -> s.getStatus() != null && !"cancelled".equalsIgnoreCase(s.getStatus()))
         .toList();
     
-    List<Purchase> purchases = purchaseRepository.findByCompanyIdOrderByIssuedAtDesc(companyId, Pageable.unpaged())
+    List<Purchase> purchases = purchaseRepository.findAllByOrderByIssuedAtDesc(Pageable.unpaged())
         .getContent()
         .stream()
         .filter(p -> p.getStatus() != null && !"cancelled".equalsIgnoreCase(p.getStatus()))

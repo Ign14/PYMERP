@@ -1,20 +1,21 @@
 package com.datakomerz.pymes.products;
 
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
+import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
 import jakarta.persistence.*;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "products", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id","sku"}))
-public class Product {
+@TenantFiltered
+public class Product extends TenantAwareEntity {
 
   @Id
   @Column(columnDefinition = "uuid")
   private UUID id;
-
-  @Column(name = "company_id", nullable = false, columnDefinition = "uuid")
-  private UUID companyId;
 
   @Column(nullable = false, length = 32)
   private String sku;
@@ -91,14 +92,6 @@ public class Product {
 
   public void setId(UUID id) {
     this.id = id;
-  }
-
-  public UUID getCompanyId() {
-    return companyId;
-  }
-
-  public void setCompanyId(UUID companyId) {
-    this.companyId = companyId;
   }
 
   public String getSku() {

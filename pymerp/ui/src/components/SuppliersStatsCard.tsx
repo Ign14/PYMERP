@@ -20,9 +20,20 @@ export default function SuppliersStatsCard() {
     const total = suppliers.length
     const active = suppliers.filter(s => s.active !== false).length
     const inactive = total - active
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
 
-    // Calcular tendencia (simulada para primera versión - se puede mejorar con datos históricos)
-    const newThisMonth = 0 // TODO: agregar campo createdAt en frontend para calcular
+    const newThisMonth = suppliers.filter(supplier => {
+      if (!supplier.createdAt) {
+        return false
+      }
+      const createdAt = new Date(supplier.createdAt)
+      if (Number.isNaN(createdAt.getTime())) {
+        return false
+      }
+      return createdAt >= startOfMonth
+    }).length
 
     return { total, active, inactive, newThisMonth }
   }, [suppliersQuery.data])

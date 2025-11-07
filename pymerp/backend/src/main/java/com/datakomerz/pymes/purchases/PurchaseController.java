@@ -1,5 +1,6 @@
 package com.datakomerz.pymes.purchases;
 
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.purchases.dto.PurchaseDailyPoint;
 import com.datakomerz.pymes.purchases.dto.PurchaseReq;
 import com.datakomerz.pymes.purchases.dto.PurchaseSummary;
@@ -64,12 +65,14 @@ public class PurchaseController {
 
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
+  @ValidateTenant(entityClass = Purchase.class)
   public PurchaseSummary update(@PathVariable UUID id, @RequestBody PurchaseUpdateRequest req) {
     return service.update(id, req);
   }
 
   @PostMapping("/{id}/cancel")
   @PreAuthorize("hasRole('ADMIN')")
+  @ValidateTenant(entityClass = Purchase.class)
   public PurchaseSummary cancel(@PathVariable UUID id) {
     return service.cancel(id);
   }

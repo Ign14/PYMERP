@@ -22,15 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class SalesReportService {
 
   private final SaleRepository saleRepository;
-  private final CompanyContext companyContext;
   private final Clock clock;
+  private final CompanyContext companyContext;
 
   public SalesReportService(SaleRepository saleRepository,
-                            CompanyContext companyContext,
-                            Clock clock) {
+                            Clock clock,
+                            CompanyContext companyContext) {
     this.saleRepository = saleRepository;
-    this.companyContext = companyContext;
     this.clock = clock;
+    this.companyContext = companyContext;
   }
 
   public SalesSummaryReport getSummary(int days) {
@@ -59,7 +59,7 @@ public class SalesReportService {
     OffsetDateTime toExclusive = end.plusDays(1L).atStartOfDay(zone).toOffsetDateTime();
 
     List<Sale> range = saleRepository
-      .findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(companyId, from);
+      .findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(from);
 
     Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
     LocalDate cursor = start;
@@ -73,6 +73,10 @@ public class SalesReportService {
         continue;
       }
       if (!sale.getIssuedAt().isBefore(toExclusive)) {
+        continue;
+      }
+      // Filtrar por companyId
+      if (!companyId.equals(sale.getCompanyId())) {
         continue;
       }
       if (isCancelled(sale.getStatus())) {

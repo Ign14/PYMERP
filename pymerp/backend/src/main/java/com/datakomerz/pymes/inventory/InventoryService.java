@@ -180,8 +180,8 @@ public class InventoryService {
   public InventorySummary summary() {
     UUID companyId = companyContext.require();
     BigDecimal totalValue = lots.sumInventoryValue(companyId);
-    long active = productRepository.countByCompanyIdAndDeletedAtIsNullAndActiveTrue(companyId);
-    long inactive = productRepository.countByCompanyIdAndDeletedAtIsNullAndActiveFalse(companyId);
+    long active = productRepository.countByDeletedAtIsNullAndActiveTrue();
+    long inactive = productRepository.countByDeletedAtIsNullAndActiveFalse();
     long total = active + inactive;
     InventorySettings settings = ensureSettings(companyId);
     BigDecimal threshold = settings.getLowStockThreshold();
@@ -391,7 +391,7 @@ public class InventoryService {
   }
 
   private void validateProductBelongsToCompany(UUID productId, UUID companyId) {
-    boolean exists = productRepository.findByIdAndCompanyId(productId, companyId).isPresent();
+    boolean exists = productRepository.findById(productId).isPresent();
     if (!exists) {
       throw new IllegalArgumentException("Product not found for company: " + productId);
     }
@@ -457,7 +457,7 @@ public class InventoryService {
     BigDecimal totalInventoryValue = lots.sumInventoryValue(companyId);
     
     // Productos activos
-    long activeProducts = productRepository.countByCompanyIdAndDeletedAtIsNullAndActiveTrue(companyId);
+    long activeProducts = productRepository.countByDeletedAtIsNullAndActiveTrue();
     
     // Stock crítico
     InventorySettings settings = ensureSettings(companyId);
@@ -939,4 +939,3 @@ public class InventoryService {
     return forecasts;
   }
 }
-

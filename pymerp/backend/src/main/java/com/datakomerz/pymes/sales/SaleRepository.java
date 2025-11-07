@@ -2,7 +2,6 @@ package com.datakomerz.pymes.sales;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,9 +13,8 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
   @Query("""
       SELECT s
       FROM Sale s
-      LEFT JOIN Customer c ON c.id = s.customerId AND c.companyId = :companyId
-      WHERE s.companyId = :companyId
-        AND (:status IS NULL OR lower(s.status) = lower(:status))
+      LEFT JOIN Customer c ON c.id = s.customerId
+      WHERE (:status IS NULL OR lower(s.status) = lower(:status))
         AND (:docType IS NULL OR lower(s.docType) = lower(:docType))
         AND (:paymentMethod IS NULL OR lower(s.paymentMethod) = lower(:paymentMethod))
         AND (:from IS NULL OR s.issuedAt >= :from)
@@ -30,8 +28,7 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
         )
       ORDER BY s.issuedAt DESC
     """)
-  Page<Sale> search(@Param("companyId") UUID companyId,
-                    @Param("status") String status,
+  Page<Sale> search(@Param("status") String status,
                     @Param("docType") String docType,
                     @Param("paymentMethod") String paymentMethod,
                     @Param("search") String search,
@@ -39,28 +36,26 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
                     @Param("to") OffsetDateTime to,
                     Pageable pageable);
 
-  List<Sale> findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(UUID companyId, OffsetDateTime issuedAt);
+  List<Sale> findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(OffsetDateTime issuedAt);
 
-  List<Sale> findByCompanyIdAndIssuedAtBetweenOrderByIssuedAtAsc(UUID companyId, OffsetDateTime from, OffsetDateTime to);
+  List<Sale> findByIssuedAtBetweenOrderByIssuedAtAsc(OffsetDateTime from, OffsetDateTime to);
 
-  Page<Sale> findByCompanyIdOrderByIssuedAtDesc(UUID companyId, Pageable pageable);
-
-  Optional<Sale> findByIdAndCompanyId(UUID id, UUID companyId);
+  Page<Sale> findAllByOrderByIssuedAtDesc(Pageable pageable);
 
   // Customer-specific queries
-  Page<Sale> findByCompanyIdAndCustomerIdOrderByIssuedAtDesc(UUID companyId, UUID customerId, Pageable pageable);
+  Page<Sale> findByCustomerIdOrderByIssuedAtDesc(UUID customerId, Pageable pageable);
 
   @Query("""
       SELECT COUNT(s)
       FROM Sale s
-      WHERE s.companyId = :companyId AND s.customerId = :customerId
+      WHERE s.customerId = :customerId
     """)
-  Integer countByCompanyIdAndCustomerId(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId);
+  Integer countByCustomerId(@Param("customerId") UUID customerId);
 
   @Query("""
       SELECT COALESCE(SUM(s.total), 0)
       FROM Sale s
-      WHERE s.companyId = :companyId AND s.customerId = :customerId
+      WHERE s.customerId = :customerId
     """)
-  java.math.BigDecimal sumTotalByCompanyIdAndCustomerId(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId);
+  java.math.BigDecimal sumTotalByCustomerId(@Param("customerId") UUID customerId);
 }

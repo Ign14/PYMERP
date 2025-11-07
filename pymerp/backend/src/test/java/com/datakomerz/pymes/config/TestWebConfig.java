@@ -17,7 +17,7 @@ public class TestWebConfig implements WebMvcConfigurer {
   @Override
   public void addInterceptors(@NonNull InterceptorRegistry registry) {
     // Intencionalmente vacío - no agregar interceptors en tests
-    // Esto sobrescribe el WebConfig.addInterceptors() para evitar que el AuditInterceptor
-    // interfiera con los tests de integración
+    // Esto sobrescribe el WebConfig.addInterceptors() para evitar que TenantInterceptor
+    // y AuditInterceptor interfieran con los tests de integración
   }
 }

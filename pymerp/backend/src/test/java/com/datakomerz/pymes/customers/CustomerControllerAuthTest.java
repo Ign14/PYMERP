@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -28,6 +29,7 @@ import java.util.UUID;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(com.datakomerz.pymes.config.TestJwtDecoderConfig.class)
 class CustomerControllerAuthTest {
 
   @Autowired
@@ -47,13 +49,25 @@ class CustomerControllerAuthTest {
   }
 
   @Test
-  @WithMockUser(roles = "ERP_USER")
-  @DisplayName("POST /api/v1/customers - ERP_USER cannot create (403 Forbidden)")
-  void testCreateCustomer_ErpUserRole_Forbidden() throws Exception {
+  @WithMockUser(roles = "READONLY")
+  @DisplayName("POST /api/v1/customers - READONLY payload completo sigue prohibido (403 Forbidden)")
+  void testCreateCustomer_ReadonlyRole_FullPayload_Forbidden() throws Exception {
     mockMvc.perform(post("/api/v1/customers")
         .header("X-Company-Id", UUID.randomUUID().toString())
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"name\":\"New Customer\"}"))
+        .content("""
+            {
+              "name": "Cliente Test",
+              "rut": "12.345.678-9",
+              "address": "Calle 123",
+              "phone": "+56 9 1234 5678",
+              "email": "cliente@test.com",
+              "segment": "VIP",
+              "contactPerson": "Juan Perez",
+              "notes": "Sin notas",
+              "active": true
+            }
+            """))
       .andExpect(status().isForbidden());
   }
 

@@ -61,6 +61,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.context.support.WithMockUser;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -68,6 +69,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 @TestPropertySource(properties = {
     "billing.offline.enabled=true"
 })
+@WithMockUser(roles = "ERP_USER")
 class BillingOfflineFlowIT {
 
   @Autowired
@@ -117,7 +119,7 @@ class BillingOfflineFlowIT {
           sync_attempts INT NOT NULL DEFAULT 0,
           last_sync_at TIMESTAMP,
           error_detail VARCHAR(255),
-          encrypted_blob BLOB,
+          encrypted_blob BYTEA,
           created_at TIMESTAMP NOT NULL,
           updated_at TIMESTAMP NOT NULL
         )

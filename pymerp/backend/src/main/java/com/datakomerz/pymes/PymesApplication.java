@@ -18,7 +18,10 @@ import com.datakomerz.pymes.config.AppProperties;
 
 @SpringBootApplication
 @EntityScan(basePackages = {"com.datakomerz.pymes", "com.company.billing.persistence"})
-@EnableJpaRepositories(basePackages = {"com.datakomerz.pymes", "com.company.billing.persistence"})
+@EnableJpaRepositories(
+    basePackages = {"com.datakomerz.pymes", "com.company.billing.persistence"},
+    repositoryBaseClass = com.datakomerz.pymes.multitenancy.TenantAwareJpaRepository.class
+)
 @EnableConfigurationProperties({
     AppProperties.class,
     CryptoProperties.class,

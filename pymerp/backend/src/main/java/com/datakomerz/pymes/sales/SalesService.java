@@ -101,7 +101,7 @@ public class SalesService {
       inventory.consumeFIFO(sale.getId(), item.productId(), item.qty(), item.locationId(), item.lotId());
     }
 
-    String customerName = resolveCustomerName(companyId, sale.getCustomerId());
+    String customerName = resolveCustomerName(sale.getCustomerId());
     return mapToRes(sale, customerName);
   }
 
@@ -113,10 +113,8 @@ public class SalesService {
                                 OffsetDateTime from,
                                 OffsetDateTime to,
                                 Pageable pageable) {
-    UUID companyId = companyContext.require();
     Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("issuedAt").descending());
     Page<Sale> page = sales.search(
-      companyId,
       emptyToNull(status),
       emptyToNull(docType),
       emptyToNull(paymentMethod),
@@ -125,30 +123,32 @@ public class SalesService {
       to,
       sorted
     );
-    Map<UUID, String> customerNames = resolveCustomerNames(companyId, page.getContent());
+    Map<UUID, String> customerNames = resolveCustomerNames(page.getContent());
     return page.map(sale -> mapToSummary(sale, customerNames));
   }
 
   @Transactional(readOnly = true)
   public SaleDetail detail(UUID id) {
-    UUID companyId = companyContext.require();
-    Sale sale = sales.findByIdAndCompanyId(id, companyId)
+    Sale sale = sales.findById(id)
       .orElseThrow(() -> new IllegalStateException("Sale not found: " + id));
 
     List<SaleItem> saleItems = items.findBySaleId(sale.getId());
-    Map<UUID, Product> productIndex = resolveProducts(companyId, saleItems);
+    Map<UUID, Product> productIndex = resolveProducts(saleItems);
     List<SaleDetailLine> lines = saleItems.stream()
       .map(item -> toDetailLine(item, productIndex))
       .toList();
 
-    String customerName = resolveCustomerName(companyId, sale.getCustomerId());
+    String customerName = resolveCustomerName(sale.getCustomerId());
     SaleDetailCustomer customerDto = sale.getCustomerId() == null
       ? null
       : new SaleDetailCustomer(sale.getCustomerId(), customerName);
 
-    String companyName = companies.findById(companyId)
-      .map(com.datakomerz.pymes.company.Company::getBusinessName)
-      .orElse("PyMEs Suite");
+    UUID companyId = sale.getCompanyId();
+    String companyName = companyId != null
+      ? companies.findById(companyId)
+        .map(com.datakomerz.pymes.company.Company::getBusinessName)
+        .orElse("PyMEs Suite")
+      : "PyMEs Suite";
 
     String ticket = ThermalTicketFormatter.build(companyName, sale, customerName, lines);
 
@@ -169,12 +169,11 @@ public class SalesService {
 
   @Transactional
   public SaleRes update(UUID id, SaleUpdateRequest req) {
-    UUID companyId = companyContext.require();
-    Sale sale = sales.findByIdAndCompanyId(id, companyId)
+    Sale sale = sales.findById(id)
       .orElseThrow(() -> new IllegalStateException("Sale not found: " + id));
 
     if (req == null) {
-      String customerName = resolveCustomerName(companyId, sale.getCustomerId());
+      String customerName = resolveCustomerName(sale.getCustomerId());
       return mapToRes(sale, customerName);
     }
 
@@ -194,33 +193,31 @@ public class SalesService {
     }
 
     sales.save(sale);
-    String customerName = resolveCustomerName(companyId, sale.getCustomerId());
+    String customerName = resolveCustomerName(sale.getCustomerId());
     return mapToRes(sale, customerName);
   }
 
   @Transactional
   public SaleRes cancel(UUID id) {
-    UUID companyId = companyContext.require();
-    Sale sale = sales.findByIdAndCompanyId(id, companyId)
+    Sale sale = sales.findById(id)
       .orElseThrow(() -> new IllegalStateException("Sale not found: " + id));
 
     if ("cancelled".equalsIgnoreCase(sale.getStatus())) {
-      String customerName = resolveCustomerName(companyId, sale.getCustomerId());
+      String customerName = resolveCustomerName(sale.getCustomerId());
       return mapToRes(sale, customerName);
     }
 
     inventory.restockSale(sale.getId());
     sale.setStatus("cancelled");
     sales.save(sale);
-    String customerName = resolveCustomerName(companyId, sale.getCustomerId());
+    String customerName = resolveCustomerName(sale.getCustomerId());
     return mapToRes(sale, customerName);
   }
 
   @Transactional(readOnly = true)
   public List<SalesDailyPoint> dailyMetrics(int days) {
-    UUID companyId = companyContext.require();
     OffsetDateTime from = OffsetDateTime.now().minusDays(days);
-    List<Sale> range = sales.findByCompanyIdAndIssuedAtGreaterThanEqualOrderByIssuedAtAsc(companyId, from);
+    List<Sale> range = sales.findByIssuedAtGreaterThanEqualOrderByIssuedAtAsc(from);
 
     return range.stream()
       .collect(Collectors.groupingBy(s -> s.getIssuedAt().toLocalDate()))
@@ -238,11 +235,10 @@ public class SalesService {
 
   @Transactional(readOnly = true)
   public List<SalesDailyPoint> dailyMetricsByRange(LocalDate from, LocalDate to) {
-    UUID companyId = companyContext.require();
     OffsetDateTime fromDateTime = from.atStartOfDay().atOffset(OffsetDateTime.now().getOffset());
     OffsetDateTime toDateTime = to.plusDays(1).atStartOfDay().atOffset(OffsetDateTime.now().getOffset());
     
-    List<Sale> range = sales.findByCompanyIdAndIssuedAtBetweenOrderByIssuedAtAsc(companyId, fromDateTime, toDateTime);
+    List<Sale> range = sales.findByIssuedAtBetweenOrderByIssuedAtAsc(fromDateTime, toDateTime);
 
     return range.stream()
       .collect(Collectors.groupingBy(s -> s.getIssuedAt().toLocalDate()))
@@ -304,17 +300,15 @@ public class SalesService {
     return discount == null ? BigDecimal.ZERO : discount;
   }
 
-  private String resolveCustomerName(UUID companyId, UUID customerId) {
+  private String resolveCustomerName(UUID customerId) {
     if (customerId == null) {
       return null;
     }
     Optional<Customer> customer = customers.findById(customerId);
-    return customer.filter(c -> companyId.equals(c.getCompanyId()))
-      .map(Customer::getName)
-      .orElse(null);
+    return customer.map(Customer::getName).orElse(null);
   }
 
-  private Map<UUID, String> resolveCustomerNames(UUID companyId, Collection<Sale> saleCollection) {
+  private Map<UUID, String> resolveCustomerNames(Collection<Sale> saleCollection) {
     Set<UUID> ids = saleCollection.stream()
       .map(Sale::getCustomerId)
       .filter(Objects::nonNull)
@@ -323,15 +317,11 @@ public class SalesService {
       return Collections.emptyMap();
     }
     Map<UUID, String> map = new HashMap<>();
-    customers.findAllById(ids).forEach(customer -> {
-      if (companyId.equals(customer.getCompanyId())) {
-        map.put(customer.getId(), customer.getName());
-      }
-    });
+    customers.findAllById(ids).forEach(customer -> map.put(customer.getId(), customer.getName()));
     return map;
   }
 
-  private Map<UUID, Product> resolveProducts(UUID companyId, List<SaleItem> saleItems) {
+  private Map<UUID, Product> resolveProducts(List<SaleItem> saleItems) {
     Set<UUID> productIds = saleItems.stream()
       .map(SaleItem::getProductId)
       .filter(Objects::nonNull)
@@ -340,11 +330,7 @@ public class SalesService {
       return Collections.emptyMap();
     }
     Map<UUID, Product> productMap = new HashMap<>();
-    products.findAllById(productIds).forEach(product -> {
-      if (companyId.equals(product.getCompanyId())) {
-        productMap.put(product.getId(), product);
-      }
-    });
+    products.findAllById(productIds).forEach(product -> productMap.put(product.getId(), product));
     return productMap;
   }
 
@@ -371,11 +357,8 @@ public class SalesService {
    * @return SalesKPIs con métricas del período
    */
   public com.datakomerz.pymes.sales.dto.SalesKPIs getSalesKPIs(LocalDate startDate, LocalDate endDate) {
-    UUID companyId = companyContext.require();
-    
     // Obtener todas las ventas del período
     List<Sale> periodSales = sales.findAll().stream()
-        .filter(s -> s.getCompanyId().equals(companyId))
         .filter(s -> s.getIssuedAt() != null)
         .filter(s -> {
           LocalDate saleDate = s.getIssuedAt().toLocalDate();
@@ -419,7 +402,6 @@ public class SalesService {
     // Sales Growth (comparar con período anterior)
     LocalDate prevStartDate = startDate.minusDays(endDate.toEpochDay() - startDate.toEpochDay() + 1);
     List<Sale> prevPeriodSales = sales.findAll().stream()
-        .filter(s -> s.getCompanyId().equals(companyId))
         .filter(s -> "emitida".equalsIgnoreCase(s.getStatus()))
         .filter(s -> s.getIssuedAt() != null)
         .filter(s -> {
@@ -548,14 +530,11 @@ public class SalesService {
    * Clasifica productos en A (80% de ingresos), B (15%), C (5%)
    */
   public List<com.datakomerz.pymes.sales.dto.SaleABCClassification> getSalesABCAnalysis(LocalDate startDate, LocalDate endDate) {
-    UUID companyId = companyContext.require();
-    
     OffsetDateTime start = startDate.atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime();
     OffsetDateTime end = endDate.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime();
     
     // Obtener ventas emitidas del período
     List<Sale> periodSales = sales.findAll().stream()
-        .filter(s -> s.getCompanyId().equals(companyId))
         .filter(s -> s.getIssuedAt() != null)
         .filter(s -> !s.getIssuedAt().isBefore(start) && s.getIssuedAt().isBefore(end))
         .filter(s -> "emitida".equalsIgnoreCase(s.getStatus()))
@@ -703,11 +682,8 @@ public class SalesService {
   }
 
   public List<com.datakomerz.pymes.sales.dto.SaleForecast> getSalesForecast(LocalDate startDate, LocalDate endDate, int horizonDays) {
-    UUID companyId = companyContext.require();
-    
     // Filtrar ventas emitidas en el período (usando el mismo patrón que getSalesKPIs)
     List<Sale> allSales = sales.findAll().stream()
-        .filter(s -> s.getCompanyId().equals(companyId))
         .filter(s -> "emitida".equals(s.getStatus()))
         .filter(s -> s.getIssuedAt() != null)
         .filter(s -> {

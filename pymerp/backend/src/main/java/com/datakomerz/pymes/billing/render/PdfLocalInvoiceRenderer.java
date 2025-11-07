@@ -113,7 +113,7 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     Company company = companyRepository.findById(sale.getCompanyId())
         .orElseThrow(() -> new LocalInvoiceRenderingException("Company not found for sale " + sale.getId()));
     Customer customer = Optional.ofNullable(sale.getCustomerId())
-        .flatMap(customerId -> customerRepository.findByIdAndCompanyId(customerId, sale.getCompanyId()))
+        .flatMap(customerRepository::findById)
         .orElse(null);
 
     List<SaleItem> saleItems = saleItemRepository.findBySaleId(sale.getId());
@@ -156,7 +156,7 @@ public class PdfLocalInvoiceRenderer implements LocalInvoiceRenderer {
     Company company = companyRepository.findById(sale.getCompanyId())
         .orElseThrow(() -> new LocalInvoiceRenderingException("Company not found for sale " + sale.getId()));
     Customer customer = Optional.ofNullable(sale.getCustomerId())
-        .flatMap(customerId -> customerRepository.findByIdAndCompanyId(customerId, sale.getCompanyId()))
+        .flatMap(customerRepository::findById)
         .orElse(null);
 
     List<SaleItem> saleItems = saleItemRepository.findBySaleId(sale.getId());
