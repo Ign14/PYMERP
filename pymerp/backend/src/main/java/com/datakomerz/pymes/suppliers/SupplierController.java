@@ -17,6 +17,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -52,25 +53,29 @@ public class SupplierController {
     @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public List<Supplier> list(
         @RequestParam(required = false) String query,
-        @RequestParam(required = false) Boolean active) {
-        return repo.searchSuppliers(active, query);
+        @RequestParam(required = false) Boolean active,
+        @RequestParam(required = false) Integer page,
+        @RequestParam(required = false) Integer size) {
+        UUID companyId = companyContext.require();
+        Pageable pageable = resolvePageable(page, size);
+        return supplierService.findAll(companyId, active, query, pageable).getContent();
     }  @PostMapping
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   public Supplier create(@Valid @RequestBody SupplierRequest request) {
     Supplier supplier = new Supplier();
     supplier.setCompanyId(companyContext.require());
     apply(supplier, request);
-    return repo.save(supplier);
+    return supplierService.saveSupplier(supplier);
   }
 
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   @ValidateTenant(entityClass = Supplier.class)
   public Supplier update(@PathVariable UUID id, @Valid @RequestBody SupplierRequest request) {
-    Supplier supplier = repo.findById(id)
-        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
+    UUID companyId = companyContext.require();
+    Supplier supplier = supplierService.findSupplier(companyId, id);
     apply(supplier, request);
-    return repo.save(supplier);
+    return supplierService.saveSupplier(supplier);
   }
 
   @DeleteMapping("/{id}")
@@ -78,10 +83,8 @@ public class SupplierController {
   @PreAuthorize("hasRole('ADMIN')")
   @ValidateTenant(entityClass = Supplier.class)
   public void delete(@PathVariable UUID id) {
-    Supplier supplier = repo.findById(id)
-        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
-    supplier.setActive(false);
-    repo.save(supplier);
+    UUID companyId = companyContext.require();
+    supplierService.deleteSupplier(companyId, id);
   }
 
   @GetMapping("/{id}/contacts")
@@ -89,8 +92,7 @@ public class SupplierController {
   @ValidateTenant(entityClass = Supplier.class)
   public List<SupplierContact> listContacts(@PathVariable UUID id) {
     // Verificar que el supplier existe y pertenece al tenant actual (automático via filter)
-    repo.findById(id)
-        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
+    supplierService.findSupplier(companyContext.require(), id);
     return contacts.findBySupplierId(id);
   }
 
@@ -99,8 +101,7 @@ public class SupplierController {
   @ValidateTenant(entityClass = Supplier.class)
   public SupplierContact addContact(@PathVariable UUID id, @Valid @RequestBody SupplierContact contact) {
     // Verificar que el supplier existe y pertenece al tenant actual (automático via filter)
-    repo.findById(id)
-        .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
+    supplierService.findSupplier(companyContext.require(), id);
     contact.setSupplierId(id);
     return contacts.save(contact);
   }
@@ -112,7 +113,8 @@ public class SupplierController {
       @RequestParam(required = false) Boolean active,
       HttpServletResponse response) throws IOException {
 
-    List<Supplier> suppliers = repo.searchSuppliers(active, query);
+    UUID companyId = companyContext.require();
+    List<Supplier> suppliers = supplierService.findAll(companyId, active, query, Pageable.unpaged()).getContent();
 
     response.setContentType("text/csv; charset=UTF-8");
     response.setHeader("Content-Disposition", "attachment; filename=\"suppliers.csv\"");
@@ -181,7 +183,7 @@ public class SupplierController {
           Supplier supplier = new Supplier();
           supplier.setCompanyId(companyContext.require());
           apply(supplier, request);
-          repo.save(supplier);
+          supplierService.saveSupplier(supplier);
           created++;
         } catch (Exception e) {
           errors.add(Map.of("line", lineNumber, "error", e.getMessage()));
@@ -250,6 +252,15 @@ public class SupplierController {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private Pageable resolvePageable(Integer page, Integer size) {
+    if (size == null) {
+      return Pageable.unpaged();
+    }
+    int pageIndex = page == null ? 0 : Math.max(page, 0);
+    int pageSize = Math.max(1, Math.min(size, 200));
+    return PageRequest.of(pageIndex, pageSize, Sort.by("name").ascending());
   }
 
   /**

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+  Page<Product> findByDeletedAtIsNullAndActiveIsTrue(Pageable pageable);
   Page<Product> findByDeletedAtIsNullAndNameContainingIgnoreCase(String q, Pageable pageable);
   Page<Product> findByDeletedAtIsNullAndSkuContainingIgnoreCase(String q, Pageable pageable);
   Page<Product> findByDeletedAtIsNullAndBarcode(String barcode, Pageable pageable);

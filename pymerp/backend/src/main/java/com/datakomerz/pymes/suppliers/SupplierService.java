@@ -6,9 +6,7 @@ import com.datakomerz.pymes.purchases.Purchase;
 import com.datakomerz.pymes.purchases.PurchaseRepository;
 import com.datakomerz.pymes.purchases.PurchaseItem;
 import com.datakomerz.pymes.purchases.PurchaseItemRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -16,6 +14,14 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -26,7 +32,7 @@ public class SupplierService {
   private final PurchaseItemRepository purchaseItemRepository;
   private final ProductRepository productRepository;
 
-  public SupplierService(SupplierRepository supplierRepository, 
+  public SupplierService(SupplierRepository supplierRepository,
                         PurchaseRepository purchaseRepository,
                         PurchaseItemRepository purchaseItemRepository,
                         ProductRepository productRepository) {
@@ -34,6 +40,41 @@ public class SupplierService {
     this.purchaseRepository = purchaseRepository;
     this.purchaseItemRepository = purchaseItemRepository;
     this.productRepository = productRepository;
+  }
+
+  @Cacheable(value = "suppliers", key = "#companyId + ':' + #id")
+  public Supplier findSupplier(UUID companyId, UUID id) {
+    return supplierRepository.findById(id)
+      .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
+  }
+
+  @Cacheable(
+    value = "suppliers",
+    key = "#companyId + ':all:' + ((#pageable != null && #pageable.isPaged()) ? #pageable.pageNumber : 0)"
+  )
+  public Page<Supplier> findAll(UUID companyId, Boolean active, String query, Pageable pageable) {
+    Pageable effectivePageable = pageable == null ? Pageable.unpaged() : pageable;
+    String normalizedQuery = query == null ? null : query.trim();
+    String effectiveQuery = (normalizedQuery == null || normalizedQuery.isBlank()) ? null : normalizedQuery;
+    return supplierRepository.searchSuppliers(active, effectiveQuery, effectivePageable);
+  }
+
+  @CacheEvict(value = "suppliers", allEntries = true)
+  @Transactional
+  public Supplier saveSupplier(Supplier supplier) {
+    return supplierRepository.save(supplier);
+  }
+
+  @Caching(evict = {
+    @CacheEvict(value = "suppliers", key = "#companyId + ':' + #id"),
+    @CacheEvict(value = "suppliers", allEntries = true)
+  })
+  @Transactional
+  public void deleteSupplier(UUID companyId, UUID id) {
+    Supplier supplier = supplierRepository.findById(id)
+      .orElseThrow(() -> new EntityNotFoundException("Supplier not found: " + id));
+    supplier.setActive(false);
+    supplierRepository.save(supplier);
   }
 
   /**
