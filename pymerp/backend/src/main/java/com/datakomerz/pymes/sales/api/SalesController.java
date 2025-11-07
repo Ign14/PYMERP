@@ -41,9 +41,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Sales", description = "Gestión de ventas y facturación")
 @RestController
 @RequestMapping("/api/v1/sales")
+@SecurityRequirement(name = "bearerAuth")
 public class SalesController {
 
   private final CreateSaleUseCase createSaleUseCase;
@@ -76,6 +87,16 @@ public class SalesController {
     this.salesService = salesService;
   }
 
+  @Operation(
+    summary = "Crear venta",
+    description = "Registra una nueva venta con sus ítems, impuestos y método de pago."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "201", description = "Venta creada", content = @Content(schema = @Schema(implementation = SaleRes.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
@@ -83,67 +104,172 @@ public class SalesController {
     return createSaleUseCase.handle(req);
   }
 
+  @Operation(
+    summary = "Actualizar venta",
+    description = "Modifica montos, estados o metadatos de una venta existente."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Venta actualizada", content = @Content(schema = @Schema(implementation = SaleRes.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Venta no encontrada")
+  })
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   @ValidateTenant(entityClass = Sale.class)
-  public SaleRes update(@PathVariable UUID id, @RequestBody SaleUpdateRequest req) {
+  public SaleRes update(
+      @Parameter(description = "ID de la venta a actualizar", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+      @PathVariable UUID id,
+      @RequestBody SaleUpdateRequest req) {
     return updateSaleUseCase.handle(id, req);
   }
 
+  @Operation(
+    summary = "Anular venta",
+    description = "Cancela una venta emitida y revierte su impacto financiero."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Venta anulada", content = @Content(schema = @Schema(implementation = SaleRes.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Venta no encontrada")
+  })
   @PostMapping("/{id}/cancel")
   @PreAuthorize("hasRole('ADMIN')")
   @ValidateTenant(entityClass = Sale.class)
-  public SaleRes cancel(@PathVariable UUID id) {
+  public SaleRes cancel(
+      @Parameter(description = "ID de la venta a anular", required = true)
+      @PathVariable UUID id) {
     return cancelSaleUseCase.handle(id);
   }
 
+  @Operation(
+    summary = "Listar ventas",
+    description = "Retorna las ventas de la empresa con filtros por estado, documento, método de pago y rango de fechas."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Página de ventas", content = @Content(schema = @Schema(implementation = Page.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
-  public Page<SaleSummary> list(@RequestParam(defaultValue = "0") int page,
+  public Page<SaleSummary> list(
+                                @Parameter(description = "Número de página (0-index)", example = "0")
+                                @RequestParam(defaultValue = "0") int page,
+                                @Parameter(description = "Tamaño de página", example = "10")
                                 @RequestParam(defaultValue = "10") int size,
+                                @Parameter(description = "Estado del documento (Ej: COMPLETED, DRAFT)", example = "COMPLETED")
                                 @RequestParam(required = false) String status,
+                                @Parameter(description = "Tipo de documento (Ej: FACTURA, BOLETA)", example = "FACTURA")
                                 @RequestParam(required = false) String docType,
+                                @Parameter(description = "Método de pago (Ej: TRANSFER, CASH)", example = "TRANSFER")
                                 @RequestParam(required = false) String paymentMethod,
+                                @Parameter(description = "Texto para buscar por cliente o folio", example = "Acme Ltda.")
                                 @RequestParam(required = false) String search,
+                                @Parameter(description = "Fecha inicial en ISO 8601", example = "2024-01-01T00:00:00Z")
                                 @RequestParam(required = false)
                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                                 OffsetDateTime from,
+                                @Parameter(description = "Fecha final en ISO 8601", example = "2024-01-31T23:59:59Z")
                                 @RequestParam(required = false)
                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                                 OffsetDateTime to) {
     return listSalesUseCase.handle(status, docType, paymentMethod, search, from, to, page, size);
   }
 
+  @Operation(
+    summary = "Obtener venta por ID",
+    description = "Devuelve el detalle completo de una venta específica."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Venta encontrada", content = @Content(schema = @Schema(implementation = SaleDetail.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Venta no encontrada")
+  })
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   @ValidateTenant(entityClass = Sale.class)
-  public SaleDetail detail(@PathVariable UUID id) {
+  public SaleDetail detail(
+      @Parameter(description = "ID de la venta", required = true)
+      @PathVariable UUID id) {
     return getSaleDetailUseCase.handle(id);
   }
 
+  @Operation(
+    summary = "KPIs de ventana móvil",
+    description = "Calcula métricas agregadas de ventas en una ventana móvil (por ejemplo 14 días)."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Métricas calculadas", content = @Content(schema = @Schema(implementation = SalesWindowMetrics.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/metrics")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
-  public SalesWindowMetrics windowMetrics(@RequestParam(defaultValue = "14d") String window) {
+  public SalesWindowMetrics windowMetrics(
+      @Parameter(description = "Ventana de tiempo (ej: 7d, 14d, 30d)", example = "14d")
+      @RequestParam(defaultValue = "14d") String window) {
     return salesWindowMetricsUseCase.handle(window);
   }
 
+  @Operation(
+    summary = "Tendencia diaria",
+    description = "Devuelve puntos diarios de ventas para los últimos N días."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Lista de puntos diarios"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/metrics/daily")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
-  public List<SalesDailyPoint> metrics(@RequestParam(defaultValue = "14") int days) {
+  public List<SalesDailyPoint> metrics(
+      @Parameter(description = "Cantidad de días a retroceder", example = "14")
+      @RequestParam(defaultValue = "14") int days) {
     return dailySalesMetricsUseCase.handle(days);
   }
 
+  @Operation(
+    summary = "Tendencia diaria por rango",
+    description = "Calcula las ventas diarias exactas entre dos fechas."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Lista de puntos diarios"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/metrics/daily-range")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
-  public List<SalesDailyPoint> metricsByRange(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                              @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+  public List<SalesDailyPoint> metricsByRange(
+      @Parameter(description = "Fecha de inicio", example = "2024-01-01")
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @Parameter(description = "Fecha de término", example = "2024-01-31")
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
     return dailySalesMetricsByRangeUseCase.handle(from, to);
   }
 
+  @Operation(
+    summary = "KPIs de ventas",
+    description = "Entrega indicadores clave (tickets promedio, crecimiento, etc.) dentro del rango indicado."
+  )
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "KPIs calculados",
+      content = @Content(schema = @Schema(implementation = com.datakomerz.pymes.sales.dto.SalesKPIs.class))
+    ),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/kpis")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public com.datakomerz.pymes.sales.dto.SalesKPIs salesKPIs(
+      @Parameter(description = "Fecha inicial (inclusive)", example = "2024-04-01")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @Parameter(description = "Fecha final (inclusive)", example = "2024-04-30")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
 
     LocalDate startDate = from != null ? from : LocalDate.now().minusDays(30);
@@ -152,10 +278,25 @@ public class SalesController {
     return salesService.getSalesKPIs(startDate, endDate);
   }
 
+  @Operation(
+    summary = "Análisis ABC de ventas",
+    description = "Clasifica los productos según su contribución a la facturación en el rango solicitado."
+  )
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "Clasificación generada",
+      content = @Content(array = @ArraySchema(schema = @Schema(implementation = com.datakomerz.pymes.sales.dto.SaleABCClassification.class)))
+    ),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/abc-analysis")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<com.datakomerz.pymes.sales.dto.SaleABCClassification> salesABCAnalysis(
+      @Parameter(description = "Fecha inicial del análisis", example = "2024-03-01")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @Parameter(description = "Fecha final del análisis", example = "2024-05-31")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
 
     LocalDate startDate = from != null ? from : LocalDate.now().minusDays(90);
@@ -164,11 +305,27 @@ public class SalesController {
     return salesService.getSalesABCAnalysis(startDate, endDate);
   }
 
+  @Operation(
+    summary = "Pronóstico de ventas",
+    description = "Genera una proyección de ventas para los próximos días con base en el histórico."
+  )
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "Pronóstico generado",
+      content = @Content(array = @ArraySchema(schema = @Schema(implementation = com.datakomerz.pymes.sales.dto.SaleForecast.class)))
+    ),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/forecast")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<com.datakomerz.pymes.sales.dto.SaleForecast> salesForecast(
+      @Parameter(description = "Fecha inicial usada para el histórico", example = "2024-01-01")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @Parameter(description = "Fecha final usada para el histórico", example = "2024-04-01")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @Parameter(description = "Cantidad de días a proyectar", example = "30")
       @RequestParam(required = false, defaultValue = "30") int horizonDays) {
 
     LocalDate startDate = from != null ? from : LocalDate.now().minusDays(90);
@@ -177,15 +334,31 @@ public class SalesController {
     return salesService.getSalesForecast(startDate, endDate, horizonDays);
   }
 
+  @Operation(
+    summary = "Exportar ventas a CSV",
+    description = "Genera un archivo CSV con hasta 10.000 ventas según los mismos filtros de la lista."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Archivo CSV generado", content = @Content(mediaType = "text/csv")),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/export")
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
   public void exportToCSV(
+      @Parameter(description = "Estado del documento", example = "COMPLETED")
       @RequestParam(required = false) String status,
+      @Parameter(description = "Tipo de documento", example = "FACTURA")
       @RequestParam(required = false) String docType,
+      @Parameter(description = "Método de pago", example = "CREDIT_CARD")
       @RequestParam(required = false) String paymentMethod,
+      @Parameter(description = "Texto libre de búsqueda")
       @RequestParam(required = false) String search,
+      @Parameter(description = "Fecha inicial en ISO 8601")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
+      @Parameter(description = "Fecha final en ISO 8601")
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
+      @Parameter(hidden = true)
       HttpServletResponse response) throws IOException {
 
     // Obtener todas las ventas sin paginación (límite de 10000)

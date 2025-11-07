@@ -3,6 +3,7 @@ package com.datakomerz.pymes.products;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.inventory.InventoryLot;
 import com.datakomerz.pymes.inventory.InventoryService;
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.pricing.PricingService;
 import com.datakomerz.pymes.products.dto.ProductInventoryAlertRequest;
 import com.datakomerz.pymes.products.dto.ProductReq;
@@ -10,9 +11,16 @@ import com.datakomerz.pymes.products.dto.ProductRes;
 import com.datakomerz.pymes.products.dto.ProductStatusRequest;
 import com.datakomerz.pymes.products.dto.ProductStockLot;
 import com.datakomerz.pymes.products.dto.ProductStockResponse;
-import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.storage.StorageService;
 import com.datakomerz.pymes.storage.StorageService.StoredFile;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -46,8 +54,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+@Tag(name = "Products", description = "Gestión de productos del catálogo")
 @RestController
 @RequestMapping("/api/v1/products")
+@SecurityRequirement(name = "bearerAuth")
 public class ProductController {
   private final ProductRepository repo;
   private final CompanyContext companyContext;
@@ -80,12 +90,30 @@ public class ProductController {
     this.productService = productService;
   }
 
+  @Operation(
+    summary = "Listar productos",
+    description = "Retorna página de productos filtrados por estado, texto de búsqueda o código de barras."
+  )
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "Lista de productos",
+      content = @Content(schema = @Schema(implementation = Page.class))
+    ),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN') or hasAuthority('SCOPE_products:read')")
-  public Page<ProductRes> list(@RequestParam(defaultValue = "") String q,
-                               @RequestParam(defaultValue = "0") int page,
-                               @RequestParam(defaultValue = "20") int size,
-                               @RequestParam(defaultValue = "active") String status) {
+  public Page<ProductRes> list(
+      @Parameter(description = "Texto de búsqueda (nombre, SKU o código de barras)", example = "SKU-001")
+      @RequestParam(defaultValue = "") String q,
+      @Parameter(description = "Número de página (0-indexado)", example = "0")
+      @RequestParam(defaultValue = "0") int page,
+      @Parameter(description = "Cantidad de elementos por página", example = "20")
+      @RequestParam(defaultValue = "20") int size,
+      @Parameter(description = "Filtro de estado: active, inactive o all", example = "active")
+      @RequestParam(defaultValue = "active") String status) {
     UUID companyId = companyContext.require();
     Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
     Boolean activeFilter = resolveActiveFilter(status);
@@ -105,10 +133,29 @@ public class ProductController {
     return products.map(this::toResponse);
   }
 
+  @Operation(
+    summary = "Crear producto",
+    description = "Registra un nuevo producto del catálogo con su imagen opcional y configuración de stock."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Producto creado", content = @Content(schema = @Schema(implementation = ProductRes.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
-  public ProductRes create(@Valid @RequestPart("product") ProductReq req,
-                           @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
+  public ProductRes create(
+      @Parameter(description = "Datos del producto a registrar", required = true)
+      @Valid @RequestPart("product") ProductReq req,
+      @Parameter(
+        description = "Imagen del producto (PNG, JPG o WebP, máximo 1 MB)",
+        content = @Content(
+          mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+          schema = @Schema(type = "string", format = "binary")
+        )
+      )
+      @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
     UUID companyId = companyContext.require();
     Product entity = new Product();
     entity.setCompanyId(companyId);
@@ -124,12 +171,33 @@ public class ProductController {
     return toResponse(persisted);
   }
 
+  @Operation(
+    summary = "Actualizar producto",
+    description = "Modifica los datos generales, imagen o códigos de un producto existente."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Producto actualizado", content = @Content(schema = @Schema(implementation = ProductRes.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+  })
   @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
-  public ProductRes update(@PathVariable UUID id,
-                           @Valid @RequestPart("product") ProductReq req,
-                           @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
+  public ProductRes update(
+      @Parameter(description = "ID del producto a actualizar", required = true)
+      @PathVariable UUID id,
+      @Parameter(description = "Datos del producto a actualizar", required = true)
+      @Valid @RequestPart("product") ProductReq req,
+      @Parameter(
+        description = "Nueva imagen del producto (opcional)",
+        content = @Content(
+          mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+          schema = @Schema(type = "string", format = "binary")
+        )
+      )
+      @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
     UUID companyId = companyContext.require();
     Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
@@ -143,10 +211,24 @@ public class ProductController {
     return toResponse(persisted);
   }
 
+  @Operation(
+    summary = "Actualizar estado de producto",
+    description = "Activa o desactiva un producto sin modificar el resto de su configuración."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Estado actualizado", content = @Content(schema = @Schema(implementation = ProductRes.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+  })
   @PatchMapping("/{id}/status")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
-  public ProductRes updateStatus(@PathVariable UUID id, @Valid @RequestBody ProductStatusRequest req) {
+  public ProductRes updateStatus(
+      @Parameter(description = "ID del producto a modificar", required = true)
+      @PathVariable UUID id,
+      @Valid @RequestBody ProductStatusRequest req) {
     UUID companyId = companyContext.require();
     Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
@@ -155,11 +237,24 @@ public class ProductController {
     return toResponse(saved);
   }
 
+  @Operation(
+    summary = "Configurar alerta de inventario",
+    description = "Actualiza el stock crítico que dispara alertas y reposiciones."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Alerta configurada", content = @Content(schema = @Schema(implementation = ProductRes.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+  })
   @PatchMapping("/{id}/inventory-alert")
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
-  public ProductRes updateInventoryAlert(@PathVariable UUID id,
-                                         @Valid @RequestBody ProductInventoryAlertRequest req) {
+  public ProductRes updateInventoryAlert(
+      @Parameter(description = "ID del producto a configurar", required = true)
+      @PathVariable UUID id,
+      @Valid @RequestBody ProductInventoryAlertRequest req) {
     UUID companyId = companyContext.require();
     Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
@@ -168,10 +263,27 @@ public class ProductController {
     return toResponse(saved);
   }
 
+  @Operation(
+    summary = "Descargar código QR",
+    description = "Obtiene o regenera el código QR asociado al producto para impresión o descarga."
+  )
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "QR disponible",
+      content = @Content(mediaType = "image/png")
+    ),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Producto o QR no disponible")
+  })
   @GetMapping("/{id}/qr")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
-  public ResponseEntity<Resource> getQr(@PathVariable UUID id,
-                                        @RequestParam(name = "download", defaultValue = "false") boolean download) throws IOException {
+  public ResponseEntity<Resource> getQr(
+      @Parameter(description = "ID del producto", required = true)
+      @PathVariable UUID id,
+      @Parameter(description = "Forzar descarga como archivo adjunto", example = "false")
+      @RequestParam(name = "download", defaultValue = "false") boolean download) throws IOException {
     UUID companyId = companyContext.require();
     Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
@@ -203,9 +315,21 @@ public class ProductController {
     return builder.body(file.resource());
   }
 
+  @Operation(
+    summary = "Consultar stock del producto",
+    description = "Devuelve el stock total y el detalle por lotes del producto."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Stock recuperado", content = @Content(schema = @Schema(implementation = ProductStockResponse.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+  })
   @GetMapping("/{id}/stock")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
-  public ProductStockResponse stock(@PathVariable UUID id) {
+  public ProductStockResponse stock(
+      @Parameter(description = "ID del producto a consultar", required = true)
+      @PathVariable UUID id) {
     UUID companyId = companyContext.require();
     Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
@@ -224,11 +348,23 @@ public class ProductController {
     return new ProductStockResponse(entity.getId(), total, items);
   }
 
+  @Operation(
+    summary = "Eliminar producto",
+    description = "Elimina lógicamente un producto del catálogo de la empresa."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "Producto eliminado"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+  })
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   @PreAuthorize("hasRole('ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
-  public void delete(@PathVariable UUID id) {
+  public void delete(
+      @Parameter(description = "ID del producto a eliminar", required = true)
+      @PathVariable UUID id) {
     UUID companyId = companyContext.require();
     productService.delete(companyId, id);
   }

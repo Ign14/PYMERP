@@ -96,3 +96,13 @@ storage:
 webhooks:
   hmac:
     secret: ${WEBHOOKS_HMAC_SECRET:CHANGE_ME_HMAC_SECRET}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  show-actuator: false

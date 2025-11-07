@@ -40,9 +40,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Customers", description = "Gestión de clientes")
 @RestController
 @RequestMapping("/api/v1/customers")
+@SecurityRequirement(name = "bearerAuth")
 public class CustomerController {
 
   private final ListCustomersUseCase listCustomersUseCase;
@@ -60,28 +71,78 @@ public class CustomerController {
     this.mapper = mapper;
   }
 
+  @Operation(
+    summary = "Listar clientes",
+    description = "Retorna clientes paginados filtrando por segmento, estado y texto de búsqueda."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Clientes encontrados", content = @Content(schema = @Schema(implementation = PagedResponse.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-  public PagedResponse<CustomerResponse> list(@RequestParam(name = "q", defaultValue = "") String q,
-                                              @RequestParam(name = "segment", required = false) String segment,
-                                              @RequestParam(name = "active", required = false) Boolean active,
-                                              @RequestParam(defaultValue = "0") int page,
-                                              @RequestParam(defaultValue = "20") int size) {
+  public PagedResponse<CustomerResponse> list(
+      @Parameter(description = "Texto de búsqueda (nombre, RUT, email)", example = "Jane Doe")
+      @RequestParam(name = "q", defaultValue = "") String q,
+      @Parameter(description = "Segmento comercial", example = "Retail")
+      @RequestParam(name = "segment", required = false) String segment,
+      @Parameter(description = "Estado activo", example = "true")
+      @RequestParam(name = "active", required = false) Boolean active,
+      @Parameter(description = "Número de página (0-index)", example = "0")
+      @RequestParam(defaultValue = "0") int page,
+      @Parameter(description = "Cantidad de registros por página", example = "20")
+      @RequestParam(defaultValue = "20") int size) {
     return listCustomersUseCase.handle(q, segment, active, page, size);
   }
 
+  @Operation(
+    summary = "Resumen de segmentos",
+    description = "Obtiene el total de clientes agrupados por segmento."
+  )
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "Segmentos disponibles",
+      content = @Content(array = @ArraySchema(schema = @Schema(implementation = CustomerSegmentSummary.class)))
+    ),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/segments")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public List<CustomerSegmentSummary> segments() {
     return service.summarizeSegments();
   }
 
+  @Operation(
+    summary = "Obtener cliente",
+    description = "Recupera un cliente por su identificador."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Cliente encontrado", content = @Content(schema = @Schema(implementation = CustomerResponse.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Cliente no encontrado")
+  })
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-  public CustomerResponse get(@PathVariable UUID id) {
+  public CustomerResponse get(
+      @Parameter(description = "ID del cliente", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+      @PathVariable UUID id) {
     return mapper.toResponse(service.get(id));
   }
 
+  @Operation(
+    summary = "Crear cliente",
+    description = "Registra un nuevo cliente con su información general y de contacto."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "201", description = "Cliente creado", content = @Content(schema = @Schema(implementation = CustomerResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
@@ -89,41 +150,105 @@ public class CustomerController {
     return createCustomerUseCase.handle(request);
   }
 
+  @Operation(
+    summary = "Actualizar cliente",
+    description = "Modifica los datos de un cliente existente."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Cliente actualizado", content = @Content(schema = @Schema(implementation = CustomerResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Cliente no encontrado")
+  })
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
-  public CustomerResponse update(@PathVariable UUID id, @Valid @RequestBody CustomerRequest request) {
+  public CustomerResponse update(
+      @Parameter(description = "ID del cliente", required = true)
+      @PathVariable UUID id,
+      @Valid @RequestBody CustomerRequest request) {
     Customer updated = service.update(id, request);
     return mapper.toResponse(updated);
   }
 
+  @Operation(
+    summary = "Eliminar cliente",
+    description = "Elimina lógicamente un cliente del sistema."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "Cliente eliminado"),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Cliente no encontrado")
+  })
   @DeleteMapping("/{id}")
   @PreAuthorize("hasRole('ADMIN')")
-  public ResponseEntity<Void> delete(@PathVariable UUID id) {
+  public ResponseEntity<Void> delete(
+      @Parameter(description = "ID del cliente", required = true)
+      @PathVariable UUID id) {
     service.delete(id);
     return ResponseEntity.noContent().build();
   }
 
+  @Operation(
+    summary = "Estadísticas del cliente",
+    description = "Devuelve KPIs y comportamiento de compras de un cliente."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Estadísticas generadas", content = @Content(schema = @Schema(implementation = CustomerStatsResponse.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Cliente no encontrado")
+  })
   @GetMapping("/{id}/stats")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-  public CustomerStatsResponse getStats(@PathVariable UUID id) {
+  public CustomerStatsResponse getStats(
+      @Parameter(description = "ID del cliente", required = true)
+      @PathVariable UUID id) {
     return service.getCustomerStats(id);
   }
 
+  @Operation(
+    summary = "Historial de ventas del cliente",
+    description = "Entrega las ventas asociadas a un cliente en forma paginada."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Historial recuperado", content = @Content(schema = @Schema(implementation = Page.class))),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos"),
+    @ApiResponse(responseCode = "404", description = "Cliente no encontrado")
+  })
   @GetMapping("/{id}/sales")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
   public Page<CustomerSaleHistoryItem> getSaleHistory(
+      @Parameter(description = "ID del cliente", required = true)
       @PathVariable UUID id,
+      @Parameter(description = "Número de página (0-index)", example = "0")
       @RequestParam(defaultValue = "0") int page,
+      @Parameter(description = "Tamaño de página", example = "10")
       @RequestParam(defaultValue = "10") int size) {
     return service.getCustomerSaleHistory(id, PageRequest.of(page, size));
   }
 
+  @Operation(
+    summary = "Exportar clientes",
+    description = "Genera un archivo CSV con los clientes filtrados."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "CSV generado", content = @Content(mediaType = "text/csv")),
+    @ApiResponse(responseCode = "401", description = "No autenticado"),
+    @ApiResponse(responseCode = "403", description = "Sin permisos")
+  })
   @GetMapping("/export")
   @PreAuthorize("hasAnyRole('ERP_USER', 'SETTINGS', 'ADMIN')")
   public void exportToCSV(
+      @Parameter(description = "Texto de búsqueda", example = "Acme")
       @RequestParam(required = false) String query,
+      @Parameter(description = "Segmento a filtrar", example = "Retail")
       @RequestParam(required = false) String segment,
+      @Parameter(description = "Filtrar por clientes activos", example = "true")
       @RequestParam(required = false) Boolean active,
+      @Parameter(hidden = true)
       HttpServletResponse response) throws IOException {
 
     List<Customer> customers = service.exportToCSV(query, segment, active);
@@ -169,9 +294,23 @@ public class CustomerController {
     }
   }
 
+  @Operation(
+    summary = "Importar clientes",
+    description = "Carga clientes desde un archivo CSV siguiendo la plantilla oficial."
+  )
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Importación procesada"),
+    @ApiResponse(responseCode = "400", description = "Archivo inválido")
+  })
   @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @PreAuthorize("hasAnyRole('SETTINGS', 'ADMIN')")
-  public ResponseEntity<Map<String, Object>> importFromCSV(@RequestParam("file") MultipartFile file) {
+  public ResponseEntity<Map<String, Object>> importFromCSV(
+      @Parameter(
+        description = "Archivo CSV UTF-8 con encabezados",
+        required = true,
+        content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(type = "string", format = "binary"))
+      )
+      @RequestParam("file") MultipartFile file) {
     Map<String, Object> result = new LinkedHashMap<>();
     List<Map<String, Object>> errors = new ArrayList<>();
     int created = 0;

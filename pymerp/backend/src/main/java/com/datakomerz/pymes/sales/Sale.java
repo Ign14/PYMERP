@@ -2,7 +2,13 @@ package com.datakomerz.pymes.sales;
 
 import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
 import com.datakomerz.pymes.multitenancy.TenantFiltered;
-import jakarta.persistence.*;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -12,16 +18,44 @@ import java.util.UUID;
   @Index(name = "idx_sales_company", columnList = "company_id")
 })
 @TenantFiltered
+@Schema(name = "Sale", description = "Venta registrada en el ERP")
 public class Sale extends TenantAwareEntity {
-  @Id @Column(columnDefinition="uuid") private UUID id;
-  @Column(name="customer_id", columnDefinition="uuid") private UUID customerId;
-  @Column(nullable=false) private String status;
-  @Column(nullable=false, precision=14, scale=2) private BigDecimal net;
-  @Column(nullable=false, precision=14, scale=2) private BigDecimal vat;
-  @Column(nullable=false, precision=14, scale=2) private BigDecimal total;
+  @Id
+  @Column(columnDefinition="uuid")
+  @Schema(description = "ID de la venta", example = "4f1b9d85-9021-4798-a5f4-0b5a53da9b2a")
+  private UUID id;
+
+  @Column(name="customer_id", columnDefinition="uuid")
+  @Schema(description = "ID del cliente asociado", example = "c98a3d2b-8dd3-4a61-9d81-6f561dd9c7c5")
+  private UUID customerId;
+
+  @Column(nullable=false)
+  @Schema(description = "Estado de la venta", example = "COMPLETED", requiredMode = Schema.RequiredMode.REQUIRED)
+  private String status;
+
+  @Column(nullable=false, precision=14, scale=2)
+  @Schema(description = "Monto neto sin impuestos", example = "1200000.00")
+  private BigDecimal net;
+
+  @Column(nullable=false, precision=14, scale=2)
+  @Schema(description = "Impuesto IVA asociado", example = "228000.00")
+  private BigDecimal vat;
+
+  @Column(nullable=false, precision=14, scale=2)
+  @Schema(description = "Monto total de la venta", example = "1428000.00")
+  private BigDecimal total;
+
+  @Schema(description = "Método de pago utilizado", example = "TRANSFERENCIA")
   private String paymentMethod;
-  @Column(name="issued_at") private OffsetDateTime issuedAt;
+
+  @Column(name="issued_at")
+  @Schema(description = "Fecha/hora de emisión", example = "2024-03-05T15:20:00Z")
+  private OffsetDateTime issuedAt;
+
+  @Schema(description = "Tipo de documento tributario", example = "FACTURA")
   private String docType;
+
+  @Schema(description = "URL del PDF o respaldo", example = "https://cdn.pymerp.cl/sales/4f1b9d85.pdf")
   private String pdfUrl;
 
   @PrePersist public void pre(){ if(id==null) id=UUID.randomUUID(); if(issuedAt==null) issuedAt=OffsetDateTime.now(); }
