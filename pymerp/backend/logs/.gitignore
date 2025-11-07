@@ -1,0 +1,4 @@
+# Ignorar archivos de logs generados
+*.log
+*.log.gz
+*.log.*

@@ -32,13 +32,16 @@ public class SecurityConfig {
   private final AppProperties appProperties;
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final AppUserDetailsService userDetailsService;
+  private final LoggingContextFilter loggingContextFilter;
 
   public SecurityConfig(AppProperties appProperties,
                         JwtAuthenticationFilter jwtAuthenticationFilter,
-                        AppUserDetailsService userDetailsService) {
+                        AppUserDetailsService userDetailsService,
+                        LoggingContextFilter loggingContextFilter) {
     this.appProperties = appProperties;
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     this.userDetailsService = userDetailsService;
+    this.loggingContextFilter = loggingContextFilter;
   }
 
   @Bean
@@ -47,6 +50,9 @@ public class SecurityConfig {
       .cors(Customizer.withDefaults())
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+
+    // Añadir LoggingContextFilter ANTES de JwtAuthenticationFilter para capturar todos los requests
+    http.addFilterBefore(loggingContextFilter, JwtAuthenticationFilter.class);
 
     boolean oidcEnabled = appProperties.getSecurity().getJwt().isOidcEnabled();
     Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> authorizeCustomizer =
