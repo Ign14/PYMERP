@@ -145,10 +145,10 @@ public class SalesController {
   public com.datakomerz.pymes.sales.dto.SalesKPIs salesKPIs(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-    
+
     LocalDate startDate = from != null ? from : LocalDate.now().minusDays(30);
     LocalDate endDate = to != null ? to : LocalDate.now();
-    
+
     return salesService.getSalesKPIs(startDate, endDate);
   }
 
@@ -157,10 +157,10 @@ public class SalesController {
   public List<com.datakomerz.pymes.sales.dto.SaleABCClassification> salesABCAnalysis(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-    
+
     LocalDate startDate = from != null ? from : LocalDate.now().minusDays(90);
     LocalDate endDate = to != null ? to : LocalDate.now();
-    
+
     return salesService.getSalesABCAnalysis(startDate, endDate);
   }
 
@@ -170,10 +170,10 @@ public class SalesController {
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
       @RequestParam(required = false, defaultValue = "30") int horizonDays) {
-    
+
     LocalDate startDate = from != null ? from : LocalDate.now().minusDays(90);
     LocalDate endDate = to != null ? to : LocalDate.now();
-    
+
     return salesService.getSalesForecast(startDate, endDate, horizonDays);
   }
 
