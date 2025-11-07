@@ -2,6 +2,9 @@ package com.datakomerz.pymes.customers.application;
 
 import com.datakomerz.pymes.customers.Customer;
 import com.datakomerz.pymes.customers.dto.CustomerResponse;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,8 +24,12 @@ public class CustomerMapper {
       customer.getContactPerson(),
       customer.getNotes(),
       customer.getActive(),
-      customer.getCreatedAt(),
-      customer.getUpdatedAt()
+      toInstant(customer.getCreatedAt()),
+      toInstant(customer.getUpdatedAt())
     );
+  }
+
+  private Instant toInstant(OffsetDateTime value) {
+    return Optional.ofNullable(value).map(OffsetDateTime::toInstant).orElse(null);
   }
 }
