@@ -63,6 +63,15 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   }
 
   private boolean requiresCompanyHeader(String uri) {
-    return uri != null && uri.startsWith("/api/");
+    if (uri == null) {
+      return false;
+    }
+    if (uri.startsWith("/api/v1/requests")
+        || uri.startsWith("/api/v1/auth")
+        || uri.startsWith("/webhooks/")
+        || uri.startsWith("/actuator/")) {
+      return false;
+    }
+    return uri.startsWith("/api/");
   }
 }

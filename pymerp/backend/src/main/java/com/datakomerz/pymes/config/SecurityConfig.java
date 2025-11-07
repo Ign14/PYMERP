@@ -14,14 +14,17 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
@@ -42,35 +45,37 @@ public class SecurityConfig {
   SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     http.csrf(csrf -> csrf.disable())
       .cors(Customizer.withDefaults())
-      .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+      .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+      .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
 
     boolean oidcEnabled = appProperties.getSecurity().getJwt().isOidcEnabled();
+    Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> authorizeCustomizer =
+      auth -> auth
+        // Public actuator endpoints (health checks for load balancers)
+        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+        // Protected actuator endpoints (requires ACTUATOR_ADMIN role)
+        .requestMatchers("/actuator/**").hasRole("ACTUATOR_ADMIN")
+        // Public authentication endpoints
+        .requestMatchers("/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
+        // Customer segments RBAC (method security fallback)
+        .requestMatchers(HttpMethod.GET, "/api/v1/customer-segments/**")
+          .hasAnyRole("ADMIN", "SETTINGS", "ERP_USER", "READONLY")
+        .requestMatchers(HttpMethod.POST, "/api/v1/customer-segments/**")
+          .hasAnyRole("ADMIN", "SETTINGS")
+        .requestMatchers(HttpMethod.PUT, "/api/v1/customer-segments/**")
+          .hasAnyRole("ADMIN", "SETTINGS")
+        .requestMatchers(HttpMethod.DELETE, "/api/v1/customer-segments/**")
+          .hasRole("ADMIN")
+        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        .anyRequest().authenticated();
 
     if (oidcEnabled) {
       // resource server mode (Keycloak/Auth0) - use standard JWT converter for roles claim 'roles'
-      http.authorizeHttpRequests(auth -> auth
-          // Public actuator endpoints (health checks for load balancers)
-          .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-          // Protected actuator endpoints (requires ACTUATOR_ADMIN role)
-          .requestMatchers("/actuator/**").hasRole("ACTUATOR_ADMIN")
-          // Public authentication endpoints
-          .requestMatchers("/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
-          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-          .anyRequest().authenticated()
-        )
+      http.authorizeHttpRequests(authorizeCustomizer)
         .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
     } else {
       // default: internal JWT filter + DAO auth provider
-      http.authorizeHttpRequests(auth -> auth
-          // Public actuator endpoints (health checks for load balancers)
-          .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-          // Protected actuator endpoints (requires ACTUATOR_ADMIN role)
-          .requestMatchers("/actuator/**").hasRole("ACTUATOR_ADMIN")
-          // Public authentication endpoints
-          .requestMatchers("/api/v1/auth/**", "/api/v1/requests/**", "/webhooks/billing").permitAll()
-          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-          .anyRequest().authenticated()
-        )
+      http.authorizeHttpRequests(authorizeCustomizer)
         .authenticationProvider(authenticationProvider())
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
     }

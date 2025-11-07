@@ -222,6 +222,7 @@ public class ProductController {
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
+  @PreAuthorize("hasRole('ADMIN')")
   @ValidateTenant(entityClass = Product.class, entityParamIndex = 0)
   public void delete(@PathVariable UUID id) {
     companyContext.require();

@@ -7,7 +7,10 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Entity @Table(name="purchases")
+@Entity
+@Table(name = "purchases", indexes = {
+  @Index(name = "idx_purchases_company", columnList = "company_id")
+})
 @TenantFiltered
 public class Purchase extends TenantAwareEntity {
   @Id @Column(columnDefinition="uuid") private UUID id;
