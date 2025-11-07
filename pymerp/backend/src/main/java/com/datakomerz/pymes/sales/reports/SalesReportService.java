@@ -1,5 +1,6 @@
 package com.datakomerz.pymes.sales.reports;
 
+import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.sales.Sale;
 import com.datakomerz.pymes.sales.SaleRepository;
 import java.math.BigDecimal;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,11 +23,14 @@ public class SalesReportService {
 
   private final SaleRepository saleRepository;
   private final Clock clock;
+  private final CompanyContext companyContext;
 
   public SalesReportService(SaleRepository saleRepository,
-                            Clock clock) {
+                            Clock clock,
+                            CompanyContext companyContext) {
     this.saleRepository = saleRepository;
     this.clock = clock;
+    this.companyContext = companyContext;
   }
 
   public SalesSummaryReport getSummary(int days) {
@@ -46,6 +51,7 @@ public class SalesReportService {
       throw new IllegalArgumentException("days must be greater than zero");
     }
 
+    UUID companyId = companyContext.require();
     ZoneId zone = clock.getZone();
     LocalDate end = LocalDate.now(clock);
     LocalDate start = end.minusDays(days - 1L);
@@ -67,6 +73,10 @@ public class SalesReportService {
         continue;
       }
       if (!sale.getIssuedAt().isBefore(toExclusive)) {
+        continue;
+      }
+      // Filtrar por companyId
+      if (!companyId.equals(sale.getCompanyId())) {
         continue;
       }
       if (isCancelled(sale.getStatus())) {

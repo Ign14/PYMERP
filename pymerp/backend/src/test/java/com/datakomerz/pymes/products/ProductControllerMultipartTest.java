@@ -90,8 +90,8 @@ class ProductControllerMultipartTest {
     mockMvc.perform(multipart("/api/v1/products")
         .file(payload)
         .file(invalidImage)
-        .with(jwt().jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("erp_user"))))
-          .authorities(new SimpleGrantedAuthority("ROLE_ERP_USER")))
+        .with(jwt().jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("admin"))))
+          .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
         .header("X-Company-Id", COMPANY_ID))
       .andExpect(status().isBadRequest())
       .andExpect(jsonPath("$.detail", Matchers.containsString("Unsupported image format")));

@@ -11,6 +11,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
         format_sql: true
+        type:
+          preferred_json_sql_type: VARCHAR
     show-sql: false
   flyway:
     enabled: false
@@ -31,7 +33,7 @@ app:
     default-company-id: 00000000-0000-0000-0000-000000000001
   security:
     jwt:
-      oidc-enabled: true
+      oidc-enabled: false
       secret: test-jwt-secret-for-integration-tests-must-be-at-least-32-characters-long
       expiration-seconds: 3600
       refresh-expiration-seconds: 86400

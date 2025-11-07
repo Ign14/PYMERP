@@ -30,7 +30,22 @@ class AccountRequestControllerAuthTest {
   void testCreateAccountRequest_Anonymous_Success() throws Exception {
     mockMvc.perform(post("/api/v1/requests")
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"email\":\"test@example.com\",\"companyName\":\"Test Corp\"}"))
-      .andExpect(status().isOk());
+        .content("""
+          {
+            "rut": "12.345.678-5",
+            "fullName": "Test User",
+            "address": "Av. Test 123",
+            "email": "test@example.com",
+            "companyName": "Test Corp",
+            "password": "StrongPass123",
+            "confirmPassword": "StrongPass123",
+            "captcha": {
+              "a": 2,
+              "b": 3,
+              "answer": "5"
+            }
+          }
+          """))
+      .andExpect(status().isCreated());
   }
 }

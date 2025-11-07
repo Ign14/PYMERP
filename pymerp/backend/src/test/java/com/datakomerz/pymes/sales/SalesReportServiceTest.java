@@ -1,7 +1,10 @@
 package com.datakomerz.pymes.sales;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.sales.reports.SalesReportService;
 import com.datakomerz.pymes.sales.reports.SalesSummaryReport;
 import com.datakomerz.pymes.sales.reports.SalesTimeseriesPoint;
@@ -26,12 +29,15 @@ class SalesReportServiceTest {
 
   private SalesReportService service;
   private UUID companyId;
+  private CompanyContext companyContext;
 
   @BeforeEach
   void setUp() {
     companyId = UUID.randomUUID();
     Clock clock = Clock.fixed(Instant.parse("2024-05-15T12:00:00Z"), ZoneOffset.UTC);
-    service = new SalesReportService(saleRepository, clock);
+    companyContext = mock(CompanyContext.class);
+    when(companyContext.require()).thenReturn(companyId);
+    service = new SalesReportService(saleRepository, clock, companyContext);
   }
 
   @Test
