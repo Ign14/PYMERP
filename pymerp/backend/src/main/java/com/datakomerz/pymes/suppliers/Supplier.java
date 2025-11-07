@@ -1,9 +1,6 @@
 package com.datakomerz.pymes.suppliers;
 
-import java.time.OffsetDateTime;
-import java.util.UUID;
-
-import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.audit.AuditableEntity;
 import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,11 +8,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
+import java.util.UUID;
 
 @Entity 
 @Table(name="suppliers")
 @TenantFiltered
-public class Supplier extends TenantAwareEntity {
+public class Supplier extends AuditableEntity {
   @Id @Column(columnDefinition="uuid")
   private UUID id;
   @NotBlank
@@ -35,12 +33,8 @@ public class Supplier extends TenantAwareEntity {
   private String email;
   @Column(nullable=false)
   private Boolean active;
-  @Column(name="created_at")
-  private OffsetDateTime createdAt;
-
   @PrePersist public void prePersist() {
     if(id==null) id=UUID.randomUUID();
-    if(createdAt==null) createdAt=OffsetDateTime.now();
     if(active==null) active=true;
   }
 
@@ -63,6 +57,4 @@ public class Supplier extends TenantAwareEntity {
   public void setEmail(String email) { this.email = email; }
   public Boolean getActive() { return active; }
   public void setActive(Boolean active) { this.active = active; }
-  public OffsetDateTime getCreatedAt() { return createdAt; }
-  public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

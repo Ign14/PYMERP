@@ -1,5 +1,7 @@
 package com.company.billing.persistence;
 
+import com.datakomerz.pymes.audit.AuditableEntity;
+import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import com.datakomerz.pymes.sales.Sale;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,12 +18,11 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(name = "fiscal_documents")
-public class FiscalDocument {
+@TenantFiltered
+public class FiscalDocument extends AuditableEntity {
 
   @Id
   @Column(columnDefinition = "uuid")
@@ -101,14 +102,6 @@ public class FiscalDocument {
   @Column(name = "error_detail")
   private String errorDetail;
 
-  @CreationTimestamp
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private OffsetDateTime createdAt;
-
-  @UpdateTimestamp
-  @Column(name = "updated_at", nullable = false)
-  private OffsetDateTime updatedAt;
-
   @PrePersist
   void prePersist() {
     if (id == null) {
@@ -130,6 +123,9 @@ public class FiscalDocument {
 
   public void setSale(Sale sale) {
     this.sale = sale;
+    if (sale != null) {
+      setCompanyId(sale.getCompanyId());
+    }
   }
 
   public FiscalDocumentType getDocumentType() {
@@ -276,11 +272,4 @@ public class FiscalDocument {
     this.errorDetail = errorDetail;
   }
 
-  public OffsetDateTime getCreatedAt() {
-    return createdAt;
-  }
-
-  public OffsetDateTime getUpdatedAt() {
-    return updatedAt;
-  }
 }

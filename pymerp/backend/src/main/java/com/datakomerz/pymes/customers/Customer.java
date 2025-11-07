@@ -1,21 +1,19 @@
 package com.datakomerz.pymes.customers;
 
-import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.audit.AuditableEntity;
 import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "customers")
 @TenantFiltered
-public class Customer extends TenantAwareEntity {
+public class Customer extends AuditableEntity {
 
   @Id
   @Column(columnDefinition = "uuid")
@@ -54,30 +52,14 @@ public class Customer extends TenantAwareEntity {
   @Column(nullable = false)
   private Boolean active = true;
 
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private Instant createdAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private Instant updatedAt;
-
   @PrePersist
   public void prePersist() {
     if (id == null) {
       id = UUID.randomUUID();
     }
-    Instant now = Instant.now();
-    if (createdAt == null) {
-      createdAt = now;
-    }
-    updatedAt = now;
     if (active == null) {
       active = true;
     }
-  }
-
-  @PreUpdate
-  public void preUpdate() {
-    updatedAt = Instant.now();
   }
 
   public UUID getId() {
@@ -176,19 +158,4 @@ public class Customer extends TenantAwareEntity {
     this.active = active;
   }
 
-  public Instant getCreatedAt() {
-    return createdAt;
-  }
-
-  public void setCreatedAt(Instant createdAt) {
-    this.createdAt = createdAt;
-  }
-
-  public Instant getUpdatedAt() {
-    return updatedAt;
-  }
-
-  public void setUpdatedAt(Instant updatedAt) {
-    this.updatedAt = updatedAt;
-  }
 }

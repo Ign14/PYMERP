@@ -1,6 +1,6 @@
 package com.datakomerz.pymes.purchases;
 
-import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.audit.AuditableEntity;
 import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -12,7 +12,7 @@ import java.util.UUID;
   @Index(name = "idx_purchases_company", columnList = "company_id")
 })
 @TenantFiltered
-public class Purchase extends TenantAwareEntity {
+public class Purchase extends AuditableEntity {
   @Id @Column(columnDefinition="uuid") private UUID id;
   @Column(name="supplier_id", columnDefinition="uuid") private UUID supplierId;
   private String docType;
@@ -24,11 +24,8 @@ public class Purchase extends TenantAwareEntity {
   private String pdfUrl;
   private OffsetDateTime issuedAt;
   private OffsetDateTime receivedAt;
-  private OffsetDateTime createdAt;
-
   @PrePersist public void pre(){
     if(id==null) id=UUID.randomUUID();
-    if(createdAt==null) createdAt=OffsetDateTime.now();
   }
 
   // Getters & Setters
@@ -54,6 +51,4 @@ public class Purchase extends TenantAwareEntity {
   public void setIssuedAt(OffsetDateTime issuedAt) { this.issuedAt = issuedAt; }
   public OffsetDateTime getReceivedAt() { return receivedAt; }
   public void setReceivedAt(OffsetDateTime receivedAt) { this.receivedAt = receivedAt; }
-  public OffsetDateTime getCreatedAt() { return createdAt; }
-  public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

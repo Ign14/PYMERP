@@ -1,6 +1,6 @@
 package com.datakomerz.pymes.sales;
 
-import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
+import com.datakomerz.pymes.audit.AuditableEntity;
 import com.datakomerz.pymes.multitenancy.TenantFiltered;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -12,7 +12,7 @@ import java.util.UUID;
   @Index(name = "idx_sales_company", columnList = "company_id")
 })
 @TenantFiltered
-public class Sale extends TenantAwareEntity {
+public class Sale extends AuditableEntity {
   @Id @Column(columnDefinition="uuid") private UUID id;
   @Column(name="customer_id", columnDefinition="uuid") private UUID customerId;
   @Column(nullable=false) private String status;
