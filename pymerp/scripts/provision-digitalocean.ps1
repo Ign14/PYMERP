@@ -57,12 +57,12 @@ try {
 
 # Confirmación antes de continuar
 Write-Host "`n⚠️  ADVERTENCIA: Este script creará los siguientes recursos facturables:" -ForegroundColor Yellow
-Write-Host "   - PostgreSQL Cluster (db-s-1vcpu-1gb): ~$15/mes" -ForegroundColor White
-Write-Host "   - Redis Cluster (db-s-1vcpu-512mb): ~$15/mes" -ForegroundColor White
-Write-Host "   - Container Registry: ~$5/mes" -ForegroundColor White
-Write-Host "   - App Platform (basic-xs): ~$5/mes base + $5/mes por instancia" -ForegroundColor White
-Write-Host "   - Spaces (Storage): ~$5/mes + $0.02/GB transfer" -ForegroundColor White
-Write-Host "`n   TOTAL ESTIMADO: ~$67/mes`n" -ForegroundColor Yellow
+Write-Host "   - PostgreSQL Cluster (db-s-1vcpu-1gb): ~`$15/mes" -ForegroundColor White
+Write-Host "   - Redis Cluster (db-s-1vcpu-512mb): ~`$15/mes" -ForegroundColor White
+Write-Host "   - Container Registry: ~`$5/mes" -ForegroundColor White
+Write-Host "   - App Platform (basic-xs): ~`$5/mes base + `$5/mes por instancia" -ForegroundColor White
+Write-Host "   - Spaces (Storage): ~`$5/mes + `$0.02/GB transfer" -ForegroundColor White
+Write-Host "`n   TOTAL ESTIMADO: ~`$67/mes`n" -ForegroundColor Yellow
 
 $confirm = Read-Host "¿Continuar con el aprovisionamiento? (yes/no)"
 if ($confirm -ne "yes") {
@@ -106,7 +106,7 @@ try {
     }
     
     if (-not $dbOnline) {
-        Write-Error "Timeout esperando PostgreSQL cluster (15 min)"
+        Write-Error "Timeout esperando PostgreSQL cluster (15 minutos)"
         Write-Info "Verificar manualmente: doctl databases list"
     }
     
@@ -163,7 +163,7 @@ try {
     }
     
     if (-not $redisOnline) {
-        Write-Error "Timeout esperando Redis cluster (5 min)"
+        Write-Error "Timeout esperando Redis cluster (5 minutos)"
         Write-Info "Verificar manualmente: doctl databases list"
     }
     
@@ -304,11 +304,11 @@ Write-Host "3. Ejecutar scripts/pre-deploy-checklist.sh" -ForegroundColor White
 Write-Host "4. Merge a main y deploy`n" -ForegroundColor White
 
 Write-Host "💰 Costos estimados mensuales:" -ForegroundColor Cyan
-Write-Host "   - PostgreSQL: $15/mes" -ForegroundColor White
-Write-Host "   - Redis: $15/mes" -ForegroundColor White
-Write-Host "   - Container Registry: $5/mes" -ForegroundColor White
-Write-Host "   - Spaces: $5/mes + transfer" -ForegroundColor White
-Write-Host "   - App Platform: $5-15/mes (cuando se cree)" -ForegroundColor White
-Write-Host "   - TOTAL: ~$50-70/mes`n" -ForegroundColor White
+Write-Host "   - PostgreSQL: `$15/mes" -ForegroundColor White
+Write-Host "   - Redis: `$15/mes" -ForegroundColor White
+Write-Host "   - Container Registry: `$5/mes" -ForegroundColor White
+Write-Host "   - Spaces: `$5/mes + transfer" -ForegroundColor White
+Write-Host "   - App Platform: `$5-15/mes (cuando se cree)" -ForegroundColor White
+Write-Host "   - TOTAL: ~`$50-70/mes`n" -ForegroundColor White
 
 Write-Success "Script completado"
