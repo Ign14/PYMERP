@@ -15,6 +15,7 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+    locations: classpath:db/migration,classpath:db/migration/dev
   h2:
     console:
       enabled: true

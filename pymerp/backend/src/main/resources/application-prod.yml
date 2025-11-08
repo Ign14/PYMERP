@@ -1,0 +1,155 @@
+# Production Configuration for PYMERP
+# All sensitive values MUST be provided via environment variables
+# No default values are provided for security reasons
+
+server:
+  port: ${PORT:8080}
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+spring:
+  application:
+    name: pymerp
+  
+  # Database Configuration (PostgreSQL Managed)
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  
+  # Flyway Configuration (Production migrations only, no dev seeds)
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    # Exclude dev seed files
+    ignore-migration-patterns: "*:ignored,*:future,*seed_dev*,*seed_demo*"
+  
+  # Redis Configuration (Managed)
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+  
+  # Mail Configuration (Production SMTP)
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    default-encoding: UTF-8
+
+# Application Configuration
+app:
+  # CORS - Only production domains allowed
+  cors:
+    allowed-origins:
+      - https://pymerp.cl
+      - https://www.pymerp.cl
+      - https://app.pymerp.cl
+    # Add more origins via environment variable if needed
+    # APP_CORS_ALLOWED_ORIGINS[0]=https://custom-domain.com
+  
+  # Security
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration-ms: 86400000  # 24 hours
+      refresh-expiration-ms: 604800000  # 7 days
+      oidc-enabled: false
+    
+    captcha:
+      enabled: ${CAPTCHA_ENABLED:false}
+      secret-key: ${CAPTCHA_SECRET_KEY:}
+  
+  # Storage (S3/MinIO)
+  storage:
+    s3:
+      endpoint: ${S3_ENDPOINT}
+      bucket: ${STORAGE_S3_BUCKET}
+      access-key: ${STORAGE_S3_ACCESS_KEY}
+      secret-key: ${STORAGE_S3_SECRET_KEY}
+      region: ${STORAGE_S3_REGION:us-east-1}
+  
+  # Billing
+  billing:
+    crypto-secret: ${BILLING_CRYPTO_SECRET}
+    webhook-secret: ${BILLING_WEBHOOK_SECRET}
+    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL}
+  
+  # Webhooks
+  webhooks:
+    hmac-secret: ${WEBHOOKS_HMAC_SECRET}
+
+# Actuator Configuration (Protected)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging Configuration (JSON for ELK)
+logging:
+  level:
+    root: INFO
+    com.datakomerz.pymes: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
