@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]  # All branches
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'gradle'
+      
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+      
+      - name: Make gradlew executable
+        run: chmod +x ./backend/gradlew
+        
+      - name: Build with Gradle
+        working-directory: ./backend
+        run: ./gradlew clean build --no-daemon --stacktrace
+        env:
+          # Test environment variables (using secure defaults)
+          BILLING_CRYPTO_SECRET: ${{ secrets.TEST_BILLING_CRYPTO_SECRET || 'MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=' }}
+          BILLING_WEBHOOK_SECRET: ${{ secrets.TEST_BILLING_WEBHOOK_SECRET || 'test-webhook-secret-for-ci' }}
+          BILLING_DOCUMENTS_BASE_URL: 'http://localhost:8080/api/v1'
+          STORAGE_S3_BUCKET: 'test-bucket'
+          STORAGE_S3_ACCESS_KEY: 'TESTACCESSKEY'
+          STORAGE_S3_SECRET_KEY: 'TESTSECRETKEY'
+          STORAGE_S3_REGION: 'us-east-1'
+          WEBHOOKS_HMAC_SECRET: 'TEST_HMAC_SECRET_FOR_CI_PIPELINE'
+      
+      - name: Run tests
+        working-directory: ./backend
+        run: ./gradlew test --no-daemon --stacktrace
+        env:
+          BILLING_CRYPTO_SECRET: ${{ secrets.TEST_BILLING_CRYPTO_SECRET || 'MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=' }}
+          BILLING_WEBHOOK_SECRET: ${{ secrets.TEST_BILLING_WEBHOOK_SECRET || 'test-webhook-secret-for-ci' }}
+          BILLING_DOCUMENTS_BASE_URL: 'http://localhost:8080/api/v1'
+          STORAGE_S3_BUCKET: 'test-bucket'
+          STORAGE_S3_ACCESS_KEY: 'TESTACCESSKEY'
+          STORAGE_S3_SECRET_KEY: 'TESTSECRETKEY'
+          STORAGE_S3_REGION: 'us-east-1'
+          WEBHOOKS_HMAC_SECRET: 'TEST_HMAC_SECRET_FOR_CI_PIPELINE'
+      
+      - name: Check code style (Checkstyle)
+        working-directory: ./backend
+        run: ./gradlew checkstyleMain checkstyleTest --no-daemon
+        continue-on-error: true  # Don't fail build on style violations
+      
+      - name: Check code formatting (Spotless)
+        working-directory: ./backend
+        run: ./gradlew spotlessCheck --no-daemon
+        continue-on-error: true  # Don't fail build on formatting violations
+      
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            backend/build/test-results/**/*.xml
+      
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            backend/build/libs/*.jar
+          retention-days: 7
+      
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            backend/build/reports/tests/**
+          retention-days: 7
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './backend'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'

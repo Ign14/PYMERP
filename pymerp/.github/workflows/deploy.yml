@@ -1,0 +1,152 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual deployments
+
+env:
+  REGISTRY: registry.digitalocean.com
+  IMAGE_NAME: pymerp/backend
+  DIGITALOCEAN_REGION: nyc3
+
+jobs:
+  deploy:
+    name: Deploy to DigitalOcean
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://pymerp.cl
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install doctl (DigitalOcean CLI)
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      
+      - name: Log in to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 1200
+      
+      - name: Build Docker image
+        working-directory: ./backend
+        run: |
+          docker build \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VCS_REF=${{ github.sha }} \
+            .
+      
+      - name: Push image to DigitalOcean Container Registry
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      
+      - name: Deploy to DigitalOcean App Platform
+        run: |
+          doctl apps update ${{ secrets.DIGITALOCEAN_APP_ID }} \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for deployment to complete..."
+          sleep 60  # Wait for app to start
+      
+      - name: Run database migrations
+        run: |
+          # Trigger migration via App Platform console or kubectl exec
+          # For now, migrations run automatically on container startup via Flyway
+          echo "Database migrations will run on startup"
+      
+      - name: Health check
+        run: |
+          max_attempts=10
+          attempt=0
+          until [ $attempt -ge $max_attempts ]; do
+            if curl -f -s https://pymerp.cl/actuator/health > /dev/null; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            attempt=$((attempt+1))
+            echo "⏳ Attempt $attempt/$max_attempts failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Health check failed after $max_attempts attempts"
+          exit 1
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed, initiating rollback..."
+          # Get previous deployment ID and rollback
+          doctl apps list-deployments ${{ secrets.DIGITALOCEAN_APP_ID }} \
+            --format ID \
+            | head -n 2 \
+            | tail -n 1 \
+            | xargs -I {} doctl apps create-deployment ${{ secrets.DIGITALOCEAN_APP_ID }} --deployment-id {}
+      
+      - name: Notify deployment status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            Deployment to production: ${{ job.status }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            URL: https://pymerp.cl
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true  # Don't fail if Slack notification fails
+
+  smoke-tests:
+    name: Production Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Test health endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://pymerp.cl/actuator/health)
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Health endpoint OK"
+          else
+            echo "❌ Health endpoint returned $response"
+            exit 1
+          fi
+      
+      - name: Test info endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://pymerp.cl/actuator/info)
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Info endpoint OK"
+          else
+            echo "❌ Info endpoint returned $response"
+            exit 1
+          fi
+      
+      - name: Test API documentation
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://pymerp.cl/swagger-ui.html)
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Swagger UI OK"
+          else
+            echo "❌ Swagger UI returned $response"
+            exit 1
+          fi
+      
+      - name: Test protected endpoint (should return 401)
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://pymerp.cl/api/v1/companies)
+          if [ "$response" -eq 401 ]; then
+            echo "✅ Authentication working correctly"
+          else
+            echo "❌ Expected 401, got $response"
+            exit 1
+          fi
