@@ -31,3 +31,6 @@ ui/node_modules/
 *.env
 !.env.example
 !.env.production.example
+
+# DigitalOcean backups
+.digitalocean/*.enc
