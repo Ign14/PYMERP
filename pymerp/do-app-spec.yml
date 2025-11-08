@@ -1,0 +1,200 @@
+# DigitalOcean App Platform Specification
+# Use with: doctl apps create --spec do-app-spec.yml
+#       or: doctl apps update <app-id> --spec do-app-spec.yml
+
+name: pymerp-backend
+region: nyc3
+
+# Custom domains configuration
+domains:
+  - domain: pymerp.cl
+    type: PRIMARY         # Main production domain
+    zone: pymerp.cl
+  - domain: www.pymerp.cl
+    type: ALIAS
+    zone: pymerp.cl
+  - domain: app.pymerp.cl
+    type: ALIAS
+    zone: pymerp.cl
+
+# Service configuration
+services:
+  - name: backend
+    # Container registry image (updated by CI/CD pipeline)
+    image:
+      registry_type: DOCR  # DigitalOcean Container Registry
+      repository: pymerp/backend
+      tag: latest          # Will be replaced by commit SHA in CD pipeline
+    
+    # Resource allocation
+    instance_count: 1
+    instance_size_slug: basic-xs  # 512MB RAM, 1 vCPU ($5/month)
+    
+    # Auto-scaling configuration
+    autoscaling:
+      min_instance_count: 1
+      max_instance_count: 3
+      metrics:
+        cpu:
+          percent: 80  # Scale up when CPU > 80%
+    
+    # HTTP port configuration
+    http_port: 8080
+    
+    # Health check
+    health_check:
+      http_path: /actuator/health
+      initial_delay_seconds: 60   # Wait 60s for app startup
+      period_seconds: 30          # Check every 30s
+      timeout_seconds: 10         # Timeout after 10s
+      success_threshold: 1
+      failure_threshold: 3        # Mark unhealthy after 3 failures
+    
+    # Environment variables (secrets managed separately)
+    envs:
+      # Application profile
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      
+      # Database connection (from managed PostgreSQL)
+      - key: POSTGRES_HOST
+        value: ${db.HOSTNAME}
+      - key: POSTGRES_PORT
+        value: ${db.PORT}
+      - key: POSTGRES_DB
+        value: ${db.DATABASE}
+      - key: POSTGRES_USER
+        value: ${db.USERNAME}
+      - key: POSTGRES_PASSWORD
+        value: ${db.PASSWORD}
+        type: SECRET
+      
+      # Redis connection (from managed Redis)
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+        type: SECRET
+      - key: REDIS_SSL_ENABLED
+        value: "true"
+      
+      # JWT configuration (generated in Phase 4)
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        # Value set via: doctl apps update-env
+      
+      # Billing configuration
+      - key: BILLING_CRYPTO_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: BILLING_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: BILLING_DOCUMENTS_BASE_URL
+        value: https://pymerp.cl/api/v1
+      
+      # Email configuration (optional SMTP)
+      - key: MAIL_HOST
+        value: smtp.sendgrid.net  # Or your SMTP provider
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        scope: RUN_TIME
+        type: SECRET
+      - key: MAIL_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+      - key: MAIL_FROM
+        value: noreply@pymerp.cl
+      - key: MAIL_FROM_NAME
+        value: PYMERP
+      
+      # S3/Spaces storage
+      - key: S3_ENDPOINT
+        value: https://nyc3.digitaloceanspaces.com
+      - key: STORAGE_S3_BUCKET
+        value: pymes-prod
+      - key: STORAGE_S3_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: STORAGE_S3_SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: STORAGE_S3_REGION
+        value: nyc3
+      
+      # CORS configuration
+      - key: APP_CORS_ALLOWED_ORIGINS[0]
+        value: https://pymerp.cl
+      - key: APP_CORS_ALLOWED_ORIGINS[1]
+        value: https://www.pymerp.cl
+      - key: APP_CORS_ALLOWED_ORIGINS[2]
+        value: https://app.pymerp.cl
+      
+      # Webhooks HMAC
+      - key: WEBHOOKS_HMAC_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      
+      # JVM configuration
+      - key: JAVA_OPTS
+        value: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+
+# Database configuration (managed PostgreSQL)
+databases:
+  - name: db
+    engine: PG             # PostgreSQL
+    version: "16"
+    production: true
+    cluster_name: pymerp-db-cluster
+
+# Redis configuration (managed Redis)
+redis:
+  - name: redis
+    engine: REDIS
+    version: "7"
+    production: true
+
+# Static site (optional - for serving frontend if not using separate deployment)
+# Uncomment if deploying UI as static site on App Platform
+# static_sites:
+#   - name: ui
+#     github:
+#       repo: Ign14/PYMERP
+#       branch: main
+#       deploy_on_push: true
+#     source_dir: /ui
+#     build_command: npm ci && npm run build
+#     output_dir: /dist
+#     routes:
+#       - path: /
+#     envs:
+#       - key: VITE_API_BASE_URL
+#         value: https://pymerp.cl/api/v1
+
+# Jobs (optional - for scheduled tasks)
+# jobs:
+#   - name: cleanup-temp-files
+#     kind: PRE_DEPLOY  # Run before deployment
+#     dockerfile_path: backend/Dockerfile.cleanup
+#     instance_size_slug: basic-xxs
+#     instance_count: 1
+
+# Alerts configuration
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+  - rule: CPU_UTILIZATION
+    value: 85
+  - rule: MEM_UTILIZATION
+    value: 90
+  - rule: RESTART_COUNT
+    value: 3
+    window: FIVE_MINUTES
+
+# Features
+features:
+  - buildpack-stack=ubuntu-22
