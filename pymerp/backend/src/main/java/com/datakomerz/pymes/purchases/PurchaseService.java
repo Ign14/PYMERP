@@ -309,6 +309,8 @@ public class PurchaseService {
       supplierName,
       purchase.getDocType(),
       purchase.getDocNumber(),
+      purchase.getPaymentTermDays(),
+      purchase.getDueDate(),
       purchase.getStatus(),
       purchase.getNet(),
       purchase.getVat(),

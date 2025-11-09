@@ -157,8 +157,10 @@ public class SalesService {
     return new SaleDetail(
       sale.getId(),
       sale.getIssuedAt(),
+      sale.getDueDate(),
       safeDocType(sale.getDocType()),
       safePaymentMethod(sale.getPaymentMethod()),
+      sale.getPaymentTermDays(),
       sale.getStatus(),
       customerDto,
       lines,
@@ -266,6 +268,8 @@ public class SalesService {
       sale.getVat(),
       sale.getTotal(),
       sale.getIssuedAt(),
+      sale.getDueDate(),
+      sale.getPaymentTermDays(),
       safeDocType(sale.getDocType()),
       safePaymentMethod(sale.getPaymentMethod())
     );
@@ -278,6 +282,8 @@ public class SalesService {
       customerNames.getOrDefault(sale.getCustomerId(), null),
       safeDocType(sale.getDocType()),
       safePaymentMethod(sale.getPaymentMethod()),
+      sale.getPaymentTermDays(),
+      sale.getDueDate(),
       sale.getStatus(),
       sale.getNet(),
       sale.getVat(),

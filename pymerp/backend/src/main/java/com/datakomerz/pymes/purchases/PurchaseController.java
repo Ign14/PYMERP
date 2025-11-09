@@ -287,7 +287,10 @@ public class PurchaseController {
             null, // pdfUrl
             issuedAt,
             null, // receivedAt
-            List.of() // items vacío
+            30, // paymentTermDays default
+            null, // status
+            List.of(), // items vacío
+            null // captcha
           );
 
           service.create(req);

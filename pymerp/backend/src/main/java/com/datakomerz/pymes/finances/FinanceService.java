@@ -5,6 +5,7 @@ import com.datakomerz.pymes.finances.dto.AccountPayable;
 import com.datakomerz.pymes.finances.dto.AccountReceivable;
 import com.datakomerz.pymes.finances.dto.CashflowProjection;
 import com.datakomerz.pymes.finances.dto.FinanceSummary;
+import com.datakomerz.pymes.finances.dto.PaymentBucketSummary;
 import com.datakomerz.pymes.purchases.Purchase;
 import com.datakomerz.pymes.purchases.PurchaseRepository;
 import com.datakomerz.pymes.sales.Sale;
@@ -70,16 +71,16 @@ public class FinanceService {
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     
     long overdueInvoices = pendingSales.stream()
-        .filter(s -> s.getIssuedAt() != null && s.getIssuedAt().plusDays(30).isBefore(now))
+        .filter(s -> s.getIssuedAt() != null && s.getDueDate().isBefore(now))
         .count();
     
     BigDecimal next7DaysReceivable = pendingSales.stream()
-        .filter(s -> s.getIssuedAt() != null && s.getIssuedAt().plusDays(30).isBefore(next7Days))
+        .filter(s -> s.getIssuedAt() != null && s.getDueDate().isBefore(next7Days))
         .map(s -> s.getTotal() != null ? s.getTotal() : BigDecimal.ZERO)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     
     BigDecimal next30DaysReceivable = pendingSales.stream()
-        .filter(s -> s.getIssuedAt() != null && s.getIssuedAt().plusDays(30).isBefore(next30Days))
+        .filter(s -> s.getIssuedAt() != null && s.getDueDate().isBefore(next30Days))
         .map(s -> s.getTotal() != null ? s.getTotal() : BigDecimal.ZERO)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     
@@ -89,21 +90,25 @@ public class FinanceService {
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     
     long overduePurchases = pendingPurchases.stream()
-        .filter(p -> p.getIssuedAt() != null && p.getIssuedAt().plusDays(30).isBefore(now))
+        .filter(p -> p.getIssuedAt() != null && p.getDueDate().isBefore(now))
         .count();
     
     BigDecimal next7DaysPayable = pendingPurchases.stream()
-        .filter(p -> p.getIssuedAt() != null && p.getIssuedAt().plusDays(30).isBefore(next7Days))
+        .filter(p -> p.getIssuedAt() != null && p.getDueDate().isBefore(next7Days))
         .map(p -> p.getTotal() != null ? p.getTotal() : BigDecimal.ZERO)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     
     BigDecimal next30DaysPayable = pendingPurchases.stream()
-        .filter(p -> p.getIssuedAt() != null && p.getIssuedAt().plusDays(30).isBefore(next30Days))
+        .filter(p -> p.getIssuedAt() != null && p.getDueDate().isBefore(next30Days))
         .map(p -> p.getTotal() != null ? p.getTotal() : BigDecimal.ZERO)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     
     // Posición neta (sin caja física por ahora)
     BigDecimal netPosition = totalReceivable.subtract(totalPayable);
+    
+    // Calcular buckets de antigüedad
+    List<PaymentBucketSummary> receivableBuckets = calculateReceivableBuckets(pendingSales, now);
+    List<PaymentBucketSummary> payableBuckets = calculatePayableBuckets(pendingPurchases, now);
     
     return new FinanceSummary(
         BigDecimal.ZERO, // totalCash - requiere módulo de tesorería
@@ -117,7 +122,9 @@ public class FinanceService {
         next7DaysReceivable,
         next7DaysPayable,
         next30DaysReceivable,
-        next30DaysPayable
+        next30DaysPayable,
+        receivableBuckets,
+        payableBuckets
     );
   }
 
@@ -178,7 +185,8 @@ public class FinanceService {
               sale.getIssuedAt(),
               dueDate,
               daysOverdue,
-              paymentStatus
+              paymentStatus,
+              sale.getPaymentTermDays()
           );
         })
         .toList();
@@ -256,7 +264,8 @@ public class FinanceService {
               purchase.getIssuedAt(),
               dueDate,
               daysOverdue,
-              paymentStatus
+              paymentStatus,
+              purchase.getPaymentTermDays()
           );
         })
         .toList();
@@ -337,4 +346,103 @@ public class FinanceService {
     
     return projections;
   }
+  
+  /**
+   * Calcula buckets de antigüedad para cuentas por cobrar.
+   * Agrupa ventas por días hasta vencimiento.
+   */
+  private List<PaymentBucketSummary> calculateReceivableBuckets(List<Sale> sales, OffsetDateTime now) {
+    // Definir buckets
+    List<BucketDefinition> bucketDefs = List.of(
+        new BucketDefinition("overdue", "Vencido", Integer.MIN_VALUE, -1),
+        new BucketDefinition("days_0_7", "0-7 días", 0, 7),
+        new BucketDefinition("days_8_15", "8-15 días", 8, 15),
+        new BucketDefinition("days_16_30", "16-30 días", 16, 30),
+        new BucketDefinition("days_31_60", "31-60 días", 31, 60),
+        new BucketDefinition("days_60_plus", "60+ días", 61, Integer.MAX_VALUE)
+    );
+    
+    // Agrupar ventas por bucket
+    Map<String, List<Sale>> salesByBucket = sales.stream()
+        .collect(Collectors.groupingBy(sale -> {
+          if (sale.getIssuedAt() == null) return "days_0_7"; // default
+          long daysUntilDue = ChronoUnit.DAYS.between(now, sale.getDueDate());
+          for (BucketDefinition def : bucketDefs) {
+            if (daysUntilDue >= def.minDays && daysUntilDue <= def.maxDays) {
+              return def.key;
+            }
+          }
+          return "days_60_plus"; // fallback
+        }));
+    
+    // Crear PaymentBucketSummary para cada bucket
+    return bucketDefs.stream()
+        .map(def -> {
+          List<Sale> bucketSales = salesByBucket.getOrDefault(def.key, List.of());
+          BigDecimal amount = bucketSales.stream()
+              .map(s -> s.getTotal() != null ? s.getTotal() : BigDecimal.ZERO)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+          return new PaymentBucketSummary(
+              def.key,
+              def.label,
+              def.minDays,
+              def.maxDays,
+              amount,
+              bucketSales.size()
+          );
+        })
+        .toList();
+  }
+  
+  /**
+   * Calcula buckets de antigüedad para cuentas por pagar.
+   * Agrupa compras por días hasta vencimiento.
+   */
+  private List<PaymentBucketSummary> calculatePayableBuckets(List<Purchase> purchases, OffsetDateTime now) {
+    // Definir buckets
+    List<BucketDefinition> bucketDefs = List.of(
+        new BucketDefinition("overdue", "Vencido", Integer.MIN_VALUE, -1),
+        new BucketDefinition("days_0_7", "0-7 días", 0, 7),
+        new BucketDefinition("days_8_15", "8-15 días", 8, 15),
+        new BucketDefinition("days_16_30", "16-30 días", 16, 30),
+        new BucketDefinition("days_31_60", "31-60 días", 31, 60),
+        new BucketDefinition("days_60_plus", "60+ días", 61, Integer.MAX_VALUE)
+    );
+    
+    // Agrupar compras por bucket
+    Map<String, List<Purchase>> purchasesByBucket = purchases.stream()
+        .collect(Collectors.groupingBy(purchase -> {
+          if (purchase.getIssuedAt() == null) return "days_0_7"; // default
+          long daysUntilDue = ChronoUnit.DAYS.between(now, purchase.getDueDate());
+          for (BucketDefinition def : bucketDefs) {
+            if (daysUntilDue >= def.minDays && daysUntilDue <= def.maxDays) {
+              return def.key;
+            }
+          }
+          return "days_60_plus"; // fallback
+        }));
+    
+    // Crear PaymentBucketSummary para cada bucket
+    return bucketDefs.stream()
+        .map(def -> {
+          List<Purchase> bucketPurchases = purchasesByBucket.getOrDefault(def.key, List.of());
+          BigDecimal amount = bucketPurchases.stream()
+              .map(p -> p.getTotal() != null ? p.getTotal() : BigDecimal.ZERO)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+          return new PaymentBucketSummary(
+              def.key,
+              def.label,
+              def.minDays,
+              def.maxDays,
+              amount,
+              bucketPurchases.size()
+          );
+        })
+        .toList();
+  }
+  
+  /**
+   * Clase interna para definir buckets de antigüedad
+   */
+  private record BucketDefinition(String key, String label, int minDays, int maxDays) {}
 }
