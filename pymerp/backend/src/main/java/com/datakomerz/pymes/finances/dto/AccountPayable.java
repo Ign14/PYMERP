@@ -18,5 +18,6 @@ public record AccountPayable(
   OffsetDateTime issuedAt,
   OffsetDateTime dueDate,
   Long daysOverdue,
-  String paymentStatus
+  String paymentStatus,
+  Integer paymentTermDays
 ) {}

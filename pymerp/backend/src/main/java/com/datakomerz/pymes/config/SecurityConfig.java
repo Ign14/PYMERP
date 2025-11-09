@@ -51,8 +51,8 @@ public class SecurityConfig {
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
 
-    // Añadir LoggingContextFilter ANTES de JwtAuthenticationFilter para capturar todos los requests
-    http.addFilterBefore(loggingContextFilter, JwtAuthenticationFilter.class);
+    // Añadir LoggingContextFilter ANTES de UsernamePasswordAuthenticationFilter
+    http.addFilterBefore(loggingContextFilter, UsernamePasswordAuthenticationFilter.class);
 
     boolean oidcEnabled = appProperties.getSecurity().getJwt().isOidcEnabled();
     Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> authorizeCustomizer =

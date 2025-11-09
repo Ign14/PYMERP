@@ -20,6 +20,8 @@ public class Sale extends AuditableEntity {
   @Column(nullable=false, precision=14, scale=2) private BigDecimal vat;
   @Column(nullable=false, precision=14, scale=2) private BigDecimal total;
   private String paymentMethod;
+  @Column(name = "payment_term_days", nullable = false)
+  private int paymentTermDays = 30;
   @Column(name="issued_at") private OffsetDateTime issuedAt;
   private String docType;
   private String pdfUrl;
@@ -41,10 +43,16 @@ public class Sale extends AuditableEntity {
   public void setTotal(BigDecimal total) { this.total = total; }
   public String getPaymentMethod() { return paymentMethod; }
   public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+  public int getPaymentTermDays() { return paymentTermDays; }
+  public void setPaymentTermDays(int paymentTermDays) { this.paymentTermDays = paymentTermDays; }
   public OffsetDateTime getIssuedAt() { return issuedAt; }
   public void setIssuedAt(OffsetDateTime issuedAt) { this.issuedAt = issuedAt; }
   public String getDocType() { return docType; }
   public void setDocType(String docType) { this.docType = docType; }
   public String getPdfUrl() { return pdfUrl; }
   public void setPdfUrl(String pdfUrl) { this.pdfUrl = pdfUrl; }
+
+  public OffsetDateTime getDueDate() {
+    return issuedAt == null ? null : issuedAt.plusDays(paymentTermDays);
+  }
 }

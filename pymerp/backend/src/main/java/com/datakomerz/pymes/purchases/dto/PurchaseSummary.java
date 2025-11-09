@@ -10,6 +10,8 @@ public record PurchaseSummary(
   String supplierName,
   String docType,
   String docNumber,
+  Integer paymentTermDays,
+  OffsetDateTime dueDate,
   String status,
   BigDecimal net,
   BigDecimal vat,
