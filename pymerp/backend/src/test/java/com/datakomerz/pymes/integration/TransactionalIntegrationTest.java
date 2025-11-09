@@ -93,6 +93,7 @@ public class TransactionalIntegrationTest {
         sale.setCompanyId(companyId);
         sale.setCustomerId(customerId);
         sale.setStatus("emitida");
+        sale.setIssuedAt(OffsetDateTime.now());
         sale.setNet(new BigDecimal("20000"));
         sale.setVat(new BigDecimal("3800"));
         sale.setTotal(new BigDecimal("23800"));
@@ -125,6 +126,7 @@ public class TransactionalIntegrationTest {
         sale1.setCompanyId(companyId);
         sale1.setCustomerId(customerId);
         sale1.setStatus("emitida");
+        sale1.setIssuedAt(OffsetDateTime.now());
         sale1.setNet(new BigDecimal("10000"));
         sale1.setVat(new BigDecimal("1900"));
         sale1.setTotal(new BigDecimal("11900"));
@@ -160,6 +162,7 @@ public class TransactionalIntegrationTest {
         sale.setCompanyId(companyId);
         sale.setCustomerId(customerId);
         sale.setStatus("emitida");
+        sale.setIssuedAt(OffsetDateTime.now());
         sale.setNet(new BigDecimal("50000"));
         sale.setVat(new BigDecimal("9500"));
         sale.setTotal(new BigDecimal("59500"));
@@ -211,6 +214,7 @@ public class TransactionalIntegrationTest {
         sale.setCompanyId(companyId);
         sale.setCustomerId(customerId);
         sale.setStatus("emitida");
+        sale.setIssuedAt(OffsetDateTime.now());
         sale.setNet(new BigDecimal("10000"));
         sale.setVat(new BigDecimal("1900"));
         sale.setTotal(new BigDecimal("11900"));
@@ -246,6 +250,7 @@ public class TransactionalIntegrationTest {
         sale1.setCompanyId(companyId);
         sale1.setCustomerId(customerId);
         sale1.setStatus("emitida");
+        sale1.setIssuedAt(OffsetDateTime.now());
         sale1.setNet(new BigDecimal("10000"));
         sale1.setVat(new BigDecimal("1900"));
         sale1.setTotal(new BigDecimal("11900"));
@@ -256,6 +261,7 @@ public class TransactionalIntegrationTest {
         sale2.setCompanyId(companyId);
         sale2.setCustomerId(customerId);
         sale2.setStatus("pendiente");
+        sale2.setIssuedAt(OffsetDateTime.now());
         sale2.setNet(new BigDecimal("20000"));
         sale2.setVat(new BigDecimal("3800"));
         sale2.setTotal(new BigDecimal("23800"));

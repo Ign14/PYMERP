@@ -19,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -77,6 +78,7 @@ public class SalesIntegrationTest {
         sale.setCompanyId(companyId);
         sale.setCustomerId(customerId);
         sale.setStatus("emitida");
+        sale.setIssuedAt(OffsetDateTime.now());
         sale.setNet(new BigDecimal("20000"));
         sale.setVat(new BigDecimal("3800"));
         sale.setTotal(new BigDecimal("23800"));
@@ -93,6 +95,7 @@ public class SalesIntegrationTest {
         sale.setCompanyId(companyId);
         sale.setCustomerId(customerId);
         sale.setStatus("emitida");
+        sale.setIssuedAt(OffsetDateTime.now());
         sale.setNet(new BigDecimal("30000"));
         sale.setVat(new BigDecimal("5700"));
         sale.setTotal(new BigDecimal("35700"));
@@ -117,6 +120,7 @@ public class SalesIntegrationTest {
         sale1.setCompanyId(companyId);
         sale1.setCustomerId(customerId);
         sale1.setStatus("emitida");
+        sale1.setIssuedAt(OffsetDateTime.now());
         sale1.setNet(new BigDecimal("10000"));
         sale1.setVat(new BigDecimal("1900"));
         sale1.setTotal(new BigDecimal("11900"));
@@ -134,6 +138,7 @@ public class SalesIntegrationTest {
         sale2.setCompanyId(company2Id);
         sale2.setCustomerId(customer2.getId());
         sale2.setStatus("emitida");
+        sale2.setIssuedAt(OffsetDateTime.now());
         sale2.setNet(new BigDecimal("50000"));
         sale2.setVat(new BigDecimal("9500"));
         sale2.setTotal(new BigDecimal("59500"));
