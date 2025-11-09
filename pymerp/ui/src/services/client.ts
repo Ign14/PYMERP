@@ -4468,6 +4468,15 @@ export function createInventoryAdjustment(
 }
 
 // === Finance Module ===
+export interface PaymentBucketSummary {
+  key: string
+  label: string
+  minDays: number
+  maxDays: number
+  amount: number
+  documents: number
+}
+
 export interface FinanceSummary {
   cashOnHand: number
   totalReceivables: number
@@ -4481,6 +4490,8 @@ export interface FinanceSummary {
   next7DaysExpense: number
   next30DaysIncome: number
   next30DaysExpense: number
+  receivableBuckets: PaymentBucketSummary[]
+  payableBuckets: PaymentBucketSummary[]
 }
 
 export interface AccountReceivable {
