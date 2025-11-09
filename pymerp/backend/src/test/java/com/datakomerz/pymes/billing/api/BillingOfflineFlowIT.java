@@ -144,6 +144,7 @@ class BillingOfflineFlowIT {
     sale.setTotal(new BigDecimal("11900"));
     sale.setPaymentMethod("EFECTIVO");
     sale.setDocType("FACTURA");
+    sale.setPaymentTermDays(30);
     saleRepository.saveAndFlush(sale);
   }
 

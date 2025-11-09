@@ -204,6 +204,7 @@ class BillingWebhookControllerTest {
     sale.setNet(BigDecimal.TEN);
     sale.setVat(BigDecimal.ONE);
     sale.setTotal(BigDecimal.valueOf(11));
+    sale.setPaymentTermDays(30);
     saleRepository.save(sale);
 
     FiscalDocument document = new FiscalDocument();

@@ -20,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -95,6 +96,7 @@ public class TransactionalIntegrationTest {
         sale.setNet(new BigDecimal("20000"));
         sale.setVat(new BigDecimal("3800"));
         sale.setTotal(new BigDecimal("23800"));
+        sale.setPaymentTermDays(30);
         sale = saleRepository.save(sale);
         
         SaleItem item1 = new SaleItem();
@@ -126,6 +128,7 @@ public class TransactionalIntegrationTest {
         sale1.setNet(new BigDecimal("10000"));
         sale1.setVat(new BigDecimal("1900"));
         sale1.setTotal(new BigDecimal("11900"));
+        sale1.setPaymentTermDays(30);
         sale1 = saleRepository.save(sale1);
         
         SaleItem item = new SaleItem();
@@ -160,6 +163,7 @@ public class TransactionalIntegrationTest {
         sale.setNet(new BigDecimal("50000"));
         sale.setVat(new BigDecimal("9500"));
         sale.setTotal(new BigDecimal("59500"));
+        sale.setPaymentTermDays(30);
         saleRepository.save(sale);
         
         // Assert: el stock no cambia automáticamente (requiere lógica de negocio)
@@ -210,6 +214,7 @@ public class TransactionalIntegrationTest {
         sale.setNet(new BigDecimal("10000"));
         sale.setVat(new BigDecimal("1900"));
         sale.setTotal(new BigDecimal("11900"));
+        sale.setPaymentTermDays(30);
         sale = saleRepository.save(sale);
         final UUID saleId = sale.getId();
         
@@ -244,6 +249,7 @@ public class TransactionalIntegrationTest {
         sale1.setNet(new BigDecimal("10000"));
         sale1.setVat(new BigDecimal("1900"));
         sale1.setTotal(new BigDecimal("11900"));
+        sale1.setPaymentTermDays(30);
         saleRepository.save(sale1);
         
         Sale sale2 = new Sale();
@@ -253,6 +259,7 @@ public class TransactionalIntegrationTest {
         sale2.setNet(new BigDecimal("20000"));
         sale2.setVat(new BigDecimal("3800"));
         sale2.setTotal(new BigDecimal("23800"));
+        sale2.setPaymentTermDays(30);
         saleRepository.save(sale2);
         
         // Assert: ambas ventas son independientes

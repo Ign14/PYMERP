@@ -107,6 +107,7 @@ class ContingencySyncJobTest {
     sale.setVat(new BigDecimal("1900"));
     sale.setTotal(new BigDecimal("11900"));
     sale.setPaymentMethod("EFECTIVO");
+    sale.setPaymentTermDays(30);
     saleRepository.saveAndFlush(sale);
   }
 

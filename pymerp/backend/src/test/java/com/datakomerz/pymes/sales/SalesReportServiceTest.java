@@ -105,6 +105,7 @@ class SalesReportServiceTest {
     sale.setVat(BigDecimal.ZERO);
     sale.setTotal(total);
     sale.setIssuedAt(OffsetDateTime.of(date.atStartOfDay(), ZoneOffset.UTC));
+    sale.setPaymentTermDays(30);
     saleRepository.save(sale);
   }
 }
