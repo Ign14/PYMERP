@@ -3,6 +3,7 @@ package com.company.billing.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.datakomerz.pymes.sales.Sale;
+import com.datakomerz.pymes.sales.SaleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
@@ -56,6 +57,9 @@ class BillingPersistenceRepositoryTest {
   private ContingencyQueueItemRepository contingencyQueueItemRepository;
 
   @Autowired
+  private SaleRepository saleRepository;
+
+  @Autowired
   private ObjectMapper objectMapper;
 
   @Autowired
@@ -95,7 +99,7 @@ class BillingPersistenceRepositoryTest {
     sale.setDocType("FACTURA");
     sale.setIssuedAt(OffsetDateTime.now());
     sale.setPaymentTermDays(30); // Required field after V29 migration
-    entityManager.persistAndFlush(sale);
+    sale = saleRepository.saveAndFlush(sale);
   }
 
   @Test
