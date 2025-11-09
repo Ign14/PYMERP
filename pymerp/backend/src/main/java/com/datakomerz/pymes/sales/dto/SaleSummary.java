@@ -10,6 +10,8 @@ public record SaleSummary(
   String customerName,
   String docType,
   String paymentMethod,
+  Integer paymentTermDays,
+  OffsetDateTime dueDate,
   String status,
   BigDecimal net,
   BigDecimal vat,

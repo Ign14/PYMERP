@@ -13,6 +13,8 @@ public record SaleRes(
   BigDecimal vat,
   BigDecimal total,
   OffsetDateTime issuedAt,
+  OffsetDateTime dueDate,
+  Integer paymentTermDays,
   String docType,
   String paymentMethod
 ) {}

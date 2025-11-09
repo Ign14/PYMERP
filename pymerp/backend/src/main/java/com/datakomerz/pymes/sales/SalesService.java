@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.sales;
 
+import com.datakomerz.pymes.common.captcha.SimpleCaptchaValidationService;
+import com.datakomerz.pymes.common.payments.PaymentTerm;
 import com.datakomerz.pymes.company.CompanyRepository;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.customers.Customer;

@@ -1,10 +1,11 @@
 package com.datakomerz.pymes.purchases.dto;
 
+import com.datakomerz.pymes.common.captcha.SimpleCaptchaPayload;
+import com.datakomerz.pymes.validation.ValidPaymentTerm;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -20,5 +21,8 @@ public record PurchaseReq(
   String pdfUrl,
   @NotNull OffsetDateTime issuedAt,
   OffsetDateTime receivedAt,
-  @NotEmpty List<@Valid PurchaseItemReq> items
+  @NotNull @ValidPaymentTerm Integer paymentTermDays,
+  String status,
+  @NotEmpty List<@Valid PurchaseItemReq> items,
+  @Valid SimpleCaptchaPayload captcha
 ) {}

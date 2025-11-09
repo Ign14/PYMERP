@@ -8,8 +8,10 @@ import java.util.UUID;
 public record SaleDetail(
   UUID id,
   OffsetDateTime issuedAt,
+  OffsetDateTime dueDate,
   String docType,
   String paymentMethod,
+  Integer paymentTermDays,
   String status,
   SaleDetailCustomer customer,
   List<SaleDetailLine> items,

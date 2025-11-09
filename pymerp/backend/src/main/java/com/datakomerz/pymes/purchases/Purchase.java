@@ -24,6 +24,8 @@ public class Purchase extends AuditableEntity {
   private String pdfUrl;
   private OffsetDateTime issuedAt;
   private OffsetDateTime receivedAt;
+  @Column(name = "payment_term_days", nullable = false)
+  private int paymentTermDays = 30;
   @PrePersist public void pre(){
     if(id==null) id=UUID.randomUUID();
   }
@@ -51,4 +53,9 @@ public class Purchase extends AuditableEntity {
   public void setIssuedAt(OffsetDateTime issuedAt) { this.issuedAt = issuedAt; }
   public OffsetDateTime getReceivedAt() { return receivedAt; }
   public void setReceivedAt(OffsetDateTime receivedAt) { this.receivedAt = receivedAt; }
+  public int getPaymentTermDays() { return paymentTermDays; }
+  public void setPaymentTermDays(int paymentTermDays) { this.paymentTermDays = paymentTermDays; }
+  public OffsetDateTime getDueDate() {
+    return issuedAt == null ? null : issuedAt.plusDays(paymentTermDays);
+  }
 }
