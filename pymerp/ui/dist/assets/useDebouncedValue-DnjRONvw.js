@@ -1,0 +1,1 @@
+import{r as o}from"./react-D8kvZI4c.js";function c(e,t=300){const[n,r]=o.useState(e);return o.useEffect(()=>{const u=window.setTimeout(()=>r(e),t);return()=>window.clearTimeout(u)},[e,t]),n}export{c as u};

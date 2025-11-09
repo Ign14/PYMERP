@@ -80,6 +80,7 @@ public class SalesIntegrationTest {
         sale.setNet(new BigDecimal("20000"));
         sale.setVat(new BigDecimal("3800"));
         sale.setTotal(new BigDecimal("23800"));
+        sale.setPaymentTermDays(30);
         sale = saleRepository.save(sale);
         
         Sale saved = saleRepository.findById(sale.getId()).orElseThrow();
@@ -95,6 +96,7 @@ public class SalesIntegrationTest {
         sale.setNet(new BigDecimal("30000"));
         sale.setVat(new BigDecimal("5700"));
         sale.setTotal(new BigDecimal("35700"));
+        sale.setPaymentTermDays(30);
         sale = saleRepository.save(sale);
         
         SaleItem item = new SaleItem();
@@ -118,6 +120,7 @@ public class SalesIntegrationTest {
         sale1.setNet(new BigDecimal("10000"));
         sale1.setVat(new BigDecimal("1900"));
         sale1.setTotal(new BigDecimal("11900"));
+        sale1.setPaymentTermDays(30);
         saleRepository.save(sale1);
         
         UUID company2Id = UUID.randomUUID();
@@ -134,6 +137,7 @@ public class SalesIntegrationTest {
         sale2.setNet(new BigDecimal("50000"));
         sale2.setVat(new BigDecimal("9500"));
         sale2.setTotal(new BigDecimal("59500"));
+        sale2.setPaymentTermDays(30);
         saleRepository.save(sale2);
         
         long company1Sales = saleRepository.findAll().stream()

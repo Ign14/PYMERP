@@ -94,6 +94,7 @@ class BillingPersistenceRepositoryTest {
     sale.setPaymentMethod("EFECTIVO");
     sale.setDocType("FACTURA");
     sale.setIssuedAt(OffsetDateTime.now());
+    sale.setPaymentTermDays(30); // Required field after V29 migration
     entityManager.persistAndFlush(sale);
   }
 
