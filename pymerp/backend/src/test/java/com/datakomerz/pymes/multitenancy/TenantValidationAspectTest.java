@@ -87,8 +87,7 @@ class TenantValidationAspectTest {
     product.setName(name);
     product.setActive(true);
     product.setCriticalStock(BigDecimal.ZERO);
-    product.setCreatedAt(OffsetDateTime.now());
-    product.setUpdatedAt(OffsetDateTime.now());
+    // createdAt and updatedAt are managed by JPA @CreatedDate and @LastModifiedDate
     product.setDescription("Test product");
     product.setCategory("TEST");
     Product saved = productRepository.save(product);
