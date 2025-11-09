@@ -21,9 +21,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @DataJpaTest
+@EnableJpaAuditing
 @EntityScan(basePackages = {"com.datakomerz.pymes", "com.company.billing.persistence"})
 @EnableJpaRepositories(basePackages = {"com.datakomerz.pymes", "com.company.billing.persistence"})
 @Import(BillingPersistenceRepositoryTest.TestConfig.class)
