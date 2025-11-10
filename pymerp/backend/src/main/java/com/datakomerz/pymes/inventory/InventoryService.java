@@ -11,6 +11,8 @@ import com.datakomerz.pymes.inventory.dto.InventorySettingsUpdateRequest;
 import com.datakomerz.pymes.inventory.dto.InventorySummary;
 import com.datakomerz.pymes.inventory.dto.StockMovementStats;
 import com.datakomerz.pymes.inventory.dto.ProductABCClassification;
+import com.datakomerz.pymes.locations.Location;
+import com.datakomerz.pymes.locations.LocationRepository;
 import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
 import com.datakomerz.pymes.sales.SaleLotAllocation;
@@ -41,6 +43,7 @@ public class InventoryService {
   private final SaleLotAllocationRepository allocations;
   private final InventorySettingsRepository settingsRepository;
   private final ProductRepository productRepository;
+  private final LocationRepository locationRepository;
   private final CompanyContext companyContext;
   private final AuditContextService auditContext;
 
@@ -49,6 +52,7 @@ public class InventoryService {
                           SaleLotAllocationRepository allocations,
                           InventorySettingsRepository settingsRepository,
                           ProductRepository productRepository,
+                          LocationRepository locationRepository,
                           CompanyContext companyContext,
                           AuditContextService auditContext) {
     this.lots = lots;
@@ -56,6 +60,7 @@ public class InventoryService {
     this.allocations = allocations;
     this.settingsRepository = settingsRepository;
     this.productRepository = productRepository;
+    this.locationRepository = locationRepository;
     this.companyContext = companyContext;
     this.auditContext = auditContext;
   }
@@ -177,6 +182,15 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
+  public BigDecimal getTotalStock(UUID productId) {
+    UUID companyId = companyContext.require();
+    List<InventoryLot> productLots = lots.findByCompanyIdAndProductIdOrderByCreatedAtAsc(companyId, productId);
+    return productLots.stream()
+      .map(InventoryLot::getQtyAvailable)
+      .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  @Transactional(readOnly = true)
   public InventorySummary summary() {
     UUID companyId = companyContext.require();
     BigDecimal totalValue = lots.sumInventoryValue(companyId);
@@ -190,7 +204,7 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
-  public Page<InventoryMovementSummary> listMovements(
+  public Page<InventoryMovementSummary> listMovementsSummary(
       UUID productId,
       String type,
       OffsetDateTime from,
@@ -937,5 +951,170 @@ public class InventoryService {
     });
     
     return forecasts;
+  }
+  
+  public Page<com.datakomerz.pymes.inventory.dto.InventoryMovementDetail> listMovements(
+      UUID productId,
+      UUID lotId,
+      String type,
+      OffsetDateTime dateFrom,
+      OffsetDateTime dateTo,
+      Pageable pageable) {
+    UUID companyId = companyContext.require();
+    
+    Page<InventoryMovement> movementsPage = movements.findMovementsWithFilters(
+        companyId, productId, lotId, type, dateFrom, dateTo, pageable);
+    
+    // Obtener todos los productIds y lotIds únicos
+    List<UUID> productIds = movementsPage.getContent().stream()
+        .map(InventoryMovement::getProductId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    
+    List<UUID> lotIds = movementsPage.getContent().stream()
+        .map(InventoryMovement::getLotId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    
+    // Cargar productos y lotes en batch
+    Map<UUID, Product> productsMap = new HashMap<>();
+    if (!productIds.isEmpty()) {
+      productRepository.findAllById(productIds).forEach(p -> productsMap.put(p.getId(), p));
+    }
+    
+    Map<UUID, InventoryLot> lotsMap = new HashMap<>();
+    if (!lotIds.isEmpty()) {
+      lots.findAllById(lotIds).forEach(lot -> lotsMap.put(lot.getId(), lot));
+    }
+    
+    // Cargar ubicaciones en batch
+    List<UUID> locationIds = lotsMap.values().stream()
+        .map(InventoryLot::getLocationId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    
+    Map<UUID, Location> locationsMap = new HashMap<>();
+    if (!locationIds.isEmpty()) {
+      locationRepository.findAllById(locationIds).forEach(loc -> locationsMap.put(loc.getId(), loc));
+    }
+    
+    List<com.datakomerz.pymes.inventory.dto.InventoryMovementDetail> details = 
+        movementsPage.getContent().stream()
+        .map(m -> {
+          Product product = productsMap.get(m.getProductId());
+          InventoryLot lot = m.getLotId() != null ? lotsMap.get(m.getLotId()) : null;
+          Location location = lot != null && lot.getLocationId() != null ? locationsMap.get(lot.getLocationId()) : null;
+          
+          return new com.datakomerz.pymes.inventory.dto.InventoryMovementDetail(
+              m.getId(),
+              m.getType(),
+              m.getCreatedAt(),
+              m.getProductId(),
+              product != null ? product.getSku() : null,
+              product != null ? product.getName() : null,
+              m.getLotId(),
+              lot != null ? lot.getBatchName() : null,
+              m.getQty(),
+              lot != null ? lot.getLocationId() : null,
+              location != null ? location.getCode() : null,
+              location != null ? location.getName() : null,
+              m.getRefType(),
+              m.getRefId(),
+              m.getNote(),
+              m.getCreatedBy()
+          );
+        })
+        .toList();
+    
+    return new PageImpl<>(details, pageable, movementsPage.getTotalElements());
+  }
+  
+  @Transactional
+  public InventoryLot transferLot(UUID lotId, com.datakomerz.pymes.inventory.dto.LotTransferRequest request) {
+    UUID companyId = companyContext.require();
+    
+    InventoryLot lot = lots.findById(lotId)
+        .orElseThrow(() -> new IllegalArgumentException("Lote no encontrado: " + lotId));
+    
+    if (!lot.getCompanyId().equals(companyId)) {
+      throw new IllegalArgumentException("Lote no pertenece a la empresa actual");
+    }
+    
+    if (request.qty().compareTo(lot.getQtyAvailable()) > 0) {
+      throw new IllegalArgumentException("Cantidad solicitada excede el stock disponible");
+    }
+    
+    if (request.targetLocationId().equals(lot.getLocationId())) {
+      throw new IllegalArgumentException("La ubicación destino es la misma que la actual");
+    }
+    
+    // Registrar movimiento de salida de ubicación origen
+    InventoryMovement outMovement = new InventoryMovement();
+    outMovement.setCompanyId(companyId);
+    outMovement.setProductId(lot.getProductId());
+    outMovement.setLotId(lot.getId());
+    outMovement.setType("TRANSFER_OUT");
+    outMovement.setQty(request.qty().negate());
+    outMovement.setPreviousQty(lot.getQtyAvailable());
+    outMovement.setNewQty(lot.getQtyAvailable().subtract(request.qty()));
+    outMovement.setNote("Transferencia a ubicación " + request.targetLocationId());
+    outMovement.setCreatedBy(auditContext.getCurrentUser());
+    outMovement.setUserIp(auditContext.getUserIp());
+    movements.save(outMovement);
+    
+    // Actualizar cantidad del lote origen
+    lot.setQtyAvailable(lot.getQtyAvailable().subtract(request.qty()));
+    lots.save(lot);
+    
+    // Crear o actualizar lote en ubicación destino
+    // Buscar lote existente del mismo producto y fechas en la ubicación destino
+    List<InventoryLot> candidateLots = lots.findByCompanyIdAndProductIdAndLocationIdAndQtyAvailableGreaterThanOrderByExpDateAscCreatedAtAsc(
+        companyId, lot.getProductId(), request.targetLocationId(), BigDecimal.ZERO);
+    
+    InventoryLot targetLot = candidateLots.stream()
+        .filter(l -> Objects.equals(l.getBatchName(), lot.getBatchName()) &&
+                     Objects.equals(l.getMfgDate(), lot.getMfgDate()) &&
+                     Objects.equals(l.getExpDate(), lot.getExpDate()) &&
+                     Objects.equals(l.getCostUnit(), lot.getCostUnit()))
+        .findFirst()
+        .orElse(null);
+    
+    if (targetLot != null) {
+      // Lote existente, sumar cantidad
+      targetLot.setQtyAvailable(targetLot.getQtyAvailable().add(request.qty()));
+      lots.save(targetLot);
+    } else {
+      // Crear nuevo lote en ubicación destino
+      targetLot = new InventoryLot();
+      targetLot.setCompanyId(companyId);
+      targetLot.setProductId(lot.getProductId());
+      targetLot.setLocationId(request.targetLocationId());
+      // Copiar campos del lote origen
+      targetLot.setBatchName(lot.getBatchName());
+      targetLot.setCostUnit(lot.getCostUnit());
+      targetLot.setMfgDate(lot.getMfgDate());
+      targetLot.setExpDate(lot.getExpDate());
+      targetLot.setQtyAvailable(request.qty());
+      lots.save(targetLot);
+    }
+    
+    // Registrar movimiento de entrada en ubicación destino
+    InventoryMovement inMovement = new InventoryMovement();
+    inMovement.setCompanyId(companyId);
+    inMovement.setProductId(lot.getProductId());
+    inMovement.setLotId(targetLot.getId());
+    inMovement.setType("TRANSFER_IN");
+    inMovement.setQty(request.qty());
+    inMovement.setPreviousQty(targetLot.getQtyAvailable().subtract(request.qty()));
+    inMovement.setNewQty(targetLot.getQtyAvailable());
+    inMovement.setNote(request.note() != null ? request.note() : "Transferencia desde lote " + lot.getId());
+    inMovement.setCreatedBy(auditContext.getCurrentUser());
+    inMovement.setUserIp(auditContext.getUserIp());
+    movements.save(inMovement);
+    
+    return lot;
   }
 }

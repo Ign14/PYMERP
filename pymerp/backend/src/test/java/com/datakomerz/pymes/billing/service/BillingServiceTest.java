@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.UUID;
@@ -97,6 +98,8 @@ class BillingServiceTest {
     sale.setTotal(new BigDecimal("11900"));
     sale.setPaymentMethod("EFECTIVO");
     sale.setDocType("FACTURA");
+    sale.setIssuedAt(OffsetDateTime.now());
+    sale.setPaymentTermDays(30);
     saleRepository.saveAndFlush(sale);
   }
 

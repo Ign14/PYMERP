@@ -13,6 +13,10 @@ import com.datakomerz.pymes.services.ServiceRepository;
 import com.datakomerz.pymes.storage.StorageService;
 import com.datakomerz.pymes.suppliers.Supplier;
 import com.datakomerz.pymes.suppliers.SupplierRepository;
+import com.datakomerz.pymes.products.Product;
+import com.datakomerz.pymes.products.ProductRepository;
+import com.datakomerz.pymes.locations.Location;
+import com.datakomerz.pymes.locations.LocationRepository;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +49,8 @@ public class PurchaseService {
   private final SupplierRepository suppliers;
   private final ServiceRepository serviceRepository;
   private final StorageService storageService;
+  private final ProductRepository productRepository;
+  private final LocationRepository locationRepository;
 
   public PurchaseService(PurchaseRepository purchases,
                          PurchaseItemRepository items,
@@ -53,7 +59,9 @@ public class PurchaseService {
                          CompanyContext companyContext,
                          SupplierRepository suppliers,
                          ServiceRepository serviceRepository,
-                         StorageService storageService) {
+                         StorageService storageService,
+                         ProductRepository productRepository,
+                         LocationRepository locationRepository) {
     this.purchases = purchases;
     this.items = items;
     this.lots = lots;
@@ -62,6 +70,8 @@ public class PurchaseService {
     this.suppliers = suppliers;
     this.serviceRepository = serviceRepository;
     this.storageService = storageService;
+    this.productRepository = productRepository;
+    this.locationRepository = locationRepository;
   }
 
   @Transactional
@@ -309,6 +319,8 @@ public class PurchaseService {
       supplierName,
       purchase.getDocType(),
       purchase.getDocNumber(),
+      purchase.getPaymentTermDays(),
+      purchase.getDueDate(),
       purchase.getStatus(),
       purchase.getNet(),
       purchase.getVat(),
@@ -784,5 +796,105 @@ public class PurchaseService {
     forecasts.sort((a, b) -> b.getForecastedSpending().compareTo(a.getForecastedSpending()));
     
     return forecasts;
+  }
+
+  @Transactional(readOnly = true)
+  public com.datakomerz.pymes.purchases.dto.PurchaseDetail getDetail(UUID id) {
+    UUID companyId = companyContext.require();
+    
+    Purchase purchase = purchases.findById(id)
+        .orElseThrow(() -> new IllegalArgumentException("Compra no encontrada"));
+    
+    if (!purchase.getCompanyId().equals(companyId)) {
+      throw new IllegalArgumentException("Acceso denegado a esta compra");
+    }
+    
+    // Obtener proveedor
+    Supplier supplier = suppliers.findById(purchase.getSupplierId()).orElse(null);
+    var supplierDto = supplier != null 
+        ? new com.datakomerz.pymes.purchases.dto.PurchaseDetailSupplier(supplier.getId(), supplier.getName())
+        : null;
+    
+    // Obtener items de compra
+    List<PurchaseItem> purchaseItems = items.findByPurchaseId(id);
+    
+    // Mapear productos
+    Set<UUID> productIds = purchaseItems.stream()
+        .map(PurchaseItem::getProductId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+    
+    Map<UUID, String> productNames = new HashMap<>();
+    Map<UUID, String> productSkus = new HashMap<>();
+    if (!productIds.isEmpty()) {
+      List<Product> products = productRepository.findAllById(productIds);
+      for (Product p : products) {
+        productNames.put(p.getId(), p.getName());
+        productSkus.put(p.getId(), p.getSku());
+      }
+    }
+    
+    // Obtener ubicaciones
+    Set<UUID> locationIds = purchaseItems.stream()
+        .map(item -> lots.findByPurchaseItemId(item.getId()).stream()
+            .map(InventoryLot::getLocationId)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+    
+    Map<UUID, String> locationCodes = new HashMap<>();
+    if (!locationIds.isEmpty()) {
+      List<Location> locations = locationRepository.findAllById(locationIds);
+      for (Location loc : locations) {
+        locationCodes.put(loc.getId(), loc.getCode());
+      }
+    }
+    
+    // Mapear items
+    List<com.datakomerz.pymes.purchases.dto.PurchaseDetailLine> lines = purchaseItems.stream()
+        .map(item -> {
+          InventoryLot lot = lots.findByPurchaseItemId(item.getId()).stream().findFirst().orElse(null);
+          
+          return new com.datakomerz.pymes.purchases.dto.PurchaseDetailLine(
+              item.getId(),
+              item.getProductId(),
+              null, // serviceId - no está en PurchaseItem actual
+              productNames.getOrDefault(item.getProductId(), "Producto " + item.getProductId()),
+              null, // serviceName
+              productSkus.get(item.getProductId()),
+              item.getQty(),
+              item.getUnitCost(),
+              item.getVatRate(),
+              item.getMfgDate(),
+              item.getExpDate(),
+              lot != null ? lot.getLocationId() : null,
+              lot != null && lot.getLocationId() != null ? locationCodes.get(lot.getLocationId()) : null
+          );
+        })
+        .collect(Collectors.toList());
+    
+    // Calcular dueDate si hay paymentTermDays
+    OffsetDateTime dueDate = null;
+    if (purchase.getPaymentTermDays() > 0 && purchase.getIssuedAt() != null) {
+      dueDate = purchase.getIssuedAt().plusDays(purchase.getPaymentTermDays());
+    }
+    
+    return new com.datakomerz.pymes.purchases.dto.PurchaseDetail(
+        purchase.getId(),
+        purchase.getIssuedAt(),
+        purchase.getReceivedAt(),
+        dueDate,
+        purchase.getDocType(),
+        purchase.getDocNumber(),
+        purchase.getPaymentTermDays(),
+        purchase.getStatus(),
+        supplierDto,
+        lines,
+        purchase.getNet(),
+        purchase.getVat(),
+        purchase.getTotal()
+    );
   }
 }

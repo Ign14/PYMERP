@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -204,6 +205,8 @@ class BillingWebhookControllerTest {
     sale.setNet(BigDecimal.TEN);
     sale.setVat(BigDecimal.ONE);
     sale.setTotal(BigDecimal.valueOf(11));
+    sale.setIssuedAt(OffsetDateTime.now());
+    sale.setPaymentTermDays(30);
     saleRepository.save(sale);
 
     FiscalDocument document = new FiscalDocument();

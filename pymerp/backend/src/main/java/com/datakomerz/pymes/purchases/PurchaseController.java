@@ -93,6 +93,13 @@ public class PurchaseController {
     return service.list(status, docType, search, from, to, PageRequest.of(page, size));
   }
 
+  @GetMapping("/{id}/detail")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
+  @ValidateTenant(entityClass = Purchase.class)
+  public com.datakomerz.pymes.purchases.dto.PurchaseDetail getDetail(@PathVariable UUID id) {
+    return service.getDetail(id);
+  }
+
   @GetMapping("/metrics/daily")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
   public List<PurchaseDailyPoint> metrics(@RequestParam(defaultValue = "14") int days) {
@@ -287,7 +294,10 @@ public class PurchaseController {
             null, // pdfUrl
             issuedAt,
             null, // receivedAt
-            List.of() // items vacío
+            30, // paymentTermDays default
+            null, // status
+            List.of(), // items vacío
+            null // captcha
           );
 
           service.create(req);

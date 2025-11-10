@@ -27,6 +27,7 @@ import java.time.Clock;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -107,6 +108,8 @@ class ContingencySyncJobTest {
     sale.setVat(new BigDecimal("1900"));
     sale.setTotal(new BigDecimal("11900"));
     sale.setPaymentMethod("EFECTIVO");
+    sale.setIssuedAt(OffsetDateTime.now());
+    sale.setPaymentTermDays(30);
     saleRepository.saveAndFlush(sale);
   }
 

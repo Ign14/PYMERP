@@ -4,6 +4,7 @@ import com.datakomerz.pymes.finances.dto.AccountPayable;
 import com.datakomerz.pymes.finances.dto.AccountReceivable;
 import com.datakomerz.pymes.finances.dto.CashflowProjection;
 import com.datakomerz.pymes.finances.dto.FinanceSummary;
+import com.datakomerz.pymes.finances.dto.PaymentBucketSummary;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -75,5 +76,27 @@ public class FinanceController {
     }
     List<CashflowProjection> projections = financeService.getCashflowProjection(days);
     return ResponseEntity.ok(projections);
+  }
+  
+  /**
+   * Obtiene buckets de antigüedad para cuentas por cobrar
+   * GET /api/v1/finances/receivables/buckets
+   */
+  @GetMapping("/receivables/buckets")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
+  public ResponseEntity<List<PaymentBucketSummary>> getReceivableBuckets() {
+    FinanceSummary summary = financeService.getSummary();
+    return ResponseEntity.ok(summary.receivableBuckets());
+  }
+  
+  /**
+   * Obtiene buckets de antigüedad para cuentas por pagar
+   * GET /api/v1/finances/payables/buckets
+   */
+  @GetMapping("/payables/buckets")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'ADMIN')")
+  public ResponseEntity<List<PaymentBucketSummary>> getPayableBuckets() {
+    FinanceSummary summary = financeService.getSummary();
+    return ResponseEntity.ok(summary.payableBuckets());
   }
 }

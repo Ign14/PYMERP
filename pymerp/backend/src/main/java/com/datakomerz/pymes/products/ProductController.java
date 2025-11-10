@@ -3,6 +3,8 @@ package com.datakomerz.pymes.products;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.inventory.InventoryLot;
 import com.datakomerz.pymes.inventory.InventoryService;
+import com.datakomerz.pymes.locations.Location;
+import com.datakomerz.pymes.locations.LocationRepository;
 import com.datakomerz.pymes.pricing.PricingService;
 import com.datakomerz.pymes.products.dto.ProductInventoryAlertRequest;
 import com.datakomerz.pymes.products.dto.ProductReq;
@@ -10,6 +12,7 @@ import com.datakomerz.pymes.products.dto.ProductRes;
 import com.datakomerz.pymes.products.dto.ProductStatusRequest;
 import com.datakomerz.pymes.products.dto.ProductStockLot;
 import com.datakomerz.pymes.products.dto.ProductStockResponse;
+import com.datakomerz.pymes.products.dto.LowStockProduct;
 import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.storage.StorageService;
 import com.datakomerz.pymes.storage.StorageService.StoredFile;
@@ -20,7 +23,9 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -56,6 +61,7 @@ public class ProductController {
   private final QrCodeService qrCodeService;
   private final InventoryService inventoryService;
   private final ProductService productService;
+  private final LocationRepository locationRepository;
 
   private static final long MAX_IMAGE_BYTES = 1_048_576; // 1 MB
   private static final List<String> ALLOWED_IMAGE_TYPES = List.of(
@@ -70,7 +76,8 @@ public class ProductController {
                            StorageService storageService,
                            QrCodeService qrCodeService,
                            InventoryService inventoryService,
-                           ProductService productService) {
+                           ProductService productService,
+                           LocationRepository locationRepository) {
     this.repo = repo;
     this.companyContext = companyContext;
     this.pricingService = pricingService;
@@ -78,6 +85,7 @@ public class ProductController {
     this.qrCodeService = qrCodeService;
     this.inventoryService = inventoryService;
     this.productService = productService;
+    this.locationRepository = locationRepository;
   }
 
   @GetMapping
@@ -103,6 +111,13 @@ public class ProductController {
       products = findByName(query, pageable, activeFilter);
     }
     return products.map(this::toResponse);
+  }
+
+  @GetMapping("/low-stock")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
+  public List<LowStockProduct> lowStock() {
+    UUID companyId = companyContext.require();
+    return productService.findLowStockProducts(companyId);
   }
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -210,14 +225,41 @@ public class ProductController {
     Product entity = productService.findById(companyId, id)
       .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
     List<InventoryLot> lots = inventoryService.lotsForProduct(entity.getId());
+    
+    // Cargar todas las ubicaciones de una vez
+    List<UUID> locationIds = lots.stream()
+      .map(InventoryLot::getLocationId)
+      .filter(locId -> locId != null)
+      .distinct()
+      .collect(Collectors.toList());
+    
+    Map<UUID, Location> locationsMap = locationRepository.findAllById(locationIds).stream()
+      .collect(Collectors.toMap(Location::getId, loc -> loc));
+    
     BigDecimal total = BigDecimal.ZERO;
     List<ProductStockLot> items = new ArrayList<>();
     for (InventoryLot lot : lots) {
       total = total.add(lot.getQtyAvailable());
+      
+      String locationCode = null;
+      String locationName = null;
+      if (lot.getLocationId() != null) {
+        Location location = locationsMap.get(lot.getLocationId());
+        if (location != null) {
+          locationCode = location.getCode();
+          locationName = location.getName();
+        }
+      }
+      
       items.add(new ProductStockLot(
         lot.getId(),
         lot.getQtyAvailable(),
-        null,
+        lot.getCostUnit(),
+        lot.getBatchName(),
+        lot.getLocationId(),
+        locationCode,
+        locationName,
+        lot.getMfgDate(),
         lot.getExpDate()
       ));
     }

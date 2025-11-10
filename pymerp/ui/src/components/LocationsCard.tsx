@@ -5,13 +5,17 @@ import {
   deleteLocation,
   getLocationStockSummary,
   listLocations,
+  getCompanyParentLocations,
   Location,
   LocationPayload,
   LocationStockSummary,
   LocationType,
+  ParentLocationResponse,
 } from '../services/client'
+import { useAuth } from '../context/AuthContext'
 
 export default function LocationsCard() {
+  const { session } = useAuth()
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
@@ -28,6 +32,12 @@ export default function LocationsCard() {
   const locationsQuery = useQuery({
     queryKey: ['locations'],
     queryFn: () => listLocations(),
+  })
+
+  const parentLocationsQuery = useQuery({
+    queryKey: ['parent-locations', session?.companyId],
+    queryFn: () => getCompanyParentLocations(session?.companyId ?? ''),
+    enabled: !!session?.companyId,
   })
 
   const stockSummaryQuery = useQuery<LocationStockSummary[]>({
@@ -321,11 +331,24 @@ export default function LocationsCard() {
                   }
                 >
                   <option value="">-- Sin ubicación padre --</option>
-                  {locations.map(loc => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.code} - {loc.name} ({loc.type})
-                    </option>
-                  ))}
+                  {parentLocationsQuery.data && parentLocationsQuery.data.length > 0 && (
+                    <optgroup label="Ubicaciones Padre de la Empresa">
+                      {parentLocationsQuery.data.map(loc => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.code} - {loc.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {locations.length > 0 && (
+                    <optgroup label="Otras Ubicaciones">
+                      {locations.map(loc => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.code} - {loc.name} ({loc.type})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
               <div className="form-group">

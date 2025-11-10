@@ -1113,14 +1113,16 @@ function fallbackProductStock(productId: string): ProductStock {
     {
       lotId: `${productId}-lot-1`,
       quantity: 42,
-      location: 'Bodega central',
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 120).toISOString(),
+      locationCode: 'BC',
+      locationName: 'Bodega central',
+      expDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 120).toISOString(),
     },
     {
       lotId: `${productId}-lot-2`,
       quantity: 18,
-      location: 'Tienda principal',
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString(),
+      locationCode: 'TP',
+      locationName: 'Tienda principal',
+      expDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString(),
     },
   ]
   const total = lots.reduce((sum, lot) => sum + lot.quantity, 0)
@@ -2066,6 +2068,50 @@ export type Company = {
   updatedAt?: string
 }
 
+export type ParentLocationRequest = {
+  name: string
+  code: string
+}
+
+export type ParentLocationResponse = {
+  id: string
+  name: string
+  code: string
+}
+
+export type CompanyCreateRequest = {
+  businessName: string
+  fantasyName?: string
+  rut: string
+  logoUrl?: string
+  businessActivity?: string
+  address?: string
+  commune?: string
+  phone?: string
+  email?: string
+  receiptFooterMessage?: string
+  slogan?: string
+  parentLocations?: ParentLocationRequest[]
+}
+
+export type CompanyResponse = {
+  id: string
+  businessName: string
+  fantasyName?: string
+  rut: string
+  logoUrl?: string
+  businessActivity?: string
+  address?: string
+  commune?: string
+  phone?: string
+  email?: string
+  receiptFooterMessage?: string
+  slogan?: string
+  parentLocations?: ParentLocationResponse[]
+  createdAt?: string
+  updatedAt?: string
+}
+
 export type UserAccount = {
   id: string
   email: string
@@ -2130,14 +2176,54 @@ export type ProductFormData = ProductPayload & {
 export type ProductStockLot = {
   lotId: string
   quantity: number
-  location?: string | null
-  expiresAt?: string | null
+  costUnit?: number
+  batchName?: string
+  locationId?: string
+  locationCode?: string
+  locationName?: string
+  mfgDate?: string
+  expDate?: string
 }
 
 export type ProductStock = {
   productId: string
   total: number
   lots: ProductStockLot[]
+}
+
+export type LowStockProduct = {
+  productId: string
+  sku: string
+  name: string
+  category?: string
+  currentStock: number
+  criticalStock: number
+  deficit: number
+}
+
+export type InventoryMovementDetail = {
+  id: string
+  type: string
+  createdAt: string
+  productId: string
+  productSku: string | null
+  productName: string | null
+  lotId: string | null
+  batchName: string | null
+  qty: number
+  locationId: string | null
+  locationCode: string | null
+  locationName: string | null
+  refType: string | null
+  refId: string | null
+  note: string | null
+  createdBy: string | null
+}
+
+export type LotTransferRequest = {
+  targetLocationId: string
+  qty: number
+  note?: string
 }
 
 export type Supplier = {
@@ -2444,6 +2530,7 @@ export type SalePayload = {
   docType: string
   discount?: number
   vatRate?: number
+  paymentTermDays?: number
   items: SaleItemPayload[]
 }
 
@@ -2498,6 +2585,7 @@ export type SaleDetail = {
   series?: string
   folio?: string | number
   paymentMethod: string
+  paymentTermDays?: number
   status: string
   customer?: { id: string; name: string } | null
   supplier?: { id: string; name: string } | null
@@ -2512,6 +2600,38 @@ export type SaleUpdatePayload = {
   docType?: string
   paymentMethod?: string
   status?: string
+}
+
+export type PurchaseDetailLine = {
+  id: string
+  productId?: string
+  serviceId?: string
+  productName?: string
+  serviceName?: string
+  productSku?: string
+  qty: number
+  unitCost: number
+  vatRate?: number
+  mfgDate?: string
+  expDate?: string
+  locationId?: string
+  locationCode?: string
+}
+
+export type PurchaseDetail = {
+  id: string
+  issuedAt: string
+  receivedAt?: string
+  dueDate?: string
+  docType: string
+  docNumber?: string
+  paymentTermDays: number
+  status: string
+  supplier?: { id: string; name: string } | null
+  items: PurchaseDetailLine[]
+  net: number
+  vat: number
+  total: number
 }
 
 export type SalesDailyPoint = {
@@ -2662,6 +2782,7 @@ export type PurchasePayload = {
   pdfUrl?: string
   issuedAt: string
   receivedAt?: string
+  paymentTermDays?: number
   items: PurchaseItemPayload[]
 }
 
@@ -3084,6 +3205,96 @@ export function deleteCompany(id: string): Promise<void> {
   )
 }
 
+// Company management with parent locations
+export function listCompaniesWithDetails(): Promise<CompanyResponse[]> {
+  return withOfflineFallback(
+    'listCompaniesWithDetails',
+    async () => {
+      const { data } = await api.get<CompanyResponse[]>('/v1/companies')
+      return data
+    },
+    () => []
+  )
+}
+
+export function getCompanyWithDetails(id: string): Promise<CompanyResponse> {
+  return withOfflineFallback(
+    'getCompanyWithDetails',
+    async () => {
+      const { data } = await api.get<CompanyResponse>(`/v1/companies/${id}`)
+      return data
+    },
+    () => ({
+      id,
+      businessName: 'Empresa Demo',
+      rut: '12345678-9',
+      parentLocations: []
+    })
+  )
+}
+
+export function createCompanyWithDetails(payload: CompanyCreateRequest): Promise<CompanyResponse> {
+  return withOfflineFallback(
+    'createCompanyWithDetails',
+    async () => {
+      const { data } = await api.post<CompanyResponse>('/v1/companies', payload)
+      return data
+    },
+    () => ({
+      id: `company-${Date.now()}`,
+      ...payload,
+      parentLocations: payload.parentLocations?.map((loc, idx) => ({
+        id: `loc-${idx}`,
+        ...loc
+      })) || []
+    })
+  )
+}
+
+export function updateCompanyWithDetails(
+  id: string,
+  payload: CompanyCreateRequest
+): Promise<CompanyResponse> {
+  return withOfflineFallback(
+    'updateCompanyWithDetails',
+    async () => {
+      const { data } = await api.put<CompanyResponse>(`/v1/companies/${id}`, payload)
+      return data
+    },
+    () => ({
+      id,
+      ...payload,
+      parentLocations: payload.parentLocations?.map((loc, idx) => ({
+        id: `loc-${idx}`,
+        ...loc
+      })) || []
+    })
+  )
+}
+
+export function deleteCompanyWithDetails(id: string): Promise<void> {
+  return withOfflineVoid(
+    'deleteCompanyWithDetails',
+    async () => {
+      await api.delete(`/v1/companies/${id}`)
+    },
+    () => Promise.resolve()
+  )
+}
+
+export function getCompanyParentLocations(companyId: string): Promise<ParentLocationResponse[]> {
+  return withOfflineFallback(
+    'getCompanyParentLocations',
+    async () => {
+      const { data } = await api.get<ParentLocationResponse[]>(
+        `/v1/companies/${companyId}/parent-locations`
+      )
+      return data
+    },
+    () => []
+  )
+}
+
 export function listUserAccounts(): Promise<UserAccount[]> {
   return withOfflineFallback(
     'listUserAccounts',
@@ -3254,6 +3465,42 @@ export function deleteProduct(id: string): Promise<void> {
     () => api.delete(`/v1/products/${id}`),
     () => fallbackDeleteProduct(id)
   )
+}
+
+export function listLowStockProducts(): Promise<LowStockProduct[]> {
+  return withOfflineFallback(
+    'listLowStockProducts',
+    async () => {
+      const { data } = await api.get<LowStockProduct[]>('/v1/products/low-stock')
+      return data
+    },
+    () => []
+  )
+}
+
+export function listInventoryMovements(params?: {
+  productId?: string
+  lotId?: string
+  type?: string
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  size?: number
+}): Promise<Page<InventoryMovementDetail>> {
+  return withOfflineFallback(
+    'listInventoryMovements',
+    async () => {
+      const { data } = await api.get<Page<InventoryMovementDetail>>('/v1/inventory/movements', {
+        params: params || {},
+      })
+      return data
+    },
+    () => ({ content: [], totalElements: 0, totalPages: 0, size: 20, number: 0 })
+  )
+}
+
+export async function transferInventoryLot(lotId: string, request: LotTransferRequest): Promise<void> {
+  await api.post(`/v1/inventory/lots/${lotId}/transfer`, request)
 }
 
 export function listSuppliers(query?: string, active?: boolean): Promise<Supplier[]> {
@@ -4040,6 +4287,30 @@ export function cancelPurchase(id: string): Promise<PurchaseSummary> {
   )
 }
 
+export function getPurchaseDetail(id: string): Promise<PurchaseDetail> {
+  return withOfflineFallback(
+    'getPurchaseDetail',
+    async () => {
+      const { data } = await api.get<PurchaseDetail>(`/v1/purchases/${id}/detail`)
+      return data
+    },
+    () => {
+      // Fallback básico
+      return {
+        id,
+        issuedAt: new Date().toISOString(),
+        docType: 'Factura',
+        paymentTermDays: 30,
+        status: 'received',
+        items: [],
+        net: 0,
+        vat: 0,
+        total: 0,
+      }
+    }
+  )
+}
+
 export function getPurchaseKPIs(from?: string, to?: string): Promise<PurchaseKPIs> {
   return withOfflineFallback(
     'getPurchaseKPIs',
@@ -4468,6 +4739,15 @@ export function createInventoryAdjustment(
 }
 
 // === Finance Module ===
+export interface PaymentBucketSummary {
+  key: string
+  label: string
+  minDays: number
+  maxDays: number
+  amount: number
+  documents: number
+}
+
 export interface FinanceSummary {
   cashOnHand: number
   totalReceivables: number
@@ -4481,6 +4761,8 @@ export interface FinanceSummary {
   next7DaysExpense: number
   next30DaysIncome: number
   next30DaysExpense: number
+  receivableBuckets: PaymentBucketSummary[]
+  payableBuckets: PaymentBucketSummary[]
 }
 
 export interface AccountReceivable {

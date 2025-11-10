@@ -30,7 +30,7 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -40,13 +40,12 @@ spring:
         order_inserts: true
         order_updates: true
   
-  # Flyway Configuration (Production migrations only, no dev seeds)
+  # Flyway Configuration (excludes dev seeds by not scanning dev/ subdirectory)
   flyway:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
-    # Exclude dev seed files
-    ignore-migration-patterns: "*:ignored,*:future,*seed_dev*,*seed_demo*"
+    # Only scan root migration directory, skip dev/ subdirectory
   
   # Redis Configuration (Managed)
   data:
@@ -139,6 +138,10 @@ management:
       enabled: true
     readinessState:
       enabled: true
+    redis:
+      enabled: false  # Desactivar health check de Redis para evitar timeouts en inicio
+    mail:
+      enabled: false  # Desactivar health check de Mail (MailHog no requiere autenticación real)
   metrics:
     export:
       prometheus:

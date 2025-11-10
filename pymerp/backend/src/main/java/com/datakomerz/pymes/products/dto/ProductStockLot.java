@@ -7,6 +7,11 @@ import java.util.UUID;
 public record ProductStockLot(
   UUID lotId,
   BigDecimal quantity,
-  String location,
-  LocalDate expiresAt
+  BigDecimal costUnit,
+  String batchName,
+  UUID locationId,
+  String locationCode,
+  String locationName,
+  LocalDate mfgDate,
+  LocalDate expDate
 ) {}

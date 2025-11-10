@@ -12,8 +12,11 @@ import {
   downloadDocument,
   DocumentSummary,
   DocumentFile,
+  getPurchaseDetail,
+  PurchaseDetail,
 } from '../services/client'
 import PageHeader from '../components/layout/PageHeader'
+import Modal from '../components/dialogs/Modal'
 import PurchaseCreateDialog from '../components/dialogs/PurchaseCreateDialog'
 import PurchaseImportDialog from '../components/dialogs/PurchaseImportDialog'
 import PurchasesAdvancedKPIs from '../components/purchases/PurchasesAdvancedKPIs'
@@ -51,6 +54,14 @@ const STATUS_OPTIONS = [
   { value: 'received', label: 'Recibida' },
   { value: 'cancelled', label: 'Cancelada' },
 ]
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency: 'CLP',
+    minimumFractionDigits: 0,
+  }).format(amount)
+}
 
 function sanitizeFileSegment(segment: string): string {
   return segment
@@ -96,6 +107,7 @@ export default function PurchasesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [receiptPurchaseId, setReceiptPurchaseId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('received')
   const [searchInput, setSearchInput] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
@@ -186,6 +198,12 @@ export default function PurchasesPage() {
   const cancelMutation = useMutation({
     mutationFn: (id: string) => cancelPurchase(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+  })
+
+  const purchaseDetailQuery = useQuery<PurchaseDetail, Error>({
+    queryKey: ['purchaseDetail', receiptPurchaseId],
+    queryFn: () => getPurchaseDetail(receiptPurchaseId!),
+    enabled: !!receiptPurchaseId,
   })
 
   const updateMutation = useMutation({
@@ -358,6 +376,13 @@ export default function PurchasesPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="table-actions">
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => setReceiptPurchaseId(row.original.id)}
+            >
+              Comprobante
+            </button>
             <button
               className="btn ghost"
               type="button"
@@ -692,6 +717,137 @@ export default function PurchasesPage() {
         endDate={endDate}
         statusFilter={statusFilter}
       />
+
+      {/* Modal de Comprobante */}
+      <Modal
+        open={!!receiptPurchaseId}
+        onClose={() => setReceiptPurchaseId(null)}
+        title="Detalle del Comprobante de Compra"
+      >
+        {purchaseDetailQuery.isLoading && <p>Cargando detalle...</p>}
+        {purchaseDetailQuery.error && (
+          <p className="error">Error al cargar: {purchaseDetailQuery.error.message}</p>
+        )}
+        {purchaseDetailQuery.data && (
+          <div className="document-detail">
+            <section className="document-detail__header">
+              <div className="document-detail__title-row">
+                <h2 className="document-detail__title">
+                  {purchaseDetailQuery.data.docType || 'Compra'}
+                </h2>
+                <p className="document-detail__number">#{purchaseDetailQuery.data.docNumber ?? purchaseDetailQuery.data.id}</p>
+              </div>
+              <div className="document-detail__meta-grid">
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Fecha Emisión</span>
+                  <span className="document-detail__meta-value">
+                    {purchaseDetailQuery.data.issuedAt
+                      ? new Date(purchaseDetailQuery.data.issuedAt).toLocaleString('es-CL')
+                      : '—'}
+                  </span>
+                </div>
+                {purchaseDetailQuery.data.receivedAt && (
+                  <div className="document-detail__meta-item">
+                    <span className="document-detail__meta-label">Fecha Recepción</span>
+                    <span className="document-detail__meta-value">
+                      {new Date(purchaseDetailQuery.data.receivedAt).toLocaleString('es-CL')}
+                    </span>
+                  </div>
+                )}
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Proveedor</span>
+                  <span className="document-detail__meta-value">
+                    {purchaseDetailQuery.data.supplier?.name ?? '—'}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Términos de pago</span>
+                  <span className="document-detail__meta-value">
+                    {purchaseDetailQuery.data.paymentTermDays > 0
+                      ? `${purchaseDetailQuery.data.paymentTermDays} días`
+                      : 'Sin términos de pago'}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Estado</span>
+                  <span className="document-detail__meta-value">
+                    {purchaseDetailQuery.data.status}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item document-detail__meta-item--highlight">
+                  <span className="document-detail__meta-label">Total</span>
+                  <span className="document-detail__meta-value document-detail__meta-value--highlight">
+                    {formatCurrency(purchaseDetailQuery.data.total)}
+                  </span>
+                </div>
+              </div>
+            </section>
+            <div className="document-detail__items table-wrapper compact">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Descripción</th>
+                    <th className="mono">Cantidad</th>
+                    <th className="mono">Costo Unit.</th>
+                    <th className="mono">Info Adicional</th>
+                    <th className="mono">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseDetailQuery.data.items.map((item, index) => {
+                    const subtotal = item.qty * item.unitCost
+                    const name = item.productName || item.serviceName || 'Item'
+                    return (
+                      <tr key={`${item.id}-${index}`}>
+                        <td className="mono">{item.productSku ?? '—'}</td>
+                        <td>
+                          <span className="document-detail__description" title={name}>
+                            {name}
+                          </span>
+                        </td>
+                        <td className="mono">{item.qty}</td>
+                        <td className="mono">{formatCurrency(item.unitCost)}</td>
+                        <td className="mono" style={{ fontSize: '0.85rem', color: '#666' }}>
+                          {item.expDate && `Venc: ${new Date(item.expDate).toLocaleDateString('es-CL')}`}
+                          {item.mfgDate && ` | Fab: ${new Date(item.mfgDate).toLocaleDateString('es-CL')}`}
+                          {item.locationCode && ` | 📍 ${item.locationCode}`}
+                        </td>
+                        <td className="mono">{formatCurrency(subtotal)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <section className="document-detail__totals">
+              <div className="document-detail__totals-row">
+                <span className="document-detail__totals-label">Neto</span>
+                <span className="document-detail__totals-value mono">
+                  {formatCurrency(purchaseDetailQuery.data.net)}
+                </span>
+              </div>
+              <div className="document-detail__totals-row">
+                <span className="document-detail__totals-label">IVA (19%)</span>
+                <span className="document-detail__totals-value mono">
+                  {formatCurrency(purchaseDetailQuery.data.vat)}
+                </span>
+              </div>
+              <div className="document-detail__totals-row document-detail__totals-row--total">
+                <span className="document-detail__totals-label">Total</span>
+                <span className="document-detail__totals-value mono">
+                  {formatCurrency(purchaseDetailQuery.data.total)}
+                </span>
+              </div>
+            </section>
+            <div className="document-detail__actions">
+              <button className="btn" onClick={() => setReceiptPurchaseId(null)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

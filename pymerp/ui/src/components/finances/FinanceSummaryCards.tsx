@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getFinanceSummary, type FinanceSummary } from '../../services/client'
+import PaymentBucketsChart from './PaymentBucketsChart'
 
 export default function FinanceSummaryCards() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
@@ -187,6 +188,27 @@ export default function FinanceSummaryCards() {
           ))}
         </div>
       </div>
+
+      {/* Buckets de Antigüedad */}
+      {summary.receivableBuckets && summary.payableBuckets && (
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-100 mb-3">
+            Análisis de Antigüedad de Saldos
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <PaymentBucketsChart
+              title="Cuentas por Cobrar - Por Vencimiento"
+              buckets={summary.receivableBuckets}
+              color="green"
+            />
+            <PaymentBucketsChart
+              title="Cuentas por Pagar - Por Vencimiento"
+              buckets={summary.payableBuckets}
+              color="red"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

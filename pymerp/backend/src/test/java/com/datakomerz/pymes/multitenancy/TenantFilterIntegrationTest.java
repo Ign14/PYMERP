@@ -134,7 +134,7 @@ class TenantFilterIntegrationTest {
     product.setName(name);
     product.setActive(true);
     product.setCriticalStock(BigDecimal.ZERO);
-    product.setCreatedAt(OffsetDateTime.now());
+    // createdAt is managed by JPA @CreatedDate
     return product;
   }
 }

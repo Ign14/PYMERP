@@ -1,0 +1,1 @@
+const n="es-CL";const t=new Intl.NumberFormat(n,{style:"currency",currency:"CLP",minimumFractionDigits:0,maximumFractionDigits:0});function c(r){return new Intl.NumberFormat(n,{style:"currency",currency:"CLP",minimumFractionDigits:0,maximumFractionDigits:0})}function m(r){return r==null||Number.isNaN(r)?t.format(0):t.format(r)}export{c,m as f};

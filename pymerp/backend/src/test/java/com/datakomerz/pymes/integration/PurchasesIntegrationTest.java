@@ -19,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,9 +80,11 @@ public class PurchasesIntegrationTest {
         purchase.setDocType("factura");
         purchase.setDocNumber("12345");
         purchase.setStatus("pendiente");
+        purchase.setIssuedAt(OffsetDateTime.now());
         purchase.setNet(new BigDecimal("100000"));
         purchase.setVat(new BigDecimal("19000"));
         purchase.setTotal(new BigDecimal("119000"));
+        purchase.setPaymentTermDays(30);
         purchase = purchaseRepository.save(purchase);
         
         // Assert: verificar relación con proveedor
@@ -99,9 +102,11 @@ public class PurchasesIntegrationTest {
         purchase.setCompanyId(companyId);
         purchase.setSupplierId(supplierId);
         purchase.setDocType("factura");
+        purchase.setIssuedAt(OffsetDateTime.now());
         purchase.setNet(new BigDecimal("80000"));
         purchase.setVat(new BigDecimal("15200"));
         purchase.setTotal(new BigDecimal("95200"));
+        purchase.setPaymentTermDays(30);
         purchase = purchaseRepository.save(purchase);
         
         // Act: crear ítem de compra vinculado a compra y producto
@@ -132,9 +137,11 @@ public class PurchasesIntegrationTest {
         purchase.setCompanyId(companyId);
         purchase.setSupplierId(supplierId);
         purchase.setDocType("factura");
+        purchase.setIssuedAt(OffsetDateTime.now());
         purchase.setNet(BigDecimal.valueOf(50000));
         purchase.setVat(BigDecimal.valueOf(9500));
         purchase.setTotal(BigDecimal.valueOf(59500));
+        purchase.setPaymentTermDays(30);
         purchase = purchaseRepository.save(purchase);
         
         PurchaseItem item = new PurchaseItem();
@@ -169,9 +176,11 @@ public class PurchasesIntegrationTest {
         purchase1.setCompanyId(companyId);
         purchase1.setSupplierId(supplierId);
         purchase1.setDocType("factura");
+        purchase1.setIssuedAt(OffsetDateTime.now());
         purchase1.setNet(BigDecimal.valueOf(100000));
         purchase1.setVat(BigDecimal.valueOf(19000));
         purchase1.setTotal(BigDecimal.valueOf(119000));
+        purchase1.setPaymentTermDays(30);
         purchaseRepository.save(purchase1);
         
         // Crear datos para compañía 2
@@ -186,9 +195,11 @@ public class PurchasesIntegrationTest {
         purchase2.setCompanyId(company2Id);
         purchase2.setSupplierId(supplier2.getId());
         purchase2.setDocType("factura");
+        purchase2.setIssuedAt(OffsetDateTime.now());
         purchase2.setNet(BigDecimal.valueOf(50000));
         purchase2.setVat(BigDecimal.valueOf(9500));
         purchase2.setTotal(BigDecimal.valueOf(59500));
+        purchase2.setPaymentTermDays(30);
         purchaseRepository.save(purchase2);
         
         // Act: contar compras por compañía
@@ -212,9 +223,11 @@ public class PurchasesIntegrationTest {
         purchase.setCompanyId(companyId);
         purchase.setSupplierId(supplierId);
         purchase.setDocType("factura");
+        purchase.setIssuedAt(OffsetDateTime.now());
         purchase.setNet(BigDecimal.valueOf(100000));
         purchase.setVat(BigDecimal.valueOf(19000));
         purchase.setTotal(BigDecimal.valueOf(119000));
+        purchase.setPaymentTermDays(30);
         purchaseRepository.save(purchase);
         
         // Act & Assert: verificar que el proveedor existe y tiene compras

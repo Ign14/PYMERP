@@ -42,6 +42,7 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
   const [newSupplierRut, setNewSupplierRut] = useState('')
   const [docType, setDocType] = useState<string>('Factura')
   const [docNumber, setDocNumber] = useState('')
+  const [paymentTermDays, setPaymentTermDays] = useState<number | null>(null)
   const [issuedAt, setIssuedAt] = useState(() => new Date().toISOString().slice(0, 16))
   const [receivedAt, setReceivedAt] = useState(() => new Date().toISOString().slice(0, 16))
   const [items, setItems] = useState<PurchaseItemPayload[]>([])
@@ -52,6 +53,8 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
   const [unitCost, setUnitCost] = useState(0)
   const [vatRate, setVatRate] = useState(19)
   const [expDate, setExpDate] = useState('')
+  const [mfgDate, setMfgDate] = useState('')
+  const [batchName, setBatchName] = useState('')
   const [locationId, setLocationId] = useState('')
   const [applyVat, setApplyVat] = useState(true)
   const [discountType, setDiscountType] = useState<DiscountType>('amount')
@@ -146,6 +149,7 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
 
     if (itemType === 'product') {
       newItem.productId = productId
+      newItem.mfgDate = mfgDate || undefined
       newItem.expDate = expDate || undefined
       newItem.locationId = locationId || undefined
     } else {
@@ -160,6 +164,8 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
     setQty(1)
     setUnitCost(0)
     setExpDate('')
+    setMfgDate('')
+    setBatchName('')
     setLocationId('')
   }
 
@@ -186,6 +192,7 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
     setDiscountType('amount')
     setDiscountValue(0)
     setPdfFile(null)
+    setPaymentTermDays(null)
   }
 
   const handleCreateSupplier = () => {
@@ -205,6 +212,7 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
       docNumber,
       issuedAt: new Date(issuedAt).toISOString(),
       receivedAt: receivedAt ? new Date(receivedAt).toISOString() : undefined,
+      paymentTermDays: paymentTermDays ?? undefined,
       net: Number(totals.net.toFixed(2)),
       vat: Number(totals.vat.toFixed(2)),
       total: Number(totals.total.toFixed(2)),
@@ -354,6 +362,21 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
           />
         </label>
 
+        <label>
+          <span>Términos de pago (opcional)</span>
+          <select
+            className="input"
+            value={paymentTermDays ?? ''}
+            onChange={e => setPaymentTermDays(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Sin términos de pago</option>
+            <option value="7">7 días</option>
+            <option value="15">15 días</option>
+            <option value="30">30 días</option>
+            <option value="60">60 días</option>
+          </select>
+        </label>
+
         {/* Campo de archivo PDF */}
         <label style={{ gridColumn: '1 / -1' }}>
           <span>📎 Adjuntar Documento PDF (opcional)</span>
@@ -424,8 +447,8 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
           style={{
             gridColumn: '1 / -1',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-            gap: '0.5rem',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '0.75rem',
           }}
         >
           {/* Selector de tipo de item */}
@@ -459,86 +482,78 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
           </div>
 
           {/* Selector de producto o servicio */}
-          {itemType === 'product' ? (
-            <select
-              className="input"
-              value={productId}
-              onChange={e => setProductId(e.target.value)}
-              style={{ gridColumn: '1 / -1' }}
-            >
-              <option value="">Seleccionar producto</option>
-              {productOptions.map(product => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              className="input"
-              value={serviceId}
-              onChange={e => setServiceId(e.target.value)}
-              style={{ gridColumn: '1 / -1' }}
-            >
-              <option value="">Seleccionar servicio</option>
-              {servicesQuery.data?.map(service => (
-                <option key={service.id} value={service.id}>
-                  {service.code} - {service.name}
-                </option>
-              ))}
-            </select>
-          )}
+          <label style={{ gridColumn: '1 / -1' }}>
+            <span>{itemType === 'product' ? 'Producto *' : 'Servicio *'}</span>
+            {itemType === 'product' ? (
+              <select
+                className="input"
+                value={productId}
+                onChange={e => setProductId(e.target.value)}
+              >
+                <option value="">Seleccionar producto</option>
+                {productOptions.map(product => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} {product.sku ? `(${product.sku})` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                className="input"
+                value={serviceId}
+                onChange={e => setServiceId(e.target.value)}
+              >
+                <option value="">Seleccionar servicio</option>
+                {servicesQuery.data?.map(service => (
+                  <option key={service.id} value={service.id}>
+                    {service.code} - {service.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
 
-          <input
-            className="input"
-            type="number"
-            min={1}
-            value={qty}
-            onChange={e => setQty(Number(e.target.value))}
-            placeholder="Cantidad"
-          />
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            min={0}
-            value={unitCost}
-            onChange={e => setUnitCost(Number(e.target.value))}
-            placeholder="Costo unitario"
-          />
+          <label>
+            <span>Cantidad *</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={qty}
+              onChange={e => setQty(Number(e.target.value))}
+              placeholder="Cantidad"
+            />
+          </label>
+
+          <label>
+            <span>Costo unitario *</span>
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              min={0}
+              value={unitCost}
+              onChange={e => setUnitCost(Number(e.target.value))}
+              placeholder="Costo unitario"
+            />
+          </label>
 
           {/* Campos adicionales solo para productos */}
           {itemType === 'product' && (
             <>
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.85rem',
-                    color: '#666',
-                    marginBottom: '0.25rem',
-                    display: 'block',
-                  }}
-                >
-                  Vencimiento
-                </label>
+              <label>
+                <span>Nombre del lote (opcional)</span>
                 <input
                   className="input"
-                  type="date"
-                  value={expDate}
-                  onChange={e => setExpDate(e.target.value)}
+                  type="text"
+                  value={batchName}
+                  onChange={e => setBatchName(e.target.value)}
+                  placeholder="Ej: LOTE-2025-001"
                 />
-              </div>
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.85rem',
-                    color: '#666',
-                    marginBottom: '0.25rem',
-                    display: 'block',
-                  }}
-                >
-                  Ubicación
-                </label>
+              </label>
+
+              <label>
+                <span>Ubicación de destino</span>
                 <select
                   className="input"
                   value={locationId}
@@ -551,7 +566,27 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
+
+              <label>
+                <span>Fecha de fabricación</span>
+                <input
+                  className="input"
+                  type="date"
+                  value={mfgDate}
+                  onChange={e => setMfgDate(e.target.value)}
+                />
+              </label>
+
+              <label>
+                <span>Fecha de vencimiento</span>
+                <input
+                  className="input"
+                  type="date"
+                  value={expDate}
+                  onChange={e => setExpDate(e.target.value)}
+                />
+              </label>
             </>
           )}
 
@@ -611,12 +646,27 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
                         ${subtotal.toFixed(2)}
                       </td>
                       <td className="mono" style={{ fontSize: '0.85rem', color: '#666' }}>
-                        {item.productId &&
-                          item.expDate &&
-                          `Venc: ${new Date(item.expDate).toLocaleDateString('es-CL')}`}
-                        {item.productId &&
-                          item.locationId &&
-                          locationsQuery.data?.find(l => l.id === item.locationId)?.code}
+                        {item.productId && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {item.locationId && (
+                              <span>
+                                📍{' '}
+                                {locationsQuery.data?.find(l => l.id === item.locationId)?.code}
+                              </span>
+                            )}
+                            {item.mfgDate && (
+                              <span>
+                                🏭 Fab: {new Date(item.mfgDate).toLocaleDateString('es-CL')}
+                              </span>
+                            )}
+                            {item.expDate && (
+                              <span>
+                                ⏰ Venc: {new Date(item.expDate).toLocaleDateString('es-CL')}
+                              </span>
+                            )}
+                            {!item.locationId && !item.mfgDate && !item.expDate && '-'}
+                          </div>
+                        )}
                         {item.serviceId && '-'}
                       </td>
                       <td>
