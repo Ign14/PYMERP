@@ -11,5 +11,6 @@ public interface LocationRepository extends JpaRepository<Location, UUID> {
     List<Location> findByCompanyId(UUID companyId);
     List<Location> findByCompanyIdAndType(UUID companyId, LocationType type);
     List<Location> findByCompanyIdAndParentLocationId(UUID companyId, UUID parentLocationId);
+    List<Location> findByParentLocationId(UUID parentLocationId);
     boolean existsByCompanyIdAndCode(UUID companyId, String code);
 }

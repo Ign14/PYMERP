@@ -2798,6 +2798,10 @@ export type Location = {
   description?: string
   type: LocationType
   parentLocationId?: string
+  active: boolean
+  isBlocked: boolean
+  capacity?: number
+  capacityUnit?: string
   createdAt: string
   updatedAt: string
 }
@@ -2808,6 +2812,10 @@ export type LocationPayload = {
   description?: string
   type: LocationType
   parentLocationId?: string
+  active?: boolean
+  isBlocked?: boolean
+  capacity?: number
+  capacityUnit?: string
 }
 
 export type PurchaseSummary = {
@@ -4468,6 +4476,10 @@ export async function createLocation(payload: LocationPayload): Promise<Location
       description: payload.description,
       type: payload.type,
       parentLocationId: payload.parentLocationId,
+      active: payload.active ?? true,
+      isBlocked: payload.isBlocked ?? false,
+      capacity: payload.capacity,
+      capacityUnit: payload.capacityUnit ?? 'UNITS',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4485,6 +4497,9 @@ export async function updateLocation(id: string, payload: LocationPayload): Prom
       id,
       companyId: DEV_FALLBACK_COMPANY_ID,
       ...payload,
+      active: payload.active ?? true,
+      isBlocked: payload.isBlocked ?? false,
+      capacityUnit: payload.capacityUnit ?? 'UNITS',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
