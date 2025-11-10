@@ -59,6 +59,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
   const [customerError, setCustomerError] = useState<string | null>(null)
   const [docType, setDocType] = useState<DocumentOption['value']>(DEFAULT_DOC_TYPE)
   const [paymentMethod, setPaymentMethod] = useState<PaymentOption['value']>(DEFAULT_PAYMENT_METHOD)
+  const [paymentTermDays, setPaymentTermDays] = useState<number | null>(null)
   const [items, setItems] = useState<SaleItemPayload[]>([])
   const [selectedProductId, setSelectedProductId] = useState<string>('')
   const [qty, setQty] = useState(1)
@@ -339,6 +340,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
     setCustomerError(null)
     setDocType(DEFAULT_DOC_TYPE)
     setPaymentMethod(DEFAULT_PAYMENT_METHOD)
+    setPaymentTermDays(null)
     setItems([])
     setSelectedProductId('')
     setQty(1)
@@ -369,6 +371,7 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
       customerId: selectedCustomer.id,
       docType,
       paymentMethod,
+      paymentTermDays: paymentTermDays ?? undefined,
       discount:
         discountValue > 0
           ? discountType === 'percentage'
@@ -489,6 +492,21 @@ export default function SalesCreateDialog({ open, onClose, onCreated }: Props) {
                 {option.label}
               </option>
             ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Términos de pago (opcional)</span>
+          <select
+            className="input"
+            value={paymentTermDays ?? ''}
+            onChange={e => setPaymentTermDays(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Sin términos de pago</option>
+            <option value="7">7 días</option>
+            <option value="15">15 días</option>
+            <option value="30">30 días</option>
+            <option value="60">60 días</option>
           </select>
         </label>
 

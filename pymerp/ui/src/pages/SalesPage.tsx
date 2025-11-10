@@ -1069,6 +1069,14 @@ export default function SalesPage() {
                   </span>
                 </div>
                 <div className="document-detail__meta-item">
+                  <span className="document-detail__meta-label">Términos de pago</span>
+                  <span className="document-detail__meta-value">
+                    {receiptDetail.paymentTermDays
+                      ? `${receiptDetail.paymentTermDays} días`
+                      : 'Sin términos de pago'}
+                  </span>
+                </div>
+                <div className="document-detail__meta-item">
                   <span className="document-detail__meta-label">Estado</span>
                   <span className="document-detail__meta-value">{receiptDetail.status}</span>
                 </div>

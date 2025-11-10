@@ -17,8 +17,10 @@ import {
   type DashboardSalesMetrics,
   type DashboardSalesMetricsParams,
   type TrendSeriesResponse,
+  type LowStockProduct,
   getDashboardSalesMetrics,
   getPurchaseSaleTrend,
+  listLowStockProducts,
 } from '../services/client'
 
 type DateRange = { from: string; to: string }
@@ -109,6 +111,11 @@ export default function DashboardPage() {
     queryKey: ['trend', from, to, 'purchase-sale'],
     queryFn: () => getPurchaseSaleTrend({ from, to, series: 'purchase,sale' }),
     enabled: Boolean(from && to),
+  })
+
+  const lowStockQuery = useQuery<LowStockProduct[], Error>({
+    queryKey: ['lowStockProducts'],
+    queryFn: () => listLowStockProducts(),
   })
 
   const currencyFormatter = useMemo(
@@ -225,6 +232,47 @@ export default function DashboardPage() {
           )}
         </article>
       </section>
+
+      {lowStockQuery.data && lowStockQuery.data.length > 0 && (
+        <section className="card" style={{ marginTop: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <h3 style={{ margin: 0 }}>⚠️ Productos bajo stock crítico</h3>
+            <span className="badge" style={{ backgroundColor: '#dc2626', color: 'white', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' }}>
+              {lowStockQuery.data.length}
+            </span>
+          </div>
+          <div className="table-wrapper compact">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Producto</th>
+                  <th>Categoría</th>
+                  <th>Stock Actual</th>
+                  <th>Stock Mínimo</th>
+                  <th>Faltante</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lowStockQuery.data.map(product => (
+                  <tr key={product.productId}>
+                    <td className="mono small">{product.sku}</td>
+                    <td>{product.name}</td>
+                    <td>{product.category || '—'}</td>
+                    <td className="mono" style={{ color: '#dc2626', fontWeight: 'bold' }}>
+                      {product.currentStock}
+                    </td>
+                    <td className="mono">{product.criticalStock}</td>
+                    <td className="mono" style={{ color: '#dc2626' }}>
+                      {product.deficit}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="card panel-chart" aria-labelledby="overview-title">
         <div className="panel-chart-header">

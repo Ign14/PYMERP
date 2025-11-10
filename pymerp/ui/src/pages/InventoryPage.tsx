@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   getInventorySettings,
   getInventorySummary,
@@ -43,6 +44,7 @@ function formatCurrency(value: number | string | null | undefined) {
 
 export default function InventoryPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
   const [thresholdValue, setThresholdValue] = useState<number | null>(null)
   const [thresholdInput, setThresholdInput] = useState<string>('')
@@ -134,9 +136,14 @@ export default function InventoryPage() {
         title="Inventario"
         description="Visibiliza catalogo, lotes y alertas de stock para garantizar disponibilidad."
         actions={
-          <button className="btn" onClick={() => setAdjustDialogOpen(true)}>
-            + Ajuste de stock
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn ghost" onClick={() => navigate('/app/inventory/movements')}>
+              📋 Ver movimientos
+            </button>
+            <button className="btn" onClick={() => setAdjustDialogOpen(true)}>
+              + Ajuste de stock
+            </button>
+          </div>
         }
       />
 

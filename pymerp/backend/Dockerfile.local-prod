@@ -1,0 +1,46 @@
+FROM gradle:8.10.2-jdk21-alpine AS builder
+
+WORKDIR /app
+
+# Copiar archivos de build
+COPY build.gradle settings.gradle ./
+COPY gradle ./gradle
+COPY src ./src
+
+# Build sin tests ni checkstyle
+RUN gradle build -x test -x checkstyleMain -x checkstyleTest --no-daemon
+
+# ===============================================================================
+# Imagen final - JRE optimizado
+# ===============================================================================
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Instalar curl para healthcheck
+RUN apk add --no-cache curl
+
+# Crear usuario no-root
+RUN addgroup -S spring && adduser -S spring -G spring
+
+# Crear directorios necesarios
+RUN mkdir -p /app/logs && chown spring:spring /app/logs
+RUN mkdir -p /app/storage/billing && chown -R spring:spring /app/storage
+
+USER spring:spring
+
+# Copiar JAR desde builder
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Configuración JVM para producción
+ENV JAVA_OPTS="-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+
+# Puerto
+EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8081/actuator/health || exit 1
+
+# Ejecutar aplicación
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

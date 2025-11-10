@@ -1,0 +1,177 @@
+version: '3.8'
+
+services:
+  # ===============================================================================
+  # NGINX Reverse Proxy con SSL
+  # ===============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: pymerp-nginx
+    ports:
+      - "8080:80"    # HTTP en puerto 8080 (evita conflicto con Apache en 80)
+      - "8443:443"   # HTTPS en puerto 8443 (evita conflicto con Apache en 443)
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./ui/dist:/usr/share/nginx/html/ui:ro
+    depends_on:
+      - backend
+    networks:
+      - pymerp-network
+    restart: unless-stopped
+
+  # ===============================================================================
+  # PostgreSQL 16 - Base de datos principal
+  # ===============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: pymerp-postgres
+    environment:
+      POSTGRES_DB: pymes
+      POSTGRES_USER: pymes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-PymesProd2024!}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - pymerp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pymes -d pymes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===============================================================================
+  # Redis 7 - Cache y sesiones
+  # ===============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: pymerp-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-RedisSecure2024!} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - pymerp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ===============================================================================
+  # MinIO - Almacenamiento S3-compatible
+  # ===============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: pymerp-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-MinioSecure2024!}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - pymerp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ===============================================================================
+  # Backend - Spring Boot API
+  # ===============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.local-prod
+    container_name: pymerp-backend
+    environment:
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pymes
+      SPRING_DATASOURCE_USERNAME: pymes
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-PymesProd2024!}
+      
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-RedisSecure2024!}
+      
+      # Storage S3/MinIO
+      STORAGE_S3_ENDPOINT: http://minio:9000
+      STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-MinioSecure2024!}
+      STORAGE_S3_BUCKET: pymes-prod
+      STORAGE_S3_REGION: us-east-1
+      
+      # App Config
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8081
+      APP_SECURITY_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production-min-64-chars}
+      APP_SECURITY_JWT_EXPIRATION: 86400000
+      APP_CORS_ALLOWED_ORIGINS: https://pymerp.cl,https://www.pymerp.cl,http://localhost:5173
+      
+      # Mail (MailHog)
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+      
+      # AWS/S3 Config
+      AWS_REGION: us-east-1
+      
+      # JVM Options
+      JAVA_OPTS: -Xms512m -Xmx1024m -XX:+UseG1GC
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - pymerp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ===============================================================================
+  # MailHog - SMTP testing (solo para local)
+  # ===============================================================================
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pymerp-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - pymerp-network
+    restart: unless-stopped
+
+networks:
+  pymerp-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local

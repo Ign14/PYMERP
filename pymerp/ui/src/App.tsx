@@ -11,6 +11,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const SalesPage = lazy(() => import('./pages/SalesPage'))
 const PurchasesPage = lazy(() => import('./pages/PurchasesPage'))
 const InventoryPage = lazy(() => import('./pages/InventoryPage'))
+const InventoryMovementsPage = lazy(() => import('./pages/InventoryMovementsPage'))
 const CustomersPage = lazy(() => import('./pages/CustomersPage'))
 const SuppliersPage = lazy(() => import('./pages/SuppliersPage'))
 const FinancesPage = lazy(() => import('./pages/FinancesPage'))
@@ -28,6 +29,7 @@ const ROUTES: ModuleRoute[] = [
   { path: 'sales', module: 'sales', element: <SalesPage /> },
   { path: 'purchases', module: 'purchases', element: <PurchasesPage /> },
   { path: 'inventory', module: 'inventory', element: <InventoryPage /> },
+  { path: 'inventory/movements', module: 'inventory', element: <InventoryMovementsPage /> },
   { path: 'customers', module: 'customers', element: <CustomersPage /> },
   { path: 'suppliers', module: 'suppliers', element: <SuppliersPage /> },
   { path: 'finances', module: 'finances', element: <FinancesPage /> },

@@ -2,6 +2,7 @@ import PageHeader from '../components/layout/PageHeader'
 import AccountOverviewCard from '../components/settings/AccountOverviewCard'
 import SessionAccessCard from '../components/settings/SessionAccessCard'
 import UserManagementCard from '../components/settings/UserManagementCard'
+import CompanyManagementCard from '../components/settings/CompanyManagementCard'
 import { useAuth } from '../context/AuthContext'
 
 export default function SettingsPage() {
@@ -33,6 +34,9 @@ export default function SettingsPage() {
         <AccountOverviewCard companyId={session.companyId} />
         <SessionAccessCard />
         <UserManagementCard />
+      </div>
+      <div className="mt-6">
+        <CompanyManagementCard />
       </div>
     </div>
   )

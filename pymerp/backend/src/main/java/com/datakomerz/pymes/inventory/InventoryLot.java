@@ -15,6 +15,7 @@ public class InventoryLot extends TenantAwareEntity {
   @Column(name="product_id", nullable=false, columnDefinition="uuid") private UUID productId;
   @Column(name="purchase_item_id", columnDefinition="uuid") private UUID purchaseItemId;
   @Column(name="location_id", columnDefinition="uuid") private UUID locationId;
+  @Column(name="batch_name", length=100) private String batchName;
   @Column(name="qty_available", nullable=false, precision=14, scale=3) private BigDecimal qtyAvailable;
   @Column(name="cost_unit", precision=14, scale=4) private BigDecimal costUnit;
   private LocalDate mfgDate;
@@ -35,6 +36,8 @@ public class InventoryLot extends TenantAwareEntity {
   public void setPurchaseItemId(UUID purchaseItemId) { this.purchaseItemId = purchaseItemId; }
   public UUID getLocationId() { return locationId; }
   public void setLocationId(UUID locationId) { this.locationId = locationId; }
+  public String getBatchName() { return batchName; }
+  public void setBatchName(String batchName) { this.batchName = batchName; }
   public BigDecimal getQtyAvailable() { return qtyAvailable; }
   public void setQtyAvailable(BigDecimal qtyAvailable) { this.qtyAvailable = qtyAvailable; }
   public BigDecimal getCostUnit() { return costUnit; }

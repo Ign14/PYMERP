@@ -13,12 +13,14 @@ import {
   PriceHistoryEntry,
   Product,
   ProductStock,
+  ProductStockLot,
 } from '../services/client'
 
 import ProductFormDialog from './dialogs/ProductFormDialog'
 import ProductInventoryAlertModal from './dialogs/ProductInventoryAlertModal'
 import ProductQrModal from './dialogs/ProductQrModal'
 import ProductImageModal from './dialogs/ProductImageModal'
+import LotTransferDialog from './dialogs/LotTransferDialog'
 import placeholderImage from '../../assets/product-placeholder.svg'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -38,6 +40,10 @@ export default function ProductsCard() {
   const [pendingCriticalStock, setPendingCriticalStock] = useState<Record<string, number>>({})
   const [criticalErrors, setCriticalErrors] = useState<Record<string, string>>({})
   const [savingCritical, setSavingCritical] = useState(false)
+  const [transferContext, setTransferContext] = useState<{
+    product: Product
+    lot: ProductStockLot
+  } | null>(null)
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'error'
     text: string
@@ -727,19 +733,51 @@ export default function ProductsCard() {
                       <thead>
                         <tr>
                           <th>Lote</th>
+                          <th>Batch</th>
                           <th>Cantidad</th>
+                          <th>Costo Unit.</th>
                           <th>Ubicación</th>
+                          <th>Mfg.</th>
                           <th>Vence</th>
+                          <th>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
                         {stockQuery.data.lots.map(lot => (
                           <tr key={lot.lotId}>
-                            <td className="mono small">{lot.lotId}</td>
+                            <td className="mono small">{lot.lotId.substring(0, 8)}</td>
+                            <td className="mono small">{lot.batchName || '—'}</td>
                             <td className="mono">{lot.quantity}</td>
-                            <td>{lot.location ?? '—'}</td>
                             <td className="mono small">
-                              {lot.expiresAt ? new Date(lot.expiresAt).toLocaleDateString() : '—'}
+                              {lot.costUnit ? `$${lot.costUnit.toLocaleString()}` : '—'}
+                            </td>
+                            <td>
+                              {lot.locationCode ? (
+                                <span title={lot.locationName || ''}>
+                                  {lot.locationCode}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="mono small">
+                              {lot.mfgDate ? new Date(lot.mfgDate).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="mono small">
+                              {lot.expDate ? new Date(lot.expDate).toLocaleDateString() : '—'}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn small ghost"
+                                onClick={() =>
+                                  selectedProduct &&
+                                  setTransferContext({ product: selectedProduct, lot })
+                                }
+                                disabled={lot.quantity <= 0}
+                              >
+                                Transferir
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -776,6 +814,20 @@ export default function ProductsCard() {
         product={imageProduct}
         imageUrl={imageSrc}
         onClose={closeImageModal}
+      />
+      <LotTransferDialog
+        open={!!transferContext}
+        lot={transferContext?.lot ?? null}
+        productName={transferContext?.product.name ?? ''}
+        onClose={() => setTransferContext(null)}
+        onTransferred={() => {
+          if (transferContext?.product.id) {
+            queryClient.invalidateQueries({
+              queryKey: ['product', transferContext.product.id, 'stock'],
+            })
+          }
+          queryClient.invalidateQueries({ queryKey: ['inventoryMovements'], exact: false })
+        }}
       />
     </div>
   )

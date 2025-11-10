@@ -21,8 +21,14 @@ public class Company {
   @Column(name = "business_name", nullable = false, length = 160)
   private String businessName;
 
+  @Column(name = "fantasy_name", length = 160)
+  private String fantasyName;
+
   @Column(nullable = false, length = 20, unique = true)
   private String rut;
+
+  @Column(name = "logo_url", length = 500)
+  private String logoUrl;
 
   @Column(name = "business_activity", length = 120)
   private String businessActivity;
@@ -82,12 +88,28 @@ public class Company {
     this.businessName = businessName;
   }
 
+  public String getFantasyName() {
+    return fantasyName;
+  }
+
+  public void setFantasyName(String fantasyName) {
+    this.fantasyName = fantasyName;
+  }
+
   public String getRut() {
     return rut;
   }
 
   public void setRut(String rut) {
     this.rut = rut;
+  }
+
+  public String getLogoUrl() {
+    return logoUrl;
+  }
+
+  public void setLogoUrl(String logoUrl) {
+    this.logoUrl = logoUrl;
   }
 
   public String getBusinessActivity() {

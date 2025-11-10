@@ -4,7 +4,6 @@ import com.datakomerz.pymes.inventory.dto.InventoryAdjustmentRequest;
 import com.datakomerz.pymes.inventory.dto.InventoryAdjustmentResponse;
 import com.datakomerz.pymes.inventory.dto.InventoryAlert;
 import com.datakomerz.pymes.inventory.dto.InventoryKPIs;
-import com.datakomerz.pymes.inventory.dto.InventoryMovementSummary;
 import com.datakomerz.pymes.inventory.dto.InventorySettingsResponse;
 import com.datakomerz.pymes.inventory.dto.InventorySettingsUpdateRequest;
 import com.datakomerz.pymes.inventory.dto.InventorySummary;
@@ -21,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -70,14 +70,15 @@ public class InventoryController {
 
   @GetMapping("/movements")
   @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-  public Page<InventoryMovementSummary> movements(
+  public Page<com.datakomerz.pymes.inventory.dto.InventoryMovementDetail> movements(
       @RequestParam(required = false) UUID productId,
+      @RequestParam(required = false) UUID lotId,
       @RequestParam(required = false) String type,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dateFrom,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dateTo,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    return inventoryService.listMovements(productId, type, from, to, PageRequest.of(page, size));
+    return inventoryService.listMovements(productId, lotId, type, dateFrom, dateTo, PageRequest.of(page, size));
   }
 
   @GetMapping("/kpis")
@@ -116,5 +117,13 @@ public class InventoryController {
     @RequestParam(required = false) Integer days
   ) {
     return inventoryService.getForecastAnalysis(productId, days);
+  }
+  
+  @PostMapping("/lots/{lotId}/transfer")
+  @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
+  public InventoryLot transferLot(
+      @PathVariable UUID lotId,
+      @Valid @RequestBody com.datakomerz.pymes.inventory.dto.LotTransferRequest request) {
+    return inventoryService.transferLot(lotId, request);
   }
 }
