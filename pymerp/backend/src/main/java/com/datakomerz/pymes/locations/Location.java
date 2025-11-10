@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -35,6 +36,18 @@ public class Location extends TenantAwareEntity {
 
     @Column(name = "parent_location_id")
     private UUID parentLocationId;
+
+    @Column(nullable = false)
+    private Boolean active = true;
+
+    @Column(name = "is_blocked", nullable = false)
+    private Boolean isBlocked = false;
+
+    @Column(precision = 14, scale = 3)
+    private BigDecimal capacity;
+
+    @Column(name = "capacity_unit", length = 20)
+    private String capacityUnit = "UNITS";
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -92,6 +105,38 @@ public class Location extends TenantAwareEntity {
 
     public void setParentLocationId(UUID parentLocationId) {
         this.parentLocationId = parentLocationId;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
+
+    public Boolean getIsBlocked() {
+        return isBlocked;
+    }
+
+    public void setIsBlocked(Boolean isBlocked) {
+        this.isBlocked = isBlocked;
+    }
+
+    public BigDecimal getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(BigDecimal capacity) {
+        this.capacity = capacity;
+    }
+
+    public String getCapacityUnit() {
+        return capacityUnit;
+    }
+
+    public void setCapacityUnit(String capacityUnit) {
+        this.capacityUnit = capacityUnit;
     }
 
     public OffsetDateTime getCreatedAt() {

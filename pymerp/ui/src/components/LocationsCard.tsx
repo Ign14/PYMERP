@@ -25,6 +25,10 @@ export default function LocationsCard() {
     description: '',
     type: 'WAREHOUSE' as LocationType,
     parentLocationId: undefined,
+    active: true,
+    isBlocked: false,
+    capacity: undefined,
+    capacityUnit: 'UNITS',
   })
 
   const queryClient = useQueryClient()
@@ -71,6 +75,10 @@ export default function LocationsCard() {
       description: '',
       type: 'WAREHOUSE' as LocationType,
       parentLocationId: undefined,
+      active: true,
+      isBlocked: false,
+      capacity: undefined,
+      capacityUnit: 'UNITS',
     })
     setEditingLocation(null)
   }
@@ -84,6 +92,10 @@ export default function LocationsCard() {
         description: location.description,
         type: location.type,
         parentLocationId: location.parentLocationId,
+        active: location.active,
+        isBlocked: location.isBlocked,
+        capacity: location.capacity,
+        capacityUnit: location.capacityUnit || 'UNITS',
       })
     } else {
       resetForm()
@@ -168,17 +180,38 @@ export default function LocationsCard() {
                           key={location.id}
                           className={`location-item${isSelected ? ' selected' : ''}`}
                           onClick={() => setSelectedLocation(location)}
+                          style={{
+                            opacity: location.active ? 1 : 0.6,
+                            border: location.isBlocked ? '2px solid var(--warning)' : undefined
+                          }}
                         >
                           <div className="location-item-header">
                             <span className="location-code mono">{location.code}</span>
-                            {totalProducts > 0 && (
-                              <span className="location-badge">{totalProducts} productos</span>
-                            )}
+                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                              {!location.active && (
+                                <span className="location-badge" style={{ background: 'var(--error)', color: 'white', fontSize: '0.75rem' }}>
+                                  Inactiva
+                                </span>
+                              )}
+                              {location.isBlocked && (
+                                <span className="location-badge" style={{ background: 'var(--warning)', color: 'white', fontSize: '0.75rem' }}>
+                                  🔒 Bloqueada
+                                </span>
+                              )}
+                              {totalProducts > 0 && (
+                                <span className="location-badge">{totalProducts} productos</span>
+                              )}
+                            </div>
                           </div>
                           <div className="location-name">{location.name}</div>
                           {location.parentLocationId && (
                             <div className="location-parent muted small">
                               📍 Ubicación padre configurada
+                            </div>
+                          )}
+                          {location.capacity && (
+                            <div className="location-parent muted small">
+                              📦 Capacidad: {location.capacity} {location.capacityUnit || 'unidades'}
                             </div>
                           )}
                           {location.description && (
@@ -212,6 +245,27 @@ export default function LocationsCard() {
                       <span className="muted">Tipo:</span>
                       <span>{selectedLocation.type}</span>
                     </div>
+                    <div className="detail-row">
+                      <span className="muted">Estado:</span>
+                      <span>
+                        {selectedLocation.active ? (
+                          <span style={{ color: 'var(--success-color)' }}>✓ Activa</span>
+                        ) : (
+                          <span style={{ color: 'var(--error-color)' }}>✗ Inactiva</span>
+                        )}
+                        {selectedLocation.isBlocked && (
+                          <span style={{ color: 'var(--warning)', marginLeft: '0.5rem' }}>🔒 Bloqueada</span>
+                        )}
+                      </span>
+                    </div>
+                    {selectedLocation.capacity && (
+                      <div className="detail-row">
+                        <span className="muted">Capacidad:</span>
+                        <span className="mono">
+                          {selectedLocation.capacity} {selectedLocation.capacityUnit || 'unidades'}
+                        </span>
+                      </div>
+                    )}
                     {selectedLocation.parentLocationId && (
                       <div className="detail-row">
                         <span className="muted">Ubicación Padre:</span>
@@ -386,6 +440,57 @@ export default function LocationsCard() {
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descripción de la ubicación"
                 />
+              </div>
+              <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label style={{ gridColumn: '1 / -1', marginBottom: '-0.5rem' }}>Estado</label>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.active ?? true}
+                      onChange={e => setFormData({ ...formData, active: e.target.checked })}
+                    />
+                    <span>Activa</span>
+                  </label>
+                </div>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.isBlocked ?? false}
+                      onChange={e => setFormData({ ...formData, isBlocked: e.target.checked })}
+                    />
+                    <span>Bloqueada</span>
+                  </label>
+                </div>
+              </div>
+              <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label>Capacidad máxima (opcional)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={formData.capacity || ''}
+                    onChange={e => setFormData({ ...formData, capacity: e.target.value ? Number(e.target.value) : undefined })}
+                    placeholder="Ej: 1000"
+                  />
+                </div>
+                <div>
+                  <label>Unidad</label>
+                  <select
+                    className="input"
+                    value={formData.capacityUnit || 'UNITS'}
+                    onChange={e => setFormData({ ...formData, capacityUnit: e.target.value })}
+                  >
+                    <option value="UNITS">Unidades</option>
+                    <option value="PALLETS">Pallets</option>
+                    <option value="CUBIC_METERS">m³</option>
+                    <option value="SQUARE_METERS">m²</option>
+                    <option value="KILOGRAMS">Kg</option>
+                  </select>
+                </div>
               </div>
               <div className="modal-actions">
                 <button

@@ -2,6 +2,7 @@ package com.datakomerz.pymes.locations.dto;
 
 import com.datakomerz.pymes.locations.LocationType;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record LocationReq(
@@ -9,5 +10,9 @@ public record LocationReq(
     String name,
     String description,
     LocationType type,
-    UUID parentLocationId
+    UUID parentLocationId,
+    Boolean active,
+    Boolean isBlocked,
+    BigDecimal capacity,
+    String capacityUnit
 ) {}
