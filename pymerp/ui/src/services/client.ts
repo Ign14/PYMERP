@@ -2178,6 +2178,8 @@ export type ProductStockLot = {
   quantity: number
   costUnit?: number
   batchName?: string
+  purchaseId?: string
+  purchaseDocNumber?: string
   locationId?: string
   locationCode?: string
   locationName?: string

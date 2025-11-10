@@ -14,6 +14,8 @@ import com.datakomerz.pymes.products.dto.ProductStockLot;
 import com.datakomerz.pymes.products.dto.ProductStockResponse;
 import com.datakomerz.pymes.products.dto.LowStockProduct;
 import com.datakomerz.pymes.multitenancy.ValidateTenant;
+import com.datakomerz.pymes.purchases.Purchase;
+import com.datakomerz.pymes.purchases.PurchaseRepository;
 import com.datakomerz.pymes.storage.StorageService;
 import com.datakomerz.pymes.storage.StorageService.StoredFile;
 import jakarta.persistence.EntityNotFoundException;
@@ -21,6 +23,7 @@ import jakarta.validation.Valid;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,6 +65,7 @@ public class ProductController {
   private final InventoryService inventoryService;
   private final ProductService productService;
   private final LocationRepository locationRepository;
+  private final PurchaseRepository purchaseRepository;
 
   private static final long MAX_IMAGE_BYTES = 1_048_576; // 1 MB
   private static final List<String> ALLOWED_IMAGE_TYPES = List.of(
@@ -77,7 +81,8 @@ public class ProductController {
                            QrCodeService qrCodeService,
                            InventoryService inventoryService,
                            ProductService productService,
-                           LocationRepository locationRepository) {
+                           LocationRepository locationRepository,
+                           PurchaseRepository purchaseRepository) {
     this.repo = repo;
     this.companyContext = companyContext;
     this.pricingService = pricingService;
@@ -86,6 +91,7 @@ public class ProductController {
     this.inventoryService = inventoryService;
     this.productService = productService;
     this.locationRepository = locationRepository;
+    this.purchaseRepository = purchaseRepository;
   }
 
   @GetMapping
@@ -236,6 +242,20 @@ public class ProductController {
     Map<UUID, Location> locationsMap = locationRepository.findAllById(locationIds).stream()
       .collect(Collectors.toMap(Location::getId, loc -> loc));
     
+    // Cargar todas las compras de una vez
+    List<UUID> purchaseIds = lots.stream()
+      .map(InventoryLot::getPurchaseId)
+      .filter(purchaseId -> purchaseId != null)
+      .distinct()
+      .collect(Collectors.toList());
+    
+    Map<UUID, String> purchasesMap = new HashMap<>();
+    if (!purchaseIds.isEmpty()) {
+      purchaseRepository.findAllById(purchaseIds).forEach(purchase -> {
+        purchasesMap.put(purchase.getId(), purchase.getDocNumber());
+      });
+    }
+    
     BigDecimal total = BigDecimal.ZERO;
     List<ProductStockLot> items = new ArrayList<>();
     for (InventoryLot lot : lots) {
@@ -251,11 +271,18 @@ public class ProductController {
         }
       }
       
+      String purchaseDocNumber = null;
+      if (lot.getPurchaseId() != null) {
+        purchaseDocNumber = purchasesMap.get(lot.getPurchaseId());
+      }
+      
       items.add(new ProductStockLot(
         lot.getId(),
         lot.getQtyAvailable(),
         lot.getCostUnit(),
         lot.getBatchName(),
+        lot.getPurchaseId(),
+        purchaseDocNumber,
         lot.getLocationId(),
         locationCode,
         locationName,
