@@ -9,6 +9,8 @@ public record ProductStockLot(
   BigDecimal quantity,
   BigDecimal costUnit,
   String batchName,
+  UUID purchaseId,
+  String purchaseDocNumber,
   UUID locationId,
   String locationCode,
   String locationName,

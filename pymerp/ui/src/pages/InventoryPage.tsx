@@ -14,10 +14,11 @@ import {
   Product,
 } from '../services/client'
 import PageHeader from '../components/layout/PageHeader'
-import ProductsCard from '../components/ProductsCard'
 import LocationsCard from '../components/LocationsCard'
 import ServicesCard from '../components/ServicesCard'
 import InventoryAdjustmentDialog from '../components/dialogs/InventoryAdjustmentDialog'
+import ProductCatalogModal from '../components/dialogs/ProductCatalogModal'
+import ProductDetailModal from '../components/dialogs/ProductDetailModal'
 import { InventoryAuditPanel } from '../components/inventory/InventoryAuditPanel'
 import InventoryRotationAnalysis from '../components/inventory/InventoryRotationAnalysis'
 import InventoryValuationChart from '../components/inventory/InventoryValuationChart'
@@ -46,6 +47,8 @@ export default function InventoryPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
+  const [catalogModalOpen, setCatalogModalOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [thresholdValue, setThresholdValue] = useState<number | null>(null)
   const [thresholdInput, setThresholdInput] = useState<string>('')
 
@@ -130,15 +133,27 @@ export default function InventoryPage() {
   const configuredThreshold =
     summary?.lowStockThreshold ?? thresholdValue ?? Number(thresholdInput || 0)
 
+  const handleProductSelect = (product: Product) => {
+    setCatalogModalOpen(false)
+    setSelectedProduct(product)
+  }
+
+  const handleCloseProductDetail = () => {
+    setSelectedProduct(null)
+  }
+
   return (
     <div className="page-section">
       <PageHeader
         title="Inventario"
-        description="Visibiliza catalogo, lotes y alertas de stock para garantizar disponibilidad."
+        description="Visibiliza catálogo, lotes y alertas de stock para garantizar disponibilidad."
         actions={
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button className="btn ghost" onClick={() => navigate('/app/inventory/movements')}>
               📋 Ver movimientos
+            </button>
+            <button className="btn ghost" onClick={() => setCatalogModalOpen(true)}>
+              📦 Catálogo de productos
             </button>
             <button className="btn" onClick={() => setAdjustDialogOpen(true)}>
               + Ajuste de stock
@@ -230,9 +245,6 @@ export default function InventoryPage() {
       </div>
 
       <section className="responsive-grid">
-        <div className="card">
-          <ProductsCard />
-        </div>
         <div className="card">
           <LocationsCard />
         </div>
@@ -437,6 +449,18 @@ export default function InventoryPage() {
         open={adjustDialogOpen}
         onClose={() => setAdjustDialogOpen(false)}
         onApplied={handleAdjustmentApplied}
+      />
+
+      <ProductCatalogModal
+        open={catalogModalOpen}
+        onClose={() => setCatalogModalOpen(false)}
+        onSelectProduct={handleProductSelect}
+      />
+
+      <ProductDetailModal
+        open={!!selectedProduct}
+        product={selectedProduct}
+        onClose={handleCloseProductDetail}
       />
     </div>
   )

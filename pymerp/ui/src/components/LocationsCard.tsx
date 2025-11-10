@@ -176,6 +176,11 @@ export default function LocationsCard() {
                             )}
                           </div>
                           <div className="location-name">{location.name}</div>
+                          {location.parentLocationId && (
+                            <div className="location-parent muted small">
+                              📍 Ubicación padre configurada
+                            </div>
+                          )}
                           {location.description && (
                             <div className="location-description muted small">
                               {location.description}
@@ -207,6 +212,27 @@ export default function LocationsCard() {
                       <span className="muted">Tipo:</span>
                       <span>{selectedLocation.type}</span>
                     </div>
+                    {selectedLocation.parentLocationId && (
+                      <div className="detail-row">
+                        <span className="muted">Ubicación Padre:</span>
+                        <span>
+                          {(() => {
+                            const parent =
+                              parentLocationsQuery.data?.find(
+                                p => p.id === selectedLocation.parentLocationId
+                              ) ||
+                              locations.find(l => l.id === selectedLocation.parentLocationId)
+                            return parent ? (
+                              <span className="mono" style={{ color: 'var(--accent)' }}>
+                                📍 {parent.code} - {parent.name}
+                              </span>
+                            ) : (
+                              <span className="muted">ID: {selectedLocation.parentLocationId}</span>
+                            )
+                          })()}
+                        </span>
+                      </div>
+                    )}
                     {selectedLocation.description && (
                       <div className="detail-row">
                         <span className="muted">Descripción:</span>
