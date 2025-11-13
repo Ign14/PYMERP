@@ -69,7 +69,7 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
 
   const servicesQuery = useQuery<ServiceDTO[], Error>({
     queryKey: ['services', { dialog: 'purchases' }],
-    queryFn: () => listServices(true),
+    queryFn: () => listServices({ status: 'ACTIVE' }),
     enabled: open,
   })
 
@@ -103,6 +103,15 @@ export default function PurchaseCreateDialog({ open, onClose, onCreated }: Props
       setReceivedAt(now)
     }
   }, [open])
+
+  useEffect(() => {
+    if (itemType === 'service' && serviceId) {
+      const selected = servicesQuery.data?.find(service => service.id === serviceId)
+      if (selected?.unitPrice) {
+        setUnitCost(selected.unitPrice)
+      }
+    }
+  }, [itemType, serviceId, servicesQuery.data])
 
   const mutation = useMutation({
     mutationFn: (data: { payload: PurchasePayload; file?: File }) =>

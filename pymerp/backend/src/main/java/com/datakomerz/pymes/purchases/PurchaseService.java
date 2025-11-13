@@ -47,7 +47,7 @@ public class PurchaseService {
   private final InventoryMovementRepository movements;
   private final CompanyContext companyContext;
   private final SupplierRepository suppliers;
-  private final ServiceRepository serviceRepository;
+  // ServiceRepository removido - ya no se actualiza lastPurchaseDate (eliminado en V37)
   private final StorageService storageService;
   private final ProductRepository productRepository;
   private final LocationRepository locationRepository;
@@ -58,7 +58,6 @@ public class PurchaseService {
                          InventoryMovementRepository movements,
                          CompanyContext companyContext,
                          SupplierRepository suppliers,
-                         ServiceRepository serviceRepository,
                          StorageService storageService,
                          ProductRepository productRepository,
                          LocationRepository locationRepository) {
@@ -68,7 +67,6 @@ public class PurchaseService {
     this.movements = movements;
     this.companyContext = companyContext;
     this.suppliers = suppliers;
-    this.serviceRepository = serviceRepository;
     this.storageService = storageService;
     this.productRepository = productRepository;
     this.locationRepository = locationRepository;
@@ -126,13 +124,8 @@ public class PurchaseService {
         movement.setRefId(purchase.getId());
         movements.save(movement);
       } 
-      // Si es un servicio, actualizar lastPurchaseDate
-      else if (itemReq.isService()) {
-        serviceRepository.findById(itemReq.serviceId()).ifPresent(service -> {
-          service.setLastPurchaseDate(LocalDate.now());
-          serviceRepository.save(service);
-        });
-      }
+      // Si es un servicio, no hay acciones adicionales (campo lastPurchaseDate eliminado en V37)
+      // Los servicios se registran en purchase_items pero no generan movimientos de inventario
     }
     return purchase.getId();
   }
@@ -202,13 +195,8 @@ public class PurchaseService {
         movement.setRefId(purchase.getId());
         movements.save(movement);
       } 
-      // Si es un servicio, actualizar lastPurchaseDate
-      else if (itemReq.isService()) {
-        serviceRepository.findById(itemReq.serviceId()).ifPresent(service -> {
-          service.setLastPurchaseDate(LocalDate.now());
-          serviceRepository.save(service);
-        });
-      }
+      // Si es un servicio, no hay acciones adicionales (campo lastPurchaseDate eliminado en V37)
+      // Los servicios se registran en purchase_items pero no generan movimientos de inventario
     }
     return purchase.getId();
   }

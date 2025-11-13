@@ -2788,20 +2788,19 @@ export type PurchasePayload = {
   items: PurchaseItemPayload[]
 }
 
-export type LocationType = 'WAREHOUSE' | 'SHELF' | 'BIN'
+export type LocationType = 'BODEGA' | 'CONTAINER' | 'LOCAL' | 'CAMION' | 'CAMIONETA'
+export type LocationStatus = 'ACTIVE' | 'BLOCKED'
 
 export type Location = {
   id: string
   companyId: string
   code: string
   name: string
-  description?: string
   type: LocationType
-  parentLocationId?: string
-  active: boolean
-  isBlocked: boolean
-  capacity?: number
-  capacityUnit?: string
+  businessName?: string | null
+  rut?: string | null
+  description?: string | null
+  status: LocationStatus
   createdAt: string
   updatedAt: string
 }
@@ -2809,13 +2808,11 @@ export type Location = {
 export type LocationPayload = {
   code: string
   name: string
-  description?: string
   type: LocationType
-  parentLocationId?: string
-  active?: boolean
-  isBlocked?: boolean
-  capacity?: number
-  capacityUnit?: string
+  businessName?: string
+  rut?: string
+  description?: string
+  status?: LocationStatus
 }
 
 export type PurchaseSummary = {
@@ -3291,20 +3288,6 @@ export function deleteCompanyWithDetails(id: string): Promise<void> {
     () => Promise.resolve()
   )
 }
-
-export function getCompanyParentLocations(companyId: string): Promise<ParentLocationResponse[]> {
-  return withOfflineFallback(
-    'getCompanyParentLocations',
-    async () => {
-      const { data } = await api.get<ParentLocationResponse[]>(
-        `/v1/companies/${companyId}/parent-locations`
-      )
-      return data
-    },
-    () => []
-  )
-}
-
 export function listUserAccounts(): Promise<UserAccount[]> {
   return withOfflineFallback(
     'listUserAccounts',
@@ -4449,12 +4432,16 @@ export async function importPurchasesFromCSV(file: File): Promise<PurchaseImport
   return data
 }
 
-export async function listLocations(type?: LocationType): Promise<Location[]> {
+export type ListLocationsParams = {
+  type?: LocationType
+  status?: LocationStatus
+}
+
+export async function listLocations(params?: ListLocationsParams): Promise<Location[]> {
   return withOfflineFallback(
     'listLocations',
     async () => {
-      const params = type ? { type } : {}
-      const { data } = await api.get<Location[]>('/api/locations', { params })
+      const { data } = await api.get<Location[]>('/api/v1/inventory/locations', { params })
       return data
     },
     () => []
@@ -4465,7 +4452,7 @@ export async function createLocation(payload: LocationPayload): Promise<Location
   return withOfflineFallback(
     'createLocation',
     async () => {
-      const { data } = await api.post<Location>('/api/locations', payload)
+      const { data } = await api.post<Location>('/api/v1/inventory/locations', payload)
       return data
     },
     () => ({
@@ -4473,13 +4460,11 @@ export async function createLocation(payload: LocationPayload): Promise<Location
       companyId: DEV_FALLBACK_COMPANY_ID,
       code: payload.code,
       name: payload.name,
-      description: payload.description,
       type: payload.type,
-      parentLocationId: payload.parentLocationId,
-      active: payload.active ?? true,
-      isBlocked: payload.isBlocked ?? false,
-      capacity: payload.capacity,
-      capacityUnit: payload.capacityUnit ?? 'UNITS',
+      businessName: payload.businessName ?? null,
+      rut: payload.rut ?? null,
+      description: payload.description ?? null,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4490,16 +4475,19 @@ export async function updateLocation(id: string, payload: LocationPayload): Prom
   return withOfflineFallback(
     'updateLocation',
     async () => {
-      const { data } = await api.put<Location>(`/api/locations/${id}`, payload)
+      const { data } = await api.put<Location>(`/api/v1/inventory/locations/${id}`, payload)
       return data
     },
     () => ({
       id,
       companyId: DEV_FALLBACK_COMPANY_ID,
-      ...payload,
-      active: payload.active ?? true,
-      isBlocked: payload.isBlocked ?? false,
-      capacityUnit: payload.capacityUnit ?? 'UNITS',
+      code: payload.code,
+      name: payload.name,
+      type: payload.type,
+      businessName: payload.businessName ?? null,
+      rut: payload.rut ?? null,
+      description: payload.description ?? null,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4510,7 +4498,7 @@ export async function deleteLocation(id: string): Promise<void> {
   return withOfflineFallback(
     'deleteLocation',
     async () => {
-      await api.delete(`/api/locations/${id}`)
+      await api.delete(`/api/v1/inventory/locations/${id}`)
     },
     () => {}
   )
@@ -4534,7 +4522,9 @@ export async function getLocationStockSummary(): Promise<LocationStockSummary[]>
   return withOfflineFallback(
     'getLocationStockSummary',
     async () => {
-      const { data } = await api.get<LocationStockSummary[]>('/api/locations/stock-summary')
+      const { data } = await api.get<LocationStockSummary[]>(
+        '/api/v1/inventory/locations/stock-summary'
+      )
       return data
     },
     () => []
@@ -4542,14 +4532,17 @@ export async function getLocationStockSummary(): Promise<LocationStockSummary[]>
 }
 
 // Services API
+export type ServiceStatus = 'ACTIVE' | 'INACTIVE'
+
 export type ServiceDTO = {
   id: string
   companyId: string
   code: string
   name: string
-  description?: string
-  lastPurchaseDate?: string
-  active: boolean
+  description?: string | null
+  category?: string | null
+  unitPrice: number
+  status: ServiceStatus
   createdAt: string
   updatedAt: string
 }
@@ -4558,15 +4551,20 @@ export type ServicePayload = {
   code: string
   name: string
   description?: string
-  active?: boolean
+  category?: string
+  unitPrice: number
+  status?: ServiceStatus
 }
 
-export async function listServices(active?: boolean): Promise<ServiceDTO[]> {
+export type ListServicesParams = {
+  status?: ServiceStatus
+}
+
+export async function listServices(params?: ListServicesParams): Promise<ServiceDTO[]> {
   return withOfflineFallback(
     'listServices',
     async () => {
-      const params = active !== undefined ? { active } : {}
-      const { data } = await api.get<ServiceDTO[]>('/api/services', { params })
+      const { data } = await api.get<ServiceDTO[]>('/api/v1/services', { params })
       return data
     },
     () => []
@@ -4577,14 +4575,18 @@ export async function createService(payload: ServicePayload): Promise<ServiceDTO
   return withOfflineFallback(
     'createService',
     async () => {
-      const { data } = await api.post<ServiceDTO>('/api/services', payload)
+      const { data } = await api.post<ServiceDTO>('/api/v1/services', payload)
       return data
     },
     () => ({
       id: crypto.randomUUID(),
       companyId: DEV_FALLBACK_COMPANY_ID,
-      ...payload,
-      active: payload.active ?? true,
+      code: payload.code,
+      name: payload.name,
+      description: payload.description ?? null,
+      category: payload.category ?? null,
+      unitPrice: payload.unitPrice,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4595,14 +4597,18 @@ export async function updateService(id: string, payload: ServicePayload): Promis
   return withOfflineFallback(
     'updateService',
     async () => {
-      const { data } = await api.put<ServiceDTO>(`/api/services/${id}`, payload)
+      const { data } = await api.put<ServiceDTO>(`/api/v1/services/${id}`, payload)
       return data
     },
     () => ({
       id,
       companyId: DEV_FALLBACK_COMPANY_ID,
-      ...payload,
-      active: payload.active ?? true,
+      code: payload.code,
+      name: payload.name,
+      description: payload.description ?? null,
+      category: payload.category ?? null,
+      unitPrice: payload.unitPrice,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4613,7 +4619,7 @@ export async function deleteService(id: string): Promise<void> {
   return withOfflineFallback(
     'deleteService',
     async () => {
-      await api.delete(`/api/services/${id}`)
+      await api.delete(`/api/v1/services/${id}`)
     },
     () => {}
   )

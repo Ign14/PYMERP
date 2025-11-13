@@ -38,6 +38,7 @@ import PurchasesCategoryAnalysis from '../components/purchases/PurchasesCategory
 import PurchasesPaymentMethodAnalysis from '../components/purchases/PurchasesPaymentMethodAnalysis'
 import PurchasesPerformanceMetrics from '../components/purchases/PurchasesPerformanceMetrics'
 import PurchasesExportDialog from '../components/purchases/PurchasesExportDialog'
+import ServiceList from '../components/services/ServiceList'
 import {
   ColumnDef,
   flexRender,
@@ -464,6 +465,10 @@ export default function PurchasesPage() {
         endDate={endDate}
         statusFilter={statusFilter}
       />
+
+      <section className="responsive-grid" style={{ marginBottom: '2rem' }}>
+        <ServiceList />
+      </section>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
         <div className="filter-bar">

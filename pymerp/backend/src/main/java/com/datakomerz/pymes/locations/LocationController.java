@@ -2,19 +2,25 @@ package com.datakomerz.pymes.locations;
 
 import com.datakomerz.pymes.locations.dto.LocationReq;
 import com.datakomerz.pymes.locations.dto.LocationStockDTO;
-import com.datakomerz.pymes.locations.dto.LocationWithHierarchy;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/locations")
+@RequestMapping("/api/v1/inventory/locations")
 public class LocationController {
+
     private final LocationService locationService;
 
     public LocationController(LocationService locationService) {
@@ -30,23 +36,17 @@ public class LocationController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public List<Location> findAll(@RequestParam(required = false) String type) {
-        if (type != null) {
-            return locationService.findByType(LocationType.valueOf(type));
-        }
-        return locationService.findAll();
+    public List<Location> findAll(
+        @RequestParam(required = false) LocationType type,
+        @RequestParam(required = false) LocationStatus status
+    ) {
+        return locationService.findAll(type, status);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public Location findById(@PathVariable UUID id) {
         return locationService.findById(id);
-    }
-
-    @GetMapping("/children/{parentId}")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public List<Location> findByParentId(@PathVariable UUID parentId) {
-        return locationService.findByParentId(parentId);
     }
 
     @PutMapping("/{id}")
@@ -66,63 +66,5 @@ public class LocationController {
     @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
     public List<LocationStockDTO> getLocationStockSummary() {
         return locationService.getLocationStockSummary();
-    }
-
-    @GetMapping("/{id}/path")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public List<Location> getLocationPath(@PathVariable UUID id) {
-        return locationService.getLocationPath(id);
-    }
-
-    @GetMapping("/{id}/children")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public List<Location> getChildren(@PathVariable UUID id) {
-        return locationService.getChildren(id);
-    }
-
-    @GetMapping("/{id}/descendants")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public List<Location> getAllDescendants(@PathVariable UUID id) {
-        return locationService.getAllDescendants(id);
-    }
-
-    @GetMapping("/{id}/capacity")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public Map<String, Object> getCapacityInfo(@PathVariable UUID id) {
-        Location location = locationService.findById(id);
-        BigDecimal currentUsed = locationService.getCurrentCapacityUsed(id);
-        
-        BigDecimal available = null;
-        Double percentUsed = null;
-        
-        if (location.getCapacity() != null && location.getCapacity().compareTo(BigDecimal.ZERO) > 0) {
-            available = location.getCapacity().subtract(currentUsed);
-            percentUsed = currentUsed.divide(location.getCapacity(), 4, BigDecimal.ROUND_HALF_UP)
-                                    .multiply(BigDecimal.valueOf(100))
-                                    .doubleValue();
-        }
-        
-        return Map.of(
-            "locationId", location.getId(),
-            "capacity", location.getCapacity() != null ? location.getCapacity() : 0,
-            "capacityUnit", location.getCapacityUnit(),
-            "currentUsed", currentUsed,
-            "available", available != null ? available : 0,
-            "percentUsed", percentUsed != null ? percentUsed : 0,
-            "canReceiveMore", location.getCapacity() == null || available.compareTo(BigDecimal.ZERO) > 0
-        );
-    }
-
-    @GetMapping("/{id}/can-receive")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public Map<String, Boolean> canReceiveStock(@PathVariable UUID id, @RequestParam BigDecimal quantity) {
-        boolean canReceive = locationService.canReceiveStock(id, quantity);
-        return Map.of("canReceive", canReceive);
-    }
-
-    @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('ERP_USER', 'READONLY', 'SETTINGS', 'ADMIN')")
-    public List<Location> findAllActive() {
-        return locationService.findAllActive();
     }
 }

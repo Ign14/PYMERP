@@ -7,24 +7,31 @@ import com.datakomerz.pymes.locations.dto.LocationReq;
 import com.datakomerz.pymes.locations.dto.LocationStockDTO;
 import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Collectors;
-
 @Service
 public class LocationService {
+
     private final LocationRepository locationRepository;
     private final InventoryLotRepository inventoryLotRepository;
     private final ProductRepository productRepository;
     private final CompanyContext companyContext;
 
-    public LocationService(LocationRepository locationRepository, 
-                          InventoryLotRepository inventoryLotRepository,
-                          ProductRepository productRepository,
-                          CompanyContext companyContext) {
+    public LocationService(
+        LocationRepository locationRepository,
+        InventoryLotRepository inventoryLotRepository,
+        ProductRepository productRepository,
+        CompanyContext companyContext
+    ) {
         this.locationRepository = locationRepository;
         this.inventoryLotRepository = inventoryLotRepository;
         this.productRepository = productRepository;
@@ -34,92 +41,57 @@ public class LocationService {
     @Transactional
     public Location create(LocationReq req) {
         UUID companyId = companyContext.require();
-        
-        // Validar que no exista otra ubicación con el mismo código
-        if (locationRepository.existsByCompanyIdAndCode(companyId, req.code())) {
-            throw new IllegalArgumentException("Ya existe una ubicación con el código: " + req.code());
-        }
+        String code = requireValue(req.code(), "codigo");
 
-        // Validar jerarquía circular si tiene padre
-        if (req.parentLocationId() != null) {
-            validateNoCircularHierarchy(null, req.parentLocationId());
+        if (locationRepository.existsByCompanyIdAndCode(companyId, code)) {
+            throw new IllegalArgumentException("Ya existe una ubicación con el código: " + code);
         }
 
         Location location = new Location();
         location.setCompanyId(companyId);
-        location.setCode(req.code());
-        location.setName(req.name());
-        location.setDescription(req.description());
-        location.setType(req.type());
-        location.setParentLocationId(req.parentLocationId());
-        location.setActive(req.active() != null ? req.active() : true);
-        location.setIsBlocked(req.isBlocked() != null ? req.isBlocked() : false);
-        location.setCapacity(req.capacity());
-        location.setCapacityUnit(req.capacityUnit() != null ? req.capacityUnit() : "UNITS");
+        location.setCode(code);
+        applyEditableFields(location, req);
 
         return locationRepository.save(location);
     }
 
     @Transactional(readOnly = true)
-    public List<Location> findAll() {
+    public List<Location> findAll(LocationType type, LocationStatus status) {
         UUID companyId = companyContext.require();
+
+        if (type != null && status != null) {
+            return locationRepository.findByCompanyIdAndTypeAndStatus(companyId, type, status);
+        }
+        if (type != null) {
+            return locationRepository.findByCompanyIdAndType(companyId, type);
+        }
+        if (status != null) {
+            return locationRepository.findByCompanyIdAndStatus(companyId, status);
+        }
         return locationRepository.findByCompanyId(companyId);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Location> findByType(LocationType type) {
-        UUID companyId = companyContext.require();
-        return locationRepository.findByCompanyIdAndType(companyId, type);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Location> findByParentId(UUID parentLocationId) {
-        UUID companyId = companyContext.require();
-        return locationRepository.findByCompanyIdAndParentLocationId(companyId, parentLocationId);
     }
 
     @Transactional(readOnly = true)
     public Location findById(UUID id) {
         UUID companyId = companyContext.require();
-        return locationRepository.findById(id)
-            .filter(loc -> loc.getCompanyId().equals(companyId))
+        return locationRepository
+            .findById(id)
+            .filter(loc -> Objects.equals(loc.getCompanyId(), companyId))
             .orElseThrow(() -> new IllegalArgumentException("Ubicación no encontrada: " + id));
     }
 
     @Transactional
     public Location update(UUID id, LocationReq req) {
         Location location = findById(id);
-        
-        // Si cambió el código, validar que no exista otro con el mismo
-        if (!location.getCode().equals(req.code()) && 
-            locationRepository.existsByCompanyIdAndCode(location.getCompanyId(), req.code())) {
-            throw new IllegalArgumentException("Ya existe una ubicación con el código: " + req.code());
+        String code = requireValue(req.code(), "codigo");
+
+        if (!location.getCode().equalsIgnoreCase(code) &&
+            locationRepository.existsByCompanyIdAndCode(location.getCompanyId(), code)) {
+            throw new IllegalArgumentException("Ya existe una ubicación con el código: " + code);
         }
 
-        // Validar jerarquía circular si cambió el padre
-        if (req.parentLocationId() != null && !Objects.equals(location.getParentLocationId(), req.parentLocationId())) {
-            validateNoCircularHierarchy(id, req.parentLocationId());
-        }
-
-        location.setCode(req.code());
-        location.setName(req.name());
-        location.setDescription(req.description());
-        location.setType(req.type());
-        location.setParentLocationId(req.parentLocationId());
-        
-        if (req.active() != null) {
-            location.setActive(req.active());
-        }
-        if (req.isBlocked() != null) {
-            location.setIsBlocked(req.isBlocked());
-        }
-        if (req.capacity() != null) {
-            location.setCapacity(req.capacity());
-        }
-        if (req.capacityUnit() != null) {
-            location.setCapacityUnit(req.capacityUnit());
-        }
-
+        location.setCode(code);
+        applyEditableFields(location, req);
         return locationRepository.save(location);
     }
 
@@ -132,50 +104,49 @@ public class LocationService {
     @Transactional(readOnly = true)
     public List<LocationStockDTO> getLocationStockSummary() {
         UUID companyId = companyContext.require();
-        List<Location> allLocations = locationRepository.findByCompanyId(companyId);
-        
-        // Agrupar por ubicación
-        return allLocations.stream()
+        List<Location> locations = locationRepository.findByCompanyId(companyId);
+
+        return locations.stream()
             .map(location -> {
-                // Obtener todos los lotes de esta ubicación
-                List<InventoryLot> lots = inventoryLotRepository.findByCompanyIdAndLocationId(companyId, location.getId());
-                
-                // Agrupar por productId y sumar cantidades
+                List<InventoryLot> lots = inventoryLotRepository
+                    .findByCompanyIdAndLocationId(companyId, location.getId());
+
                 Map<UUID, List<InventoryLot>> lotsByProductId = lots.stream()
                     .collect(Collectors.groupingBy(InventoryLot::getProductId));
-                
-                // Obtener todos los productos de los lotes
+
                 Set<UUID> productIds = lotsByProductId.keySet();
-                Map<UUID, Product> productsMap = productRepository.findAllById(productIds).stream()
+                Map<UUID, Product> productsMap = productRepository
+                    .findAllById(productIds)
+                    .stream()
                     .collect(Collectors.toMap(Product::getId, p -> p));
-                
+
                 List<LocationStockDTO.ProductStock> productStocks = lotsByProductId.entrySet().stream()
                     .map(entry -> {
-                        UUID productId = entry.getKey();
-                        Product product = productsMap.get(productId);
+                        Product product = productsMap.get(entry.getKey());
                         if (product == null) {
-                            return null; // Skip products not found
+                            return null;
                         }
-                        
-                        List<InventoryLot> productLots = entry.getValue();
-                        
-                        BigDecimal totalQty = productLots.stream()
+                        BigDecimal totalQty = entry.getValue().stream()
                             .map(InventoryLot::getQtyAvailable)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
-                        
+
                         return new LocationStockDTO.ProductStock(
                             product.getId(),
                             product.getName(),
                             product.getSku(),
                             totalQty,
-                            productLots.size()
+                            entry.getValue().size()
                         );
                     })
                     .filter(Objects::nonNull)
-                    .filter(ps -> ps.totalQuantity().compareTo(BigDecimal.ZERO) > 0) // Solo productos con stock
+                    .filter(stock -> stock.totalQuantity().compareTo(BigDecimal.ZERO) > 0)
                     .sorted(Comparator.comparing(LocationStockDTO.ProductStock::productName))
                     .toList();
-                
+
+                if (productStocks.isEmpty()) {
+                    return null;
+                }
+
                 return new LocationStockDTO(
                     location.getId(),
                     location.getCode(),
@@ -184,189 +155,45 @@ public class LocationService {
                     productStocks
                 );
             })
-            .filter(dto -> !dto.products().isEmpty()) // Solo ubicaciones con stock
+            .filter(Objects::nonNull)
             .sorted(Comparator.comparing(LocationStockDTO::locationName))
             .toList();
     }
 
-    /**
-     * Valida que no se cree una jerarquía circular
-     * @param locationId ID de la ubicación que se está actualizando (null si es creación)
-     * @param newParentId ID del nuevo padre propuesto
-     */
-    private void validateNoCircularHierarchy(UUID locationId, UUID newParentId) {
-        if (newParentId == null) {
-            return;
-        }
-
-        // Una ubicación no puede ser su propio padre
-        if (Objects.equals(locationId, newParentId)) {
-            throw new IllegalArgumentException("Una ubicación no puede ser su propio padre");
-        }
-
-        // Verificar que el nuevo padre no sea un descendiente de la ubicación actual
-        if (locationId != null) {
-            Set<UUID> descendants = getAllDescendantIds(locationId);
-            if (descendants.contains(newParentId)) {
-                throw new IllegalArgumentException("No se puede crear jerarquía circular: el nuevo padre es un descendiente de esta ubicación");
-            }
-        }
-
-        // Verificar que no se exceda un límite razonable de profundidad (ej: 10 niveles)
-        int depth = getHierarchyDepth(newParentId);
-        if (depth >= 10) {
-            throw new IllegalArgumentException("Profundidad máxima de jerarquía alcanzada (10 niveles)");
-        }
+    private void applyEditableFields(Location location, LocationReq req) {
+        location.setName(requireValue(req.name(), "nombre"));
+        location.setType(requireType(req.type()));
+        location.setBusinessName(normalize(req.businessName()));
+        location.setRut(normalizeRut(req.rut()));
+        location.setDescription(normalize(req.description()));
+        location.setStatus(req.status() != null ? req.status() : LocationStatus.ACTIVE);
     }
 
-    /**
-     * Obtiene la profundidad de la jerarquía desde una ubicación hacia arriba
-     */
-    private int getHierarchyDepth(UUID locationId) {
-        int depth = 0;
-        UUID currentId = locationId;
-        Set<UUID> visited = new HashSet<>();
-
-        while (currentId != null && depth < 20) { // Límite de seguridad
-            if (visited.contains(currentId)) {
-                // Jerarquía circular detectada
-                throw new IllegalStateException("Jerarquía circular detectada en ubicaciones");
-            }
-            visited.add(currentId);
-
-            Optional<Location> current = locationRepository.findById(currentId);
-            if (current.isEmpty()) {
-                break;
-            }
-            currentId = current.get().getParentLocationId();
-            depth++;
+    private String requireValue(String value, String fieldName) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException("El " + fieldName + " es obligatorio");
         }
-
-        return depth;
+        return normalized;
     }
 
-    /**
-     * Obtiene todos los IDs de descendientes de una ubicación
-     */
-    private Set<UUID> getAllDescendantIds(UUID locationId) {
-        Set<UUID> descendants = new HashSet<>();
-        Queue<UUID> queue = new LinkedList<>();
-        queue.add(locationId);
-
-        while (!queue.isEmpty()) {
-            UUID current = queue.poll();
-            List<Location> children = locationRepository.findByParentLocationId(current);
-            
-            for (Location child : children) {
-                if (!descendants.contains(child.getId())) {
-                    descendants.add(child.getId());
-                    queue.add(child.getId());
-                }
-            }
+    private LocationType requireType(LocationType type) {
+        if (type == null) {
+            throw new IllegalArgumentException("El tipo de ubicación es obligatorio");
         }
-
-        return descendants;
+        return type;
     }
 
-    /**
-     * Obtiene el path completo de una ubicación (desde raíz hasta la ubicación)
-     * @return Lista de ubicaciones desde la raíz hasta la ubicación actual
-     */
-    @Transactional(readOnly = true)
-    public List<Location> getLocationPath(UUID locationId) {
-        List<Location> path = new ArrayList<>();
-        UUID currentId = locationId;
-        Set<UUID> visited = new HashSet<>();
-
-        while (currentId != null) {
-            if (visited.contains(currentId)) {
-                throw new IllegalStateException("Jerarquía circular detectada");
-            }
-            visited.add(currentId);
-
-            Optional<Location> current = locationRepository.findById(currentId);
-            if (current.isEmpty()) {
-                break;
-            }
-            
-            Location loc = current.get();
-            path.add(0, loc); // Insertar al inicio para tener orden raíz -> hoja
-            currentId = loc.getParentLocationId();
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
         }
-
-        return path;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
-    /**
-     * Obtiene todos los hijos directos de una ubicación
-     */
-    @Transactional(readOnly = true)
-    public List<Location> getChildren(UUID parentId) {
-        UUID companyId = companyContext.require();
-        return locationRepository.findByCompanyIdAndParentLocationId(companyId, parentId);
-    }
-
-    /**
-     * Obtiene todos los descendientes (hijos, nietos, etc.) de una ubicación
-     */
-    @Transactional(readOnly = true)
-    public List<Location> getAllDescendants(UUID locationId) {
-        List<Location> descendants = new ArrayList<>();
-        Set<UUID> descendantIds = getAllDescendantIds(locationId);
-        
-        if (!descendantIds.isEmpty()) {
-            descendants = locationRepository.findAllById(descendantIds);
-        }
-        
-        return descendants;
-    }
-
-    /**
-     * Calcula la capacidad utilizada actual de una ubicación
-     */
-    @Transactional(readOnly = true)
-    public BigDecimal getCurrentCapacityUsed(UUID locationId) {
-        UUID companyId = companyContext.require();
-        List<InventoryLot> lots = inventoryLotRepository.findByCompanyIdAndLocationId(companyId, locationId);
-        
-        return lots.stream()
-            .map(InventoryLot::getQtyAvailable)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    /**
-     * Verifica si una ubicación puede recibir stock (activa, no bloqueada, con capacidad)
-     */
-    @Transactional(readOnly = true)
-    public boolean canReceiveStock(UUID locationId, BigDecimal quantity) {
-        Location location = findById(locationId);
-        
-        // Verificar estado
-        if (!location.getActive() || location.getIsBlocked()) {
-            return false;
-        }
-
-        // Si tiene capacidad definida, verificar que no se exceda
-        if (location.getCapacity() != null && location.getCapacity().compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal currentUsed = getCurrentCapacityUsed(locationId);
-            BigDecimal afterAddition = currentUsed.add(quantity);
-            
-            return afterAddition.compareTo(location.getCapacity()) <= 0;
-        }
-
-        // Sin límite de capacidad
-        return true;
-    }
-
-    /**
-     * Obtiene todas las ubicaciones activas
-     */
-    @Transactional(readOnly = true)
-    public List<Location> findAllActive() {
-        UUID companyId = companyContext.require();
-        return locationRepository.findByCompanyId(companyId).stream()
-            .filter(Location::getActive)
-            .filter(loc -> !loc.getIsBlocked())
-            .toList();
+    private String normalizeRut(String value) {
+        String normalized = normalize(value);
+        return normalized != null ? normalized.toUpperCase() : null;
     }
 }

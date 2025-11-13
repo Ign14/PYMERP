@@ -14,11 +14,11 @@ import {
   Product,
 } from '../services/client'
 import PageHeader from '../components/layout/PageHeader'
-import LocationsCard from '../components/LocationsCard'
-import ServicesCard from '../components/ServicesCard'
+import LocationList from '../components/locations/LocationList'
 import InventoryAdjustmentDialog from '../components/dialogs/InventoryAdjustmentDialog'
 import ProductCatalogModal from '../components/dialogs/ProductCatalogModal'
 import ProductDetailModal from '../components/dialogs/ProductDetailModal'
+import ProductFormDialog from '../components/dialogs/ProductFormDialog'
 import { InventoryAuditPanel } from '../components/inventory/InventoryAuditPanel'
 import InventoryRotationAnalysis from '../components/inventory/InventoryRotationAnalysis'
 import InventoryValuationChart from '../components/inventory/InventoryValuationChart'
@@ -48,6 +48,7 @@ export default function InventoryPage() {
   const navigate = useNavigate()
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
   const [catalogModalOpen, setCatalogModalOpen] = useState(false)
+  const [productFormOpen, setProductFormOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [thresholdValue, setThresholdValue] = useState<number | null>(null)
   const [thresholdInput, setThresholdInput] = useState<string>('')
@@ -120,6 +121,12 @@ export default function InventoryPage() {
     setAdjustDialogOpen(false)
   }
 
+  const handleProductSaved = (product: Product) => {
+    queryClient.invalidateQueries({ queryKey: ['products'], exact: false })
+    setSelectedProduct(product)
+    setProductFormOpen(false)
+  }
+
   const productsIndex = useMemo(
     () =>
       new Map((productsQuery.data?.content ?? []).map(product => [product.id, product] as const)),
@@ -154,6 +161,9 @@ export default function InventoryPage() {
             </button>
             <button className="btn ghost" onClick={() => setCatalogModalOpen(true)}>
               📦 Catálogo de productos
+            </button>
+            <button className="btn" onClick={() => setProductFormOpen(true)}>
+              + Nuevo Producto
             </button>
             <button className="btn" onClick={() => setAdjustDialogOpen(true)}>
               + Ajuste de stock
@@ -245,12 +255,7 @@ export default function InventoryPage() {
       </div>
 
       <section className="responsive-grid">
-        <div className="card">
-          <LocationsCard />
-        </div>
-        <div className="card">
-          <ServicesCard />
-        </div>
+        <LocationList />
       </section>
 
       {/* Nueva sección: Análisis de Inventario */}
@@ -266,6 +271,13 @@ export default function InventoryPage() {
           <InventoryValuationChart />
         </div>
       </div>
+
+      <ProductFormDialog
+        open={productFormOpen}
+        product={null}
+        onClose={() => setProductFormOpen(false)}
+        onSaved={handleProductSaved}
+      />
 
       {/* Nueva sección: Gestión Operativa */}
       <div style={{ marginBottom: '2rem' }}>

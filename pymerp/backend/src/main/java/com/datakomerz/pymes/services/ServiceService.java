@@ -2,16 +2,18 @@ package com.datakomerz.pymes.services;
 
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.services.dto.ServiceReq;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
-
-@Service
+@org.springframework.stereotype.Service
 public class ServiceService {
+
     private final ServiceRepository serviceRepository;
     private final CompanyContext companyContext;
 
@@ -21,77 +23,105 @@ public class ServiceService {
     }
 
     @Transactional
-    public com.datakomerz.pymes.services.Service create(ServiceReq req) {
+    public Service create(ServiceReq req) {
         UUID companyId = companyContext.require();
-        
-        if (serviceRepository.existsByCompanyIdAndCode(companyId, req.code())) {
-            throw new IllegalArgumentException("Ya existe un servicio con el código: " + req.code());
+        String code = requireValue(req.code(), "código");
+
+        if (serviceRepository.existsByCompanyIdAndCode(companyId, code)) {
+            throw new IllegalArgumentException("Ya existe un servicio con el código: " + code);
         }
 
-        com.datakomerz.pymes.services.Service service = new com.datakomerz.pymes.services.Service();
+        Service service = new Service();
         service.setCompanyId(companyId);
-        service.setCode(req.code());
-        service.setName(req.name());
-        service.setDescription(req.description());
-        service.setActive(req.active() != null ? req.active() : true);
-
+        service.setCode(code);
+        applyEditableFields(service, req);
         return serviceRepository.save(service);
     }
 
     @Transactional(readOnly = true)
-    public List<com.datakomerz.pymes.services.Service> findAll() {
+    public List<Service> findAll(ServiceStatus status) {
         UUID companyId = companyContext.require();
+        if (status != null) {
+            return serviceRepository.findByCompanyIdAndStatus(companyId, status);
+        }
         return serviceRepository.findByCompanyId(companyId);
     }
 
     @Transactional(readOnly = true)
-    public List<com.datakomerz.pymes.services.Service> findByActive(Boolean active) {
+    public Page<Service> findAll(ServiceStatus status, Pageable pageable) {
         UUID companyId = companyContext.require();
-        return serviceRepository.findByCompanyIdAndActive(companyId, active);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<com.datakomerz.pymes.services.Service> findAll(Pageable pageable) {
-        UUID companyId = companyContext.require();
+        if (status != null) {
+            return serviceRepository.findByCompanyIdAndStatus(companyId, status, pageable);
+        }
         return serviceRepository.findByCompanyId(companyId, pageable);
     }
 
     @Transactional(readOnly = true)
-    public com.datakomerz.pymes.services.Service findById(UUID id) {
+    public Service findById(UUID id) {
         UUID companyId = companyContext.require();
         return serviceRepository.findById(id)
-            .filter(s -> s.getCompanyId().equals(companyId))
+            .filter(service -> Objects.equals(service.getCompanyId(), companyId))
             .orElseThrow(() -> new IllegalArgumentException("Servicio no encontrado: " + id));
     }
 
     @Transactional
-    public com.datakomerz.pymes.services.Service update(UUID id, ServiceReq req) {
-        com.datakomerz.pymes.services.Service service = findById(id);
-        
-        if (!service.getCode().equals(req.code()) && 
-            serviceRepository.existsByCompanyIdAndCode(service.getCompanyId(), req.code())) {
-            throw new IllegalArgumentException("Ya existe un servicio con el código: " + req.code());
+    public Service update(UUID id, ServiceReq req) {
+        Service service = findById(id);
+        String code = requireValue(req.code(), "código");
+
+        if (!service.getCode().equalsIgnoreCase(code) &&
+            serviceRepository.existsByCompanyIdAndCode(service.getCompanyId(), code)) {
+            throw new IllegalArgumentException("Ya existe un servicio con el código: " + code);
         }
 
-        service.setCode(req.code());
-        service.setName(req.name());
-        service.setDescription(req.description());
-        if (req.active() != null) {
-            service.setActive(req.active());
-        }
-
+        service.setCode(code);
+        applyEditableFields(service, req);
         return serviceRepository.save(service);
     }
 
     @Transactional
     public void delete(UUID id) {
-        com.datakomerz.pymes.services.Service service = findById(id);
+        Service service = findById(id);
         serviceRepository.delete(service);
     }
 
     @Transactional(readOnly = true)
     public long countActive() {
         UUID companyId = companyContext.require();
-        return serviceRepository.countByCompanyIdAndActive(companyId, true);
+        return serviceRepository.countByCompanyIdAndStatus(companyId, ServiceStatus.ACTIVE);
+    }
+
+    private void applyEditableFields(Service service, ServiceReq req) {
+        service.setName(requireValue(req.name(), "nombre"));
+        service.setDescription(normalize(req.description()));
+        service.setCategory(normalize(req.category()));
+        service.setUnitPrice(requirePositivePrice(req.unitPrice()));
+        service.setStatus(req.status() != null ? req.status() : ServiceStatus.ACTIVE);
+    }
+
+    private String requireValue(String value, String field) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException("El " + field + " es obligatorio");
+        }
+        return normalized;
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private BigDecimal requirePositivePrice(BigDecimal value) {
+        if (value == null) {
+            throw new IllegalArgumentException("El precio unitario es obligatorio");
+        }
+        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El precio unitario debe ser mayor a cero");
+        }
+        return value.setScale(2, RoundingMode.HALF_UP);
     }
 }

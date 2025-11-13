@@ -1,6 +1,11 @@
--- Agregar campos de nombre fantasía y logo a la tabla companies
-ALTER TABLE companies ADD COLUMN fantasy_name VARCHAR(160);
-ALTER TABLE companies ADD COLUMN logo_url VARCHAR(500);
+-- Agregar campos de nombre fantasía a la tabla companies
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='companies' AND column_name='fantasy_name') THEN
+    ALTER TABLE companies ADD COLUMN fantasy_name VARCHAR(160);
+  END IF;
+END $$;
 
 -- Crear tabla para ubicaciones padre de empresas
 CREATE TABLE IF NOT EXISTS company_parent_locations (
@@ -15,8 +20,5 @@ CREATE TABLE IF NOT EXISTS company_parent_locations (
 
 CREATE INDEX idx_company_parent_locations_company ON company_parent_locations(company_id);
 
--- Agregar campo parent_location_id a locations
-ALTER TABLE locations
-ADD COLUMN parent_location_id UUID REFERENCES company_parent_locations(id) ON DELETE SET NULL;
-
-CREATE INDEX idx_locations_parent ON locations(parent_location_id);
+-- NOTA: parent_location_id ya existe en locations desde V20
+-- No es necesario agregarlo nuevamente
