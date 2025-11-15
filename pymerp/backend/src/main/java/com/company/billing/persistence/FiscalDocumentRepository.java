@@ -17,6 +17,8 @@ public interface FiscalDocumentRepository extends JpaRepository<FiscalDocument, 
 
   Optional<FiscalDocument> findByIdempotencyKey(String idempotencyKey);
 
+  Optional<FiscalDocument> findByCompanyIdAndIdempotencyKey(UUID companyId, String idempotencyKey);
+
   Optional<FiscalDocument>
       findTopBySale_CompanyIdAndProvisionalNumberStartingWithOrderByProvisionalNumberDesc(
           UUID companyId, String provisionalPrefix);

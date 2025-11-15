@@ -35,14 +35,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import com.datakomerz.pymes.multitenancy.TenantContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class BillingService {
+
+  private static final Logger log = LoggerFactory.getLogger(BillingService.class);
+
+  public record InvoiceIssuanceResult(BillingDocumentView document, boolean createdNew) {}
 
   private final ObjectMapper objectMapper;
   private final FiscalDocumentRepository fiscalDocumentRepository;
@@ -54,6 +61,7 @@ public class BillingService {
   private final LocalInvoiceRenderer localInvoiceRenderer;
   private final Optional<BillingProvider> billingProvider;
   private final Clock clock;
+  private final BillingIdempotencyStore idempotencyStore;
 
   public BillingService(ObjectMapper objectMapper,
                         FiscalDocumentRepository fiscalDocumentRepository,
@@ -64,7 +72,8 @@ public class BillingService {
                         BillingStorageService storageService,
                         LocalInvoiceRenderer localInvoiceRenderer,
                         ObjectProvider<BillingProvider> billingProviderProvider,
-                        ObjectProvider<Clock> clockProvider) {
+                        ObjectProvider<Clock> clockProvider,
+                        BillingIdempotencyStore idempotencyStore) {
     this.objectMapper = objectMapper;
     this.fiscalDocumentRepository = fiscalDocumentRepository;
     this.documentFileRepository = documentFileRepository;
@@ -76,94 +85,130 @@ public class BillingService {
     this.billingProvider = Optional.ofNullable(billingProviderProvider.getIfAvailable());
     Clock providedClock = clockProvider.getIfAvailable();
     this.clock = providedClock != null ? providedClock : Clock.systemUTC();
+    this.idempotencyStore = idempotencyStore;
   }
 
   @Transactional
-  public BillingDocumentView issueInvoice(boolean forceOffline,
-                                          String connectivityHint,
-                                          InvoicePayload payload,
-                                          String idempotencyKey) {
+  public InvoiceIssuanceResult issueInvoice(boolean forceOffline,
+                                            String connectivityHint,
+                                            InvoicePayload payload,
+                                            String idempotencyKey,
+                                            String payloadHash) {
     String key = requireIdempotencyKey(idempotencyKey);
-    BillingDocumentView existing = findExistingDocumentByKey(key);
-    if (existing != null) {
-      return existing;
+    UUID tenantId = TenantContext.require();
+    log.debug("Issuing invoice for tenant {} sale {} key {}", tenantId, payload.saleId(), key);
+
+    BillingDocumentView cached = findExistingDocument(tenantId, key, payloadHash);
+    if (cached != null) {
+      return new InvoiceIssuanceResult(cached, false);
     }
 
-    if (!payload.isFiscal()) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Fiscal document type is required");
+    Optional<InvoiceIssuanceResult> cachedEntry = resolveExistingEntry(tenantId, key, payloadHash);
+    if (cachedEntry.isPresent()) {
+      return cachedEntry.get();
     }
 
-    Sale sale = saleRepository.findById(payload.saleId())
-        .orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST, "Sale not found for invoice issuance"));
-
-    FiscalDocument document = new FiscalDocument();
-    document.setSale(sale);
-    document.setDocumentType(payload.fiscalDocumentType());
-    document.setTaxMode(Optional.ofNullable(payload.taxMode()).orElse(TaxMode.AFECTA));
-    document.setSiiDocumentType(resolveSiiDocumentType(payload));
-    if (document.getResolutionNumber() == null) {
-      document.setResolutionNumber("0");
-    }
-    if (document.getResolutionDate() == null) {
-      document.setResolutionDate(LocalDate.now(clock));
-    }
-    document.setStatus(FiscalDocumentStatus.PENDING);
-    document.setOffline(false);
-    document.setProvisionalNumber(generateProvisionalNumber(sale.getCompanyId()));
-    document.setIdempotencyKey(key);
-    fiscalDocumentRepository.save(document);
-
-    LocalInvoiceRenderer.RenderedInvoice renderedLocal = localInvoiceRenderer
-        .renderContingencyFiscalPdf(document, sale);
-    DocumentFile localFile = storeLocal(document.getId(),
-        DocumentFileKind.FISCAL, DocumentFileVersion.LOCAL, renderedLocal);
-
-    boolean offline = shouldGoOffline(forceOffline, connectivityHint);
-    if (offline) {
-      document.setStatus(FiscalDocumentStatus.OFFLINE_PENDING);
-      document.setOffline(true);
-      fiscalDocumentRepository.save(document);
-
-      ContingencyQueueItem queueItem = new ContingencyQueueItem();
-      queueItem.setDocument(document);
-      queueItem.setIdempotencyKey(key);
-      queueItem.setStatus(ContingencyQueueStatus.OFFLINE_PENDING);
-      queueItem.setProviderPayload(buildProviderPayload(payload, document));
-      contingencyQueueItemRepository.save(queueItem);
-
-      List<DocumentFile> files = List.of(localFile);
-      return mapFiscalDocument(document, files);
-    }
-
-    BillingProvider provider = billingProvider.orElseThrow(() ->
-        new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Billing provider not configured"));
-
-    BillingProvider.IssueInvoiceResult providerResult;
+    boolean reserved = false;
+    boolean entryCompleted = false;
+    FiscalDocument document = null;
     try {
-      providerResult = provider.issueInvoice(payload, key);
-    } catch (BillingProviderException ex) {
-      document.setStatus(FiscalDocumentStatus.FAILED);
+      reserved = idempotencyStore.reserve(tenantId, key, payloadHash);
+      if (!reserved) {
+        Optional<InvoiceIssuanceResult> awaited = awaitExistingEntry(tenantId, key, payloadHash);
+        if (awaited.isPresent()) {
+          return awaited.get();
+        }
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+            "Idempotency key is currently processing another request");
+      }
+
+      if (!payload.isFiscal()) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Fiscal document type is required");
+      }
+
+      Sale sale = saleRepository.findById(payload.saleId())
+          .orElseThrow(() -> new ResponseStatusException(
+              HttpStatus.BAD_REQUEST, "Sale not found for invoice issuance"));
+
+      document = new FiscalDocument();
+      document.setSale(sale);
+      document.setDocumentType(payload.fiscalDocumentType());
+      document.setTaxMode(Optional.ofNullable(payload.taxMode()).orElse(TaxMode.AFECTA));
+      document.setSiiDocumentType(resolveSiiDocumentType(payload));
+      if (document.getResolutionNumber() == null) {
+        document.setResolutionNumber("0");
+      }
+      if (document.getResolutionDate() == null) {
+        document.setResolutionDate(LocalDate.now(clock));
+      }
+      document.setStatus(FiscalDocumentStatus.PENDING);
+      document.setOffline(false);
+      document.setProvisionalNumber(generateProvisionalNumber(sale.getCompanyId()));
+      document.setIdempotencyKey(key);
+      document.setPayloadHash(payloadHash);
       fiscalDocumentRepository.save(document);
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-          "Billing provider rejected invoice: " + ex.getMessage(), ex);
-    }
 
-    document.setStatus(FiscalDocumentStatus.SENT);
-    document.setOffline(false);
-    document.setProvider(providerResult.provider());
-    document.setTrackId(providerResult.trackId());
-    document.setNumber(providerResult.number());
-    document.setFinalFolio(providerResult.number());
-    fiscalDocumentRepository.save(document);
+      LocalInvoiceRenderer.RenderedInvoice renderedLocal = localInvoiceRenderer
+          .renderContingencyFiscalPdf(document, sale);
+      DocumentFile localFile = storeLocal(document.getId(),
+          DocumentFileKind.FISCAL, DocumentFileVersion.LOCAL, renderedLocal);
 
-    List<DocumentFile> files = new ArrayList<>();
-    files.add(localFile);
-    DocumentFile officialFile = storeOfficialDocumentIfPresent(document, localFile, providerResult);
-    if (officialFile != null) {
-      files.add(officialFile);
+      boolean offline = shouldGoOffline(forceOffline, connectivityHint);
+      if (offline) {
+        document.setStatus(FiscalDocumentStatus.OFFLINE_PENDING);
+        document.setOffline(true);
+        fiscalDocumentRepository.save(document);
+
+        ContingencyQueueItem queueItem = new ContingencyQueueItem();
+        queueItem.setDocument(document);
+        queueItem.setIdempotencyKey(key);
+        queueItem.setStatus(ContingencyQueueStatus.OFFLINE_PENDING);
+        queueItem.setProviderPayload(buildProviderPayload(payload, document));
+        contingencyQueueItemRepository.save(queueItem);
+
+        BillingDocumentView view = mapFiscalDocument(document, List.of(localFile));
+        idempotencyStore.complete(tenantId, key, payloadHash, document.getId());
+        entryCompleted = true;
+        return new InvoiceIssuanceResult(view, true);
+      }
+
+      BillingProvider provider = billingProvider.orElseThrow(() ->
+          new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Billing provider not configured"));
+
+      BillingProvider.IssueInvoiceResult providerResult;
+      try {
+        providerResult = provider.issueInvoice(payload, key);
+      } catch (BillingProviderException ex) {
+        document.setStatus(FiscalDocumentStatus.FAILED);
+        fiscalDocumentRepository.save(document);
+        idempotencyStore.complete(tenantId, key, payloadHash, document.getId());
+        entryCompleted = true;
+        throw new BillingProviderException("Billing provider rejected invoice: " + ex.getMessage(), ex);
+      }
+
+      document.setStatus(FiscalDocumentStatus.SENT);
+      document.setOffline(false);
+      document.setProvider(providerResult.provider());
+      document.setTrackId(providerResult.trackId());
+      document.setNumber(providerResult.number());
+      document.setFinalFolio(providerResult.number());
+      fiscalDocumentRepository.save(document);
+
+      List<DocumentFile> files = new ArrayList<>();
+      files.add(localFile);
+      DocumentFile officialFile = storeOfficialDocumentIfPresent(document, localFile, providerResult);
+      if (officialFile != null) {
+        files.add(officialFile);
+      }
+      BillingDocumentView view = mapFiscalDocument(document, files);
+      idempotencyStore.complete(tenantId, key, payloadHash, document.getId());
+      entryCompleted = true;
+      return new InvoiceIssuanceResult(view, true);
+    } finally {
+      if (reserved && !entryCompleted) {
+        idempotencyStore.invalidate(tenantId, key);
+      }
     }
-    return mapFiscalDocument(document, files);
   }
 
   @Transactional
@@ -207,13 +252,83 @@ public class BillingService {
     throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
   }
 
-  private BillingDocumentView findExistingDocumentByKey(String idempotencyKey) {
-    return fiscalDocumentRepository.findByIdempotencyKey(idempotencyKey)
-        .map(document -> mapFiscalDocument(document, null))
-        .or(() -> contingencyQueueItemRepository.findByIdempotencyKey(idempotencyKey)
-            .map(ContingencyQueueItem::getDocument)
-            .map(doc -> mapFiscalDocument(doc, null)))
+  private BillingDocumentView findExistingDocument(UUID tenantId,
+                                                   String idempotencyKey,
+                                                   String payloadHash) {
+    Optional<FiscalDocument> fiscal = fiscalDocumentRepository
+        .findByCompanyIdAndIdempotencyKey(tenantId, idempotencyKey);
+    if (fiscal.isPresent()) {
+      validatePayloadHash(fiscal.get(), payloadHash);
+      return mapFiscalDocument(fiscal.get(), null);
+    }
+    return contingencyQueueItemRepository
+        .findByDocument_CompanyIdAndIdempotencyKey(tenantId, idempotencyKey)
+        .map(ContingencyQueueItem::getDocument)
+        .map(document -> {
+          validatePayloadHash(document, payloadHash);
+          return mapFiscalDocument(document, null);
+        })
         .orElse(null);
+  }
+
+  private Optional<InvoiceIssuanceResult> resolveExistingEntry(UUID tenantId,
+                                                               String idempotencyKey,
+                                                               String payloadHash) {
+    Optional<BillingIdempotencyStore.IdempotencyEntry> entry =
+        idempotencyStore.findEntry(tenantId, idempotencyKey);
+    if (entry.isEmpty()) {
+      return Optional.empty();
+    }
+    if (!entry.get().payloadHash().equals(payloadHash)) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT,
+          "Idempotency-Key reused with a different payload");
+    }
+    if (entry.get().documentId() != null) {
+      BillingDocumentView view = findExistingDocument(tenantId, idempotencyKey, payloadHash);
+      if (view != null) {
+        return Optional.of(new InvoiceIssuanceResult(view, false));
+      }
+    }
+    Optional<BillingIdempotencyStore.IdempotencyEntry> awaited =
+        idempotencyStore.awaitCompletion(tenantId, idempotencyKey);
+    if (awaited.isPresent()) {
+      if (!awaited.get().payloadHash().equals(payloadHash)) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+            "Idempotency-Key reused with a different payload");
+      }
+      BillingDocumentView view = findExistingDocument(tenantId, idempotencyKey, payloadHash);
+      if (view != null) {
+        return Optional.of(new InvoiceIssuanceResult(view, false));
+      }
+    }
+    return Optional.empty();
+  }
+
+  private Optional<InvoiceIssuanceResult> awaitExistingEntry(UUID tenantId,
+                                                            String idempotencyKey,
+                                                            String payloadHash) {
+    Optional<BillingIdempotencyStore.IdempotencyEntry> awaited =
+        idempotencyStore.awaitCompletion(tenantId, idempotencyKey);
+    if (awaited.isEmpty()) {
+      return Optional.empty();
+    }
+    if (!awaited.get().payloadHash().equals(payloadHash)) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT,
+          "Idempotency-Key reused with a different payload");
+    }
+    BillingDocumentView view = findExistingDocument(tenantId, idempotencyKey, payloadHash);
+    if (view != null) {
+      return Optional.of(new InvoiceIssuanceResult(view, false));
+    }
+    return Optional.empty();
+  }
+
+  private void validatePayloadHash(FiscalDocument document, String payloadHash) {
+    String stored = document.getPayloadHash();
+    if (stored != null && !stored.equals(payloadHash)) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT,
+          "Idempotency-Key reused with a different payload");
+    }
   }
 
   private DocumentFile storeLocal(UUID documentId,

@@ -35,7 +35,9 @@ public class AccountRequestService {
   }
 
   @Transactional
-  public AccountRequestResponse create(AccountRequestPayload payload) {
+  public AccountRequestResponse create(AccountRequestPayload payload,
+                                       String ipAddress,
+                                       String userAgent) {
     captchaValidationService.validate(payload.captcha());
     if (!payload.passwordsMatch()) {
       throw new IllegalArgumentException("Las contraseñas no coinciden");
@@ -51,6 +53,8 @@ public class AccountRequestService {
     request.setEmail(payload.email().trim().toLowerCase());
     request.setCompanyName(payload.companyName().trim());
     request.setPasswordHash(passwordEncoder.encode(payload.password()));
+    request.setIpAddress(normalize(ipAddress));
+    request.setUserAgent(normalize(userAgent));
 
     AccountRequest saved = repository.save(request);
     try {
@@ -59,5 +63,13 @@ public class AccountRequestService {
       LOGGER.warn("Failed to send notification email for account request {}: {}", saved.getId(), ex.getMessage());
     }
     return new AccountRequestResponse(saved.getId(), saved.getStatus(), saved.getCreatedAt(), SUCCESS_MESSAGE);
+  }
+
+  private String normalize(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 }

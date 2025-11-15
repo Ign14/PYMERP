@@ -5,7 +5,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record AccountRequestPayload(
@@ -29,7 +28,6 @@ public record AccountRequestPayload(
   String password,
   @NotBlank(message = "Debes confirmar la contraseña")
   String confirmPassword,
-  @NotNull(message = "El captcha es obligatorio")
   @Valid
   SimpleCaptchaPayload captcha
 ) {

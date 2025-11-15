@@ -17,6 +17,12 @@ CREATE TABLE suppliers (
   name VARCHAR(100)
 );
 
+CREATE TABLE services (
+  id UUID PRIMARY KEY,
+  company_id UUID NOT NULL,
+  name VARCHAR(120)
+);
+
 CREATE TABLE products (
   id UUID PRIMARY KEY,
   company_id UUID NOT NULL,
@@ -47,7 +53,8 @@ CREATE TABLE purchase_items (
   id UUID PRIMARY KEY,
   company_id UUID NOT NULL,
   purchase_id UUID NOT NULL,
-  product_id UUID
+  product_id UUID,
+  service_id UUID
 );
 
 CREATE TABLE inventory_lots (
@@ -87,6 +94,17 @@ ALTER TABLE purchase_items
   ADD CONSTRAINT fk_purchase_items_product
   FOREIGN KEY (product_id) REFERENCES products(id);
 
+ALTER TABLE purchase_items
+  ADD CONSTRAINT fk_purchase_items_service
+  FOREIGN KEY (service_id) REFERENCES services(id);
+
+ALTER TABLE purchase_items
+  ADD CONSTRAINT ck_purchase_items_product_or_service
+  CHECK (
+    (product_id IS NOT NULL AND service_id IS NULL)
+    OR (product_id IS NULL AND service_id IS NOT NULL)
+  );
+
 ALTER TABLE inventory_lots
   ADD CONSTRAINT fk_inventory_lots_product
   FOREIGN KEY (product_id) REFERENCES products(id);
@@ -94,4 +112,3 @@ ALTER TABLE inventory_lots
 -- Performance indexes on company_id for key tables
 CREATE INDEX idx_sales_company ON sales(company_id);
 CREATE INDEX idx_purchases_company ON purchases(company_id);
-

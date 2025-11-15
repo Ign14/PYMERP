@@ -3,9 +3,13 @@ package com.datakomerz.pymes.common;
 import com.datakomerz.pymes.auth.InvalidRefreshTokenException;
 import com.datakomerz.pymes.auth.TenantMismatchException;
 import com.datakomerz.pymes.auth.UserDisabledException;
+import com.datakomerz.pymes.billing.provider.BillingProviderException;
+import com.datakomerz.pymes.common.FieldValidationException;
 import com.datakomerz.pymes.common.captcha.CaptchaValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -63,6 +67,21 @@ public class GlobalExceptionHandler {
     return Map.of("error", ex.getErrorCode());
   }
 
+  @ExceptionHandler(FieldValidationException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ProblemDetail handleFieldValidation(FieldValidationException ex) {
+    var pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    pd.setTitle("Bad Request");
+    Map<String, Object> fieldError = new LinkedHashMap<>();
+    fieldError.put("field", ex.getField());
+    fieldError.put("message", ex.getMessage());
+    if (ex.getCode() != null) {
+      fieldError.put("code", ex.getCode());
+    }
+    pd.setProperty("errors", List.of(fieldError));
+    return pd;
+  }
+
   @ExceptionHandler(UserDisabledException.class)
   @ResponseStatus(HttpStatus.FORBIDDEN)
   public Map<String, String> handleUserDisabled(UserDisabledException ex) {
@@ -117,6 +136,15 @@ public class GlobalExceptionHandler {
 
     var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
     pd.setTitle("Conflict");
+    return pd;
+  }
+
+  @ExceptionHandler(BillingProviderException.class)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  public ProblemDetail handleBillingProvider(BillingProviderException ex) {
+    var pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
+        "Fiscal provider failure: " + ex.getMessage());
+    pd.setTitle("Fiscal Provider Error");
     return pd;
   }
 

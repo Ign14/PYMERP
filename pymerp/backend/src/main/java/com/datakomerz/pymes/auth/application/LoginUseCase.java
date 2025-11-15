@@ -3,7 +3,7 @@ package com.datakomerz.pymes.auth.application;
 import com.datakomerz.pymes.auth.RefreshTokenService;
 import com.datakomerz.pymes.auth.dto.AuthRequest;
 import com.datakomerz.pymes.auth.dto.AuthResponse;
-import com.datakomerz.pymes.config.AppProperties;
+import com.datakomerz.pymes.config.SecurityProperties;
 import com.datakomerz.pymes.security.AppUserDetails;
 import com.datakomerz.pymes.security.jwt.JwtService;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -16,18 +16,18 @@ public class LoginUseCase {
 
   private final AuthenticationManager authenticationManager;
   private final JwtService jwtService;
-  private final AppProperties appProperties;
+  private final SecurityProperties securityProperties;
   private final RefreshTokenService refreshTokenService;
   private final AuthResponseFactory authResponseFactory;
 
   public LoginUseCase(AuthenticationManager authenticationManager,
                       JwtService jwtService,
-                      AppProperties appProperties,
+                      SecurityProperties securityProperties,
                       RefreshTokenService refreshTokenService,
                       AuthResponseFactory authResponseFactory) {
     this.authenticationManager = authenticationManager;
     this.jwtService = jwtService;
-    this.appProperties = appProperties;
+    this.securityProperties = securityProperties;
     this.refreshTokenService = refreshTokenService;
     this.authResponseFactory = authResponseFactory;
   }
@@ -39,9 +39,9 @@ public class LoginUseCase {
 
     AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
     String token = jwtService.generateToken(principal);
-    long expiresIn = appProperties.getSecurity().getJwt().getExpirationSeconds();
+    long expiresIn = securityProperties.getJwt().getExpirationSeconds();
     String refreshToken = refreshTokenService.issueToken(principal.getAccount());
-    long refreshExpiresIn = appProperties.getSecurity().getJwt().getRefreshExpirationSeconds();
+    long refreshExpiresIn = securityProperties.getJwt().getRefreshExpirationSeconds();
 
     return authResponseFactory.build(principal, token, expiresIn, refreshToken, refreshExpiresIn);
   }

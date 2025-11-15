@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -20,7 +21,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "fiscal_documents")
+@Table(name = "fiscal_documents",
+    uniqueConstraints = @UniqueConstraint(name = "uq_fiscal_documents_company_idempotency",
+        columnNames = {"company_id", "idempotency_key"}))
 @TenantFiltered
 public class FiscalDocument extends AuditableEntity {
 
@@ -64,8 +67,12 @@ public class FiscalDocument extends AuditableEntity {
   private String contingencyReason;
 
   @Size(max = 100)
-  @Column(name = "idempotency_key", length = 100, unique = true)
+  @Column(name = "idempotency_key", length = 100)
   private String idempotencyKey;
+
+  @Size(max = 64)
+  @Column(name = "payload_hash", length = 64)
+  private String payloadHash;
 
   @Size(max = 80)
   @Column(name = "track_id", length = 80)
@@ -270,6 +277,14 @@ public class FiscalDocument extends AuditableEntity {
 
   public void setErrorDetail(String errorDetail) {
     this.errorDetail = errorDetail;
+  }
+
+  public String getPayloadHash() {
+    return payloadHash;
+  }
+
+  public void setPayloadHash(String payloadHash) {
+    this.payloadHash = payloadHash;
   }
 
 }

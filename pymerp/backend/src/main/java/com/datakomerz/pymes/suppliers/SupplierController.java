@@ -2,7 +2,6 @@ package com.datakomerz.pymes.suppliers;
 
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.multitenancy.ValidateTenant;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -14,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;

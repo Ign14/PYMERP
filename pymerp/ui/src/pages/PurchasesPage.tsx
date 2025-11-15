@@ -104,6 +104,9 @@ function triggerBrowserDownload(file: DocumentFile, filename: string) {
 
 export default function PurchasesPage() {
   const queryClient = useQueryClient()
+  const refreshInventoryStockCache = () => {
+    queryClient.invalidateQueries({ queryKey: ['inventory', 'stockByProduct'], exact: false })
+  }
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
@@ -706,13 +709,19 @@ export default function PurchasesPage() {
       <PurchaseCreateDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onCreated={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ['purchases'] })
+          refreshInventoryStockCache()
+        }}
       />
 
       <PurchaseImportDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}
-        onImported={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ['purchases'] })
+          refreshInventoryStockCache()
+        }}
       />
 
       <PurchasesExportDialog

@@ -8,6 +8,7 @@ import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductService;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,24 +24,28 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(properties = {
   "spring.autoconfigure.exclude=",
   "app.cache.redis.enabled=true"
 })
-@Testcontainers
 class ProductCacheTest {
 
-  @Container
-  static final GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-    .withExposedPorts(6379);
+  private static final GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
+      .withExposedPorts(6379);
 
   @DynamicPropertySource
   static void redisProperties(DynamicPropertyRegistry registry) {
+    ensureRedisStarted();
     registry.add("spring.data.redis.host", redis::getHost);
     registry.add("spring.data.redis.port", redis::getFirstMappedPort);
+  }
+
+  @AfterAll
+  static void shutdownRedis() {
+    if (redis.isRunning()) {
+      redis.stop();
+    }
   }
 
   @Autowired
@@ -110,10 +115,17 @@ class ProductCacheTest {
   static class RedisTestConfig {
     @Bean
     RedisConnectionFactory redisConnectionFactory() {
+      ensureRedisStarted();
       LettuceConnectionFactory factory = new LettuceConnectionFactory(redis.getHost(), redis.getFirstMappedPort());
       factory.afterPropertiesSet();
       return factory;
     }
 
+  }
+
+  private static void ensureRedisStarted() {
+    if (!redis.isRunning()) {
+      redis.start();
+    }
   }
 }

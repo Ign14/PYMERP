@@ -13,8 +13,8 @@ const resolveModulePath = (moduleSubPath: string) => {
   return path.resolve(__dirname, '..', 'node_modules', moduleSubPath)
 }
 
-export default defineConfig({
-  plugins: [react()],
+  export default defineConfig({
+    plugins: [react()],
   resolve: {
     alias: {
       react: resolveModulePath('react'),
@@ -56,6 +56,14 @@ export default defineConfig({
       deps: {
         inline: true,
       },
+    },
+    coverage: {
+      provider: 'c8',
+      reporter: ['text', 'html'],
+      lines: 60,
+      statements: 60,
+      functions: 60,
+      branches: 60,
     },
   },
 })

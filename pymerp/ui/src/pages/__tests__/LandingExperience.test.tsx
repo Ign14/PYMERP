@@ -8,6 +8,7 @@ vi.mock('../../assets/logo.png', () => ({ default: 'logo.png' }))
 
 const loginMock = vi.fn()
 const submitAccountRequestMock = vi.fn()
+const getAuthConfigMock = vi.fn()
 
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({
@@ -23,6 +24,8 @@ vi.mock('../../services/client', async () => {
     ...actual,
     submitAccountRequest: (...args: Parameters<typeof actual.submitAccountRequest>) =>
       submitAccountRequestMock(...args),
+    getAuthConfig: (...args: Parameters<typeof actual.getAuthConfig>) =>
+      getAuthConfigMock(...args),
   }
 })
 
@@ -62,6 +65,12 @@ function parseCaptchaAnswerFromInput(input: HTMLInputElement) {
 beforeEach(() => {
   loginMock.mockReset()
   submitAccountRequestMock.mockReset()
+  getAuthConfigMock.mockReset()
+  getAuthConfigMock.mockResolvedValue({
+    captchaEnabled: true,
+    minPasswordLength: 8,
+    requireEmailVerification: false,
+  })
 })
 
 async function openLoginPanel() {

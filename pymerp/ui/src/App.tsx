@@ -9,8 +9,11 @@ import LandingBackground from './pages/LandingBackground'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const SalesPage = lazy(() => import('./pages/SalesPage'))
+const PurchaseCreatePage = lazy(() => import('./pages/purchases/PurchaseCreatePage'))
 const PurchasesPage = lazy(() => import('./pages/PurchasesPage'))
 const InventoryPage = lazy(() => import('./pages/InventoryPage'))
+const InventoryLotsPage = lazy(() => import('./pages/inventory/LotsListPage'))
+const InventoryLocationsPage = lazy(() => import('./pages/inventory/LocationsPage'))
 const InventoryMovementsPage = lazy(() => import('./pages/InventoryMovementsPage'))
 const CustomersPage = lazy(() => import('./pages/CustomersPage'))
 const SuppliersPage = lazy(() => import('./pages/SuppliersPage'))
@@ -27,8 +30,11 @@ type ModuleRoute = {
 const ROUTES: ModuleRoute[] = [
   { index: true, module: 'dashboard', element: <DashboardPage /> },
   { path: 'sales', module: 'sales', element: <SalesPage /> },
+  { path: 'purchases/new', module: 'purchases', element: <PurchaseCreatePage /> },
   { path: 'purchases', module: 'purchases', element: <PurchasesPage /> },
   { path: 'inventory', module: 'inventory', element: <InventoryPage /> },
+  { path: 'inventory/lots', module: 'inventory', element: <InventoryLotsPage /> },
+  { path: 'inventory/locations', module: 'inventory', element: <InventoryLocationsPage /> },
   { path: 'inventory/movements', module: 'inventory', element: <InventoryMovementsPage /> },
   { path: 'customers', module: 'customers', element: <CustomersPage /> },
   { path: 'suppliers', module: 'suppliers', element: <SuppliersPage /> },

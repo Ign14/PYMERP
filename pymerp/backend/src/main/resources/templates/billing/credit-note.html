@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>${documentTitle}</title>
+  <style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; margin: 26px; color: #111827; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid ${primaryColor}; padding-bottom: 14px; margin-bottom: 20px; }
+    .logo img { max-height: 70px; }
+    .meta { text-align: right; font-size: 13px; }
+    .meta h1 { margin: 0; font-size: 24px; color: ${primaryColor}; }
+    .grid { display: flex; gap: 16px; margin-bottom: 20px; }
+    .panel { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; background: #f9fafb; font-size: 13px; }
+    .panel strong { display: block; margin-bottom: 4px; text-transform: uppercase; font-size: 11px; color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    thead th { background: ${tableHeaderColor}; color: ${primaryColor}; padding: 8px; text-transform: uppercase; font-size: 12px; }
+    tbody td { border-bottom: 1px solid #e5e7eb; padding: 10px; }
+    .totals { margin-top: 12px; max-width: 320px; margin-left: auto; font-size: 13px; }
+    .totals div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #d1d5db; }
+    .totals .total { font-weight: bold; color: ${accentColor}; border-bottom: none; font-size: 16px; }
+    .footer { margin-top: 20px; font-size: 12px; color: #4b5563; display: flex; justify-content: space-between; align-items: center; }
+    .qr img { width: 120px; height: 120px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">${logoHtml}</div>
+    <div>
+      <strong>${companyName}</strong><br/>
+      RUT: ${companyTaxId}<br/>
+      ${companyAddress}
+    </div>
+    <div class="meta">
+      <h1>${documentTitle}</h1>
+      <div><strong>${documentNumberLabel}:</strong> ${documentNumber}</div>
+      <div><strong>${secondaryNumberLabel}:</strong> ${secondaryNumber}</div>
+      <div><strong>Emitido:</strong> ${issuedAt}</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <strong>Cliente</strong>
+      <div>${customerName}</div>
+      <div>RUT: ${customerTaxId}</div>
+      <div>${customerAddress}</div>
+    </div>
+    <div class="panel">
+      <strong>Detalle</strong>
+      <div>${creditLegend}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Descripción</th>
+      <th>Cantidad</th>
+      <th>Precio Unit.</th>
+      <th>Descuento</th>
+      <th>Total</th>
+    </tr>
+    </thead>
+    <tbody>
+    ${itemsRows}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div><span>Subtotal</span><span>${totalsSubtotal}</span></div>
+    <div><span>IVA</span><span>${totalsVat}</span></div>
+    <div class="total"><span>Total</span><span>${totalsTotal}</span></div>
+  </div>
+
+  <div class="footer">
+    <div>
+      <div>Documento generado electrónicamente.</div>
+      <div>Consulta en: ${documentUrl}</div>
+    </div>
+    <div class="qr">${qrImage}</div>
+  </div>
+</body>
+</html>

@@ -5,34 +5,55 @@ import com.datakomerz.pymes.inventory.dto.InventoryAdjustmentRequest;
 import com.datakomerz.pymes.inventory.dto.InventoryAdjustmentResponse;
 import com.datakomerz.pymes.inventory.dto.InventoryAlert;
 import com.datakomerz.pymes.inventory.dto.InventoryKPIs;
+import com.datakomerz.pymes.inventory.dto.LotDetailDTO;
+import com.datakomerz.pymes.inventory.dto.InventoryMovementHistoryEntry;
 import com.datakomerz.pymes.inventory.dto.InventoryMovementSummary;
 import com.datakomerz.pymes.inventory.dto.InventorySettingsResponse;
 import com.datakomerz.pymes.inventory.dto.InventorySettingsUpdateRequest;
 import com.datakomerz.pymes.inventory.dto.InventorySummary;
+import com.datakomerz.pymes.inventory.dto.LotReservationSummary;
+import com.datakomerz.pymes.inventory.dto.StockByLocationAggregation;
+import com.datakomerz.pymes.inventory.dto.StockByLocationResponse;
 import com.datakomerz.pymes.inventory.dto.StockMovementStats;
 import com.datakomerz.pymes.inventory.dto.ProductABCClassification;
-import com.datakomerz.pymes.locations.Location;
-import com.datakomerz.pymes.locations.LocationRepository;
+import com.datakomerz.pymes.multitenancy.CrossTenantAccessException;
+import com.datakomerz.pymes.multitenancy.TenantFilterEnabler;
+import com.datakomerz.pymes.multitenancy.ValidateTenant;
 import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
+import com.datakomerz.pymes.purchases.Purchase;
+import com.datakomerz.pymes.purchases.PurchaseRepository;
 import com.datakomerz.pymes.sales.SaleLotAllocation;
 import com.datakomerz.pymes.sales.SaleLotAllocationRepository;
+import com.datakomerz.pymes.suppliers.Supplier;
+import com.datakomerz.pymes.suppliers.SupplierRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class InventoryService {
@@ -43,7 +64,11 @@ public class InventoryService {
   private final SaleLotAllocationRepository allocations;
   private final InventorySettingsRepository settingsRepository;
   private final ProductRepository productRepository;
-  private final LocationRepository locationRepository;
+  private final InventoryLocationRepository inventoryLocationRepository;
+  private final PurchaseRepository purchaseRepository;
+  private final SupplierRepository supplierRepository;
+  private final EntityManager entityManager;
+  private final TenantFilterEnabler tenantFilterEnabler;
   private final CompanyContext companyContext;
   private final AuditContextService auditContext;
 
@@ -52,7 +77,11 @@ public class InventoryService {
                           SaleLotAllocationRepository allocations,
                           InventorySettingsRepository settingsRepository,
                           ProductRepository productRepository,
-                          LocationRepository locationRepository,
+                          InventoryLocationRepository inventoryLocationRepository,
+                          PurchaseRepository purchaseRepository,
+                          SupplierRepository supplierRepository,
+                          EntityManager entityManager,
+                          TenantFilterEnabler tenantFilterEnabler,
                           CompanyContext companyContext,
                           AuditContextService auditContext) {
     this.lots = lots;
@@ -60,7 +89,11 @@ public class InventoryService {
     this.allocations = allocations;
     this.settingsRepository = settingsRepository;
     this.productRepository = productRepository;
-    this.locationRepository = locationRepository;
+    this.inventoryLocationRepository = inventoryLocationRepository;
+    this.purchaseRepository = purchaseRepository;
+    this.supplierRepository = supplierRepository;
+    this.entityManager = entityManager;
+    this.tenantFilterEnabler = tenantFilterEnabler;
     this.companyContext = companyContext;
     this.auditContext = auditContext;
   }
@@ -103,8 +136,10 @@ public class InventoryService {
         continue;
       }
 
-      var take = lot.getQtyAvailable().min(remaining);
-      lot.setQtyAvailable(lot.getQtyAvailable().subtract(take));
+      BigDecimal take = lot.getQtyAvailable().min(remaining);
+      BigDecimal previousQty = lot.getQtyAvailable();
+      BigDecimal newQty = previousQty.subtract(take);
+      lot.setQtyAvailable(newQty);
       lots.save(lot);
 
       var movement = new InventoryMovement();
@@ -115,6 +150,9 @@ public class InventoryService {
       movement.setQty(take);
       movement.setRefType("SALE");
       movement.setRefId(saleId);
+      movement.setLocationFromId(lot.getLocationId());
+      movement.setLocationToId(null);
+      enrichMovementWithAudit(movement, "SALE", previousQty, newQty);
       movements.save(movement);
 
       var allocation = new SaleLotAllocation();
@@ -142,7 +180,9 @@ public class InventoryService {
     for (SaleLotAllocation allocation : saleAllocations) {
       InventoryLot lot = lots.findById(allocation.getLotId())
         .orElseThrow(() -> new IllegalStateException("Lot not found for allocation " + allocation.getLotId()));
-      lot.setQtyAvailable(lot.getQtyAvailable().add(allocation.getQty()));
+      BigDecimal previousQty = lot.getQtyAvailable();
+      BigDecimal newQty = previousQty.add(allocation.getQty());
+      lot.setQtyAvailable(newQty);
       lots.save(lot);
 
       InventoryMovement movement = new InventoryMovement();
@@ -153,6 +193,9 @@ public class InventoryService {
       movement.setQty(allocation.getQty());
       movement.setRefType("SALE");
       movement.setRefId(saleId);
+      movement.setLocationFromId(null);
+      movement.setLocationToId(lot.getLocationId());
+      enrichMovementWithAudit(movement, "SALE_CANCEL", previousQty, newQty);
       movements.save(movement);
     }
     allocations.deleteBySaleId(saleId);
@@ -191,6 +234,60 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
+  public Page<LotDetailDTO> listLots(
+      String q,
+      String status,
+      UUID productId,
+      UUID supplierId,
+      UUID locationId,
+      LocalDate ingressFrom,
+      LocalDate ingressTo,
+      LocalDate expiryFrom,
+      LocalDate expiryTo,
+      Pageable pageable) {
+    UUID companyId = companyContext.require();
+    if (supplierId != null) {
+      Supplier supplier = supplierRepository.findById(supplierId)
+          .orElseThrow(() -> new IllegalArgumentException("Proveedor no encontrado: " + supplierId));
+      if (!Objects.equals(supplier.getCompanyId(), companyId)) {
+        throw new CrossTenantAccessException("Proveedor " + supplierId + " pertenece a otra empresa");
+      }
+    }
+
+    CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+
+    CriteriaQuery<InventoryLot> criteriaQuery = cb.createQuery(InventoryLot.class);
+    Root<InventoryLot> lotRoot = criteriaQuery.from(InventoryLot.class);
+    List<Predicate> predicates = buildLotDetailPredicates(cb, criteriaQuery, lotRoot, companyId, q, productId,
+        supplierId, locationId, ingressFrom, ingressTo, expiryFrom, expiryTo);
+    criteriaQuery.where(predicates.toArray(Predicate[]::new));
+    criteriaQuery.orderBy(cb.desc(lotRoot.get("createdAt")));
+
+    List<InventoryLot> lotsPage = entityManager.createQuery(criteriaQuery)
+        .setFirstResult((int) pageable.getOffset())
+        .setMaxResults(pageable.getPageSize())
+        .getResultList();
+
+    CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
+    Root<InventoryLot> countRoot = countQuery.from(InventoryLot.class);
+    List<Predicate> countPredicates = buildLotDetailPredicates(cb, countQuery, countRoot, companyId, q, productId,
+        supplierId, locationId, ingressFrom, ingressTo, expiryFrom, expiryTo);
+    countQuery.select(cb.count(countRoot));
+    Long total = entityManager.createQuery(countQuery).getSingleResult();
+
+    List<LotDetailDTO> dtos = mapLotsToDetailDtos(companyId, lotsPage);
+
+    if (StringUtils.hasText(status)) {
+      dtos = dtos.stream()
+          .filter(dto -> status.equalsIgnoreCase(dto.status()))
+          .toList();
+      total = (long) dtos.size();
+    }
+
+    return new PageImpl<>(dtos, pageable, total);
+  }
+
+  @Transactional(readOnly = true)
   public InventorySummary summary() {
     UUID companyId = companyContext.require();
     BigDecimal totalValue = lots.sumInventoryValue(companyId);
@@ -201,6 +298,202 @@ public class InventoryService {
     BigDecimal threshold = settings.getLowStockThreshold();
     long alerts = lots.countByCompanyIdAndQtyAvailableLessThan(companyId, threshold);
     return new InventorySummary(totalValue, active, inactive, total, alerts, threshold);
+  }
+
+  private List<Predicate> buildLotDetailPredicates(CriteriaBuilder cb,
+                                                   CriteriaQuery<?> query,
+                                                   Root<InventoryLot> lotRoot,
+                                                   UUID companyId,
+                                                   String q,
+                                                   UUID productId,
+                                                   UUID supplierId,
+                                                   UUID locationId,
+                                                   LocalDate ingressFrom,
+                                                   LocalDate ingressTo,
+                                                   LocalDate expiryFrom,
+                                                   LocalDate expiryTo) {
+    List<Predicate> predicates = new ArrayList<>();
+    predicates.add(cb.equal(lotRoot.get("companyId"), companyId));
+
+    if (productId != null) {
+      predicates.add(cb.equal(lotRoot.get("productId"), productId));
+    }
+    if (locationId != null) {
+      predicates.add(cb.equal(lotRoot.get("locationId"), locationId));
+    }
+    if (ingressFrom != null) {
+      predicates.add(cb.greaterThanOrEqualTo(lotRoot.get("createdAt").as(LocalDate.class), ingressFrom));
+    }
+    if (ingressTo != null) {
+      predicates.add(cb.lessThanOrEqualTo(lotRoot.get("createdAt").as(LocalDate.class), ingressTo));
+    }
+    if (expiryFrom != null) {
+      predicates.add(cb.greaterThanOrEqualTo(lotRoot.get("expDate"), expiryFrom));
+    }
+    if (expiryTo != null) {
+      predicates.add(cb.lessThanOrEqualTo(lotRoot.get("expDate"), expiryTo));
+    }
+    if (supplierId != null) {
+      Subquery<UUID> supplierFilter = query.subquery(UUID.class);
+      Root<Purchase> purchaseRoot = supplierFilter.from(Purchase.class);
+      supplierFilter.select(purchaseRoot.get("id"));
+      supplierFilter.where(
+          cb.equal(purchaseRoot.get("companyId"), companyId),
+          cb.equal(purchaseRoot.get("id"), lotRoot.get("purchaseId")),
+          cb.equal(purchaseRoot.get("supplierId"), supplierId));
+      predicates.add(cb.exists(supplierFilter));
+    }
+    if (StringUtils.hasText(q)) {
+      String searchPattern = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+      Predicate batchPredicate = cb.like(cb.lower(cb.coalesce(lotRoot.get("batchName"), "")), searchPattern);
+
+      Subquery<UUID> productMatch = query.subquery(UUID.class);
+      Root<Product> productRoot = productMatch.from(Product.class);
+      productMatch.select(productRoot.get("id"));
+      productMatch.where(
+          cb.equal(productRoot.get("companyId"), companyId),
+          cb.equal(productRoot.get("id"), lotRoot.get("productId")),
+          cb.or(
+              cb.like(cb.lower(cb.coalesce(productRoot.get("name"), "")), searchPattern),
+              cb.like(cb.lower(cb.coalesce(productRoot.get("sku"), "")), searchPattern)
+          )
+      );
+
+      Subquery<UUID> supplierMatch = query.subquery(UUID.class);
+      Root<Purchase> purchaseRoot = supplierMatch.from(Purchase.class);
+      Root<Supplier> supplierRoot = supplierMatch.from(Supplier.class);
+      supplierMatch.select(purchaseRoot.get("id"));
+      supplierMatch.where(
+          cb.equal(purchaseRoot.get("companyId"), companyId),
+          cb.equal(purchaseRoot.get("id"), lotRoot.get("purchaseId")),
+          cb.equal(supplierRoot.get("companyId"), companyId),
+          cb.equal(supplierRoot.get("id"), purchaseRoot.get("supplierId")),
+          cb.like(cb.lower(cb.coalesce(supplierRoot.get("name"), "")), searchPattern)
+      );
+
+      predicates.add(cb.or(batchPredicate, cb.exists(productMatch), cb.exists(supplierMatch)));
+    }
+
+    return predicates;
+  }
+
+  private List<LotDetailDTO> mapLotsToDetailDtos(UUID companyId, List<InventoryLot> lotEntities) {
+    if (lotEntities.isEmpty()) {
+      return List.of();
+    }
+
+    List<UUID> lotIds = lotEntities.stream()
+        .map(InventoryLot::getId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+
+    Map<UUID, BigDecimal> reservedMap = reservedQuantities(companyId, lotIds);
+    List<UUID> productIds = lotEntities.stream()
+        .map(InventoryLot::getProductId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    Map<UUID, Product> productMap = productRepository.findAllById(productIds)
+        .stream()
+        .collect(Collectors.toMap(Product::getId, p -> p));
+
+    List<UUID> locationIds = lotEntities.stream()
+        .map(InventoryLot::getLocationId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    Map<UUID, InventoryLocation> locationMap = new HashMap<>();
+    if (!locationIds.isEmpty()) {
+      inventoryLocationRepository.findAllById(locationIds)
+          .forEach(loc -> locationMap.put(loc.getId(), loc));
+    }
+
+    List<UUID> purchaseIds = lotEntities.stream()
+        .map(InventoryLot::getPurchaseId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    Map<UUID, Purchase> purchaseMap = purchaseRepository.findAllById(purchaseIds)
+        .stream()
+        .collect(Collectors.toMap(Purchase::getId, p -> p));
+
+    List<UUID> supplierIds = purchaseMap.values().stream()
+        .map(Purchase::getSupplierId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    Map<UUID, Supplier> supplierMap = supplierIds.isEmpty()
+        ? Map.of()
+        : supplierRepository.findAllById(supplierIds)
+            .stream()
+            .collect(Collectors.toMap(Supplier::getId, s -> s));
+
+    return lotEntities.stream()
+        .map(lot -> {
+          Product product = productMap.get(lot.getProductId());
+          InventoryLocation location = locationMap.get(lot.getLocationId());
+          Purchase purchase = lot.getPurchaseId() == null ? null : purchaseMap.get(lot.getPurchaseId());
+          Supplier supplier = purchase != null && purchase.getSupplierId() != null
+              ? supplierMap.get(purchase.getSupplierId())
+              : null;
+          BigDecimal reserved = reservedMap.getOrDefault(lot.getId(), BigDecimal.ZERO);
+          String statusText = calculateLotStatus(lot, product);
+          return new LotDetailDTO(
+              lot.getId(),
+              lot.getBatchName(),
+              product != null ? product.getId() : null,
+              product != null ? product.getName() : null,
+              product != null ? product.getSku() : null,
+              supplier != null ? supplier.getId() : null,
+              supplier != null ? supplier.getName() : null,
+              lot.getLocationId(),
+              location != null ? location.getCode() : null,
+              location != null ? location.getName() : null,
+              lot.getQtyAvailable(),
+              reserved,
+              statusText,
+              lot.getCreatedAt() != null ? lot.getCreatedAt().toLocalDate() : null,
+              lot.getExpDate(),
+              lot.getCreatedAt());
+        })
+        .toList();
+  }
+
+  private String calculateLotStatus(InventoryLot lot, Product product) {
+    LotStatus computedStatus = evaluateStatus(lot, product);
+    return computedStatus != null ? computedStatus.name() : LotStatus.OK.name();
+  }
+
+  private LotStatus evaluateStatus(InventoryLot lot, Product product) {
+    LocalDate today = LocalDate.now();
+    LocalDate window = today.plusDays(30);
+    LocalDate expDate = lot.getExpDate();
+    if (expDate != null) {
+      if (expDate.isBefore(today)) {
+        return LotStatus.VENCIDO;
+      }
+      if (!expDate.isAfter(window)) {
+        return LotStatus.POR_VENCER;
+      }
+    }
+    BigDecimal reorderPoint = product != null && product.getCriticalStock() != null
+        ? product.getCriticalStock()
+        : BigDecimal.ZERO;
+    if (lot.getQtyAvailable() != null && reorderPoint.compareTo(BigDecimal.ZERO) > 0
+        && lot.getQtyAvailable().compareTo(reorderPoint) < 0) {
+      return LotStatus.BAJO_STOCK;
+    }
+    return LotStatus.OK;
+  }
+
+  private Map<UUID, BigDecimal> reservedQuantities(UUID companyId, List<UUID> lotIds) {
+    if (lotIds.isEmpty()) {
+      return Map.of();
+    }
+    return allocations.sumReservedByLotIds(companyId, lotIds)
+        .stream()
+        .collect(Collectors.toMap(LotReservationSummary::lotId, LotReservationSummary::reservedQty));
   }
 
   @Transactional(readOnly = true)
@@ -354,6 +647,8 @@ public class InventoryService {
     movement.setRefType("MANUAL");
     movement.setRefId(lot.getId());
     movement.setNote(reason);
+    movement.setLocationFromId(null);
+    movement.setLocationToId(lot.getLocationId());
     enrichMovementWithAudit(movement, "ADJUSTMENT", previousQty, newQty);
     movements.save(movement);
   }
@@ -393,6 +688,8 @@ public class InventoryService {
       movement.setRefType("MANUAL");
       movement.setRefId(lot.getId());
       movement.setNote(reason);
+      movement.setLocationFromId(lot.getLocationId());
+      movement.setLocationToId(null);
       enrichMovementWithAudit(movement, "ADJUSTMENT", previousQty, newQty);
       movements.save(movement);
 
@@ -417,6 +714,24 @@ public class InventoryService {
     }
     if (!Objects.equals(lot.getProductId(), productId)) {
       throw new IllegalArgumentException("Lot " + lot.getId() + " does not match product " + productId);
+    }
+  }
+
+  private enum LotStatus {
+    OK,
+    BAJO_STOCK,
+    POR_VENCER,
+    VENCIDO;
+
+    static LotStatus fromLabel(String label) {
+      if (!StringUtils.hasText(label)) {
+        return null;
+      }
+      try {
+        return LotStatus.valueOf(label.trim().toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException ex) {
+        throw new IllegalArgumentException("Estado inválido: " + label);
+      }
     }
   }
 
@@ -456,6 +771,7 @@ public class InventoryService {
     movement.setReasonCode(reasonCode);
     movement.setPreviousQty(previousQty);
     movement.setNewQty(newQty);
+    movement.setTraceId(auditContext.getTraceId());
   }
 
   /**
@@ -953,86 +1269,165 @@ public class InventoryService {
     return forecasts;
   }
   
-  public Page<com.datakomerz.pymes.inventory.dto.InventoryMovementDetail> listMovements(
+  @ValidateTenant(entityClass = InventoryLot.class, entityParam = "lotId")
+  public Page<InventoryMovementHistoryEntry> listMovements(
       UUID productId,
       UUID lotId,
       String type,
+      UUID locationId,
       OffsetDateTime dateFrom,
       OffsetDateTime dateTo,
       Pageable pageable) {
     UUID companyId = companyContext.require();
-    
+
     Page<InventoryMovement> movementsPage = movements.findMovementsWithFilters(
-        companyId, productId, lotId, type, dateFrom, dateTo, pageable);
-    
-    // Obtener todos los productIds y lotIds únicos
-    List<UUID> productIds = movementsPage.getContent().stream()
-        .map(InventoryMovement::getProductId)
+        companyId, productId, lotId, type, locationId, dateFrom, dateTo, pageable);
+
+    List<UUID> locationIds = movementsPage.getContent().stream()
+        .flatMap(m -> Stream.of(m.getLocationFromId(), m.getLocationToId()))
         .filter(Objects::nonNull)
         .distinct()
         .toList();
-    
-    List<UUID> lotIds = movementsPage.getContent().stream()
-        .map(InventoryMovement::getLotId)
-        .filter(Objects::nonNull)
-        .distinct()
-        .toList();
-    
-    // Cargar productos y lotes en batch
-    Map<UUID, Product> productsMap = new HashMap<>();
-    if (!productIds.isEmpty()) {
-      productRepository.findAllById(productIds).forEach(p -> productsMap.put(p.getId(), p));
-    }
-    
-    Map<UUID, InventoryLot> lotsMap = new HashMap<>();
-    if (!lotIds.isEmpty()) {
-      lots.findAllById(lotIds).forEach(lot -> lotsMap.put(lot.getId(), lot));
-    }
-    
-    // Cargar ubicaciones en batch
-    List<UUID> locationIds = lotsMap.values().stream()
-        .map(InventoryLot::getLocationId)
-        .filter(Objects::nonNull)
-        .distinct()
-        .toList();
-    
-    Map<UUID, Location> locationsMap = new HashMap<>();
+
+    Map<UUID, InventoryLocation> locationMap = new HashMap<>();
     if (!locationIds.isEmpty()) {
-      locationRepository.findAllById(locationIds).forEach(loc -> locationsMap.put(loc.getId(), loc));
+      inventoryLocationRepository.findAllById(locationIds)
+          .forEach(loc -> locationMap.put(loc.getId(), loc));
     }
-    
-    List<com.datakomerz.pymes.inventory.dto.InventoryMovementDetail> details = 
-        movementsPage.getContent().stream()
+
+    List<InventoryMovementHistoryEntry> history = movementsPage.getContent().stream()
         .map(m -> {
-          Product product = productsMap.get(m.getProductId());
-          InventoryLot lot = m.getLotId() != null ? lotsMap.get(m.getLotId()) : null;
-          Location location = lot != null && lot.getLocationId() != null ? locationsMap.get(lot.getLocationId()) : null;
-          
-          return new com.datakomerz.pymes.inventory.dto.InventoryMovementDetail(
+          InventoryLocation from = m.getLocationFromId() != null ? locationMap.get(m.getLocationFromId()) : null;
+          InventoryLocation to = m.getLocationToId() != null ? locationMap.get(m.getLocationToId()) : null;
+          InventoryMovementHistoryEntry.InventoryMovementLocation fromInfo = from != null
+              ? new InventoryMovementHistoryEntry.InventoryMovementLocation(from.getId(), from.getName())
+              : null;
+          InventoryMovementHistoryEntry.InventoryMovementLocation toInfo = to != null
+              ? new InventoryMovementHistoryEntry.InventoryMovementLocation(to.getId(), to.getName())
+              : null;
+          return new InventoryMovementHistoryEntry(
               m.getId(),
               m.getType(),
-              m.getCreatedAt(),
-              m.getProductId(),
-              product != null ? product.getSku() : null,
-              product != null ? product.getName() : null,
-              m.getLotId(),
-              lot != null ? lot.getBatchName() : null,
               m.getQty(),
-              lot != null ? lot.getLocationId() : null,
-              location != null ? location.getCode() : null,
-              location != null ? location.getName() : null,
+              m.getPreviousQty(),
+              m.getNewQty(),
+              m.getProductId(),
+              m.getLotId(),
+              fromInfo,
+              toInfo,
+              m.getCreatedBy(),
+              m.getTraceId(),
               m.getRefType(),
               m.getRefId(),
-              m.getNote(),
-              m.getCreatedBy()
-          );
+              m.getCreatedAt(),
+              m.getReasonCode(),
+              m.getNote());
         })
-        .toList();
-    
-    return new PageImpl<>(details, pageable, movementsPage.getTotalElements());
+        .collect(Collectors.toList());
+
+    return new PageImpl<>(history, pageable, movementsPage.getTotalElements());
   }
-  
+
+  @Transactional(readOnly = true)
+  public List<StockByLocationResponse> stockByProduct(UUID productId, List<UUID> productIds) {
+    UUID companyId = companyContext.require();
+    List<UUID> filters = new ArrayList<>();
+    if (productId != null) {
+      filters.add(productId);
+    }
+    if (productIds != null) {
+      productIds.stream().filter(Objects::nonNull).forEach(filters::add);
+    }
+    List<UUID> normalizedFilters = filters.stream().distinct().toList();
+    if (normalizedFilters.isEmpty()) {
+      throw new IllegalArgumentException("Debe especificar al menos un productId o productIds[]");
+    }
+    List<StockByLocationAggregation> aggregates = lots.aggregateStockByProductAndLocation(companyId, normalizedFilters);
+    if (aggregates.isEmpty()) {
+      return List.of();
+    }
+    Map<UUID, InventoryLocation> locationMap = new HashMap<>();
+    Set<UUID> locationIds = aggregates.stream()
+        .map(StockByLocationAggregation::locationId)
+        .collect(Collectors.toCollection(LinkedHashSet::new));
+    if (!locationIds.isEmpty()) {
+      inventoryLocationRepository.findAllById(locationIds)
+          .forEach(loc -> locationMap.put(loc.getId(), loc));
+    }
+    return aggregates.stream()
+        .map(agg -> {
+          InventoryLocation location = locationMap.get(agg.locationId());
+          return new StockByLocationResponse(
+              agg.productId(),
+              agg.locationId(),
+              location != null ? location.getName() : null,
+              agg.qtyAvailable());
+        })
+        .collect(Collectors.toList());
+  }
+
   @Transactional
+  @ValidateTenant(entityClass = InventoryLot.class, entityParam = "lotId")
+  public InventoryLot assignLocationToLot(UUID lotId, UUID locationId) {
+    UUID companyId = companyContext.require();
+    if (locationId == null) {
+      throw new IllegalArgumentException("locationId es obligatorio");
+    }
+
+    InventoryLot lot = lots.findById(lotId)
+        .orElseThrow(() -> new IllegalArgumentException("Lote no encontrado: " + lotId));
+
+    InventoryLocation location = resolveInventoryLocation(companyId, locationId);
+    UUID previousLocationId = lot.getLocationId();
+    if (Objects.equals(previousLocationId, locationId)) {
+      return lot;
+    }
+
+    lot.setLocationId(location.getId());
+    InventoryLot updated = lots.save(lot);
+
+    InventoryMovement movement = new InventoryMovement();
+    movement.setCompanyId(companyId);
+    movement.setProductId(lot.getProductId());
+    movement.setLotId(lot.getId());
+    movement.setType("TRANSFER");
+    movement.setQty(lot.getQtyAvailable());
+    movement.setRefType("LOT_LOCATION");
+    movement.setRefId(lot.getId());
+    movement.setNote(previousLocationId == null
+        ? "Asignación de ubicación " + location.getName()
+        : "Cambio de ubicación de " + previousLocationId + " a " + locationId);
+    movement.setPreviousQty(lot.getQtyAvailable());
+    movement.setNewQty(lot.getQtyAvailable());
+    movement.setLocationFromId(previousLocationId);
+    movement.setLocationToId(location.getId());
+    enrichMovementWithAudit(movement, "TRANSFER", lot.getQtyAvailable(), lot.getQtyAvailable());
+    movements.save(movement);
+
+    return updated;
+  }
+
+  private InventoryLocation resolveInventoryLocation(UUID companyId, UUID locationId) {
+    InventoryLocation location = inventoryLocationRepository.findById(locationId).orElse(null);
+    if (location != null) {
+      return location;
+    }
+    InventoryLocation crossTenant = findInventoryLocationIgnoringTenant(locationId);
+    if (crossTenant != null) {
+      throw new CrossTenantAccessException("Ubicación " + locationId + " pertenece a otra empresa distinta a " + companyId);
+    }
+    throw new IllegalArgumentException("Ubicación no encontrada: " + locationId);
+  }
+
+  private InventoryLocation findInventoryLocationIgnoringTenant(UUID locationId) {
+    try {
+      tenantFilterEnabler.disableTenantFilter(entityManager);
+      return entityManager.find(InventoryLocation.class, locationId);
+    } finally {
+      tenantFilterEnabler.enableTenantFilter(entityManager);
+    }
+  }
+
   public InventoryLot transferLot(UUID lotId, com.datakomerz.pymes.inventory.dto.LotTransferRequest request) {
     UUID companyId = companyContext.require();
     
@@ -1052,21 +1447,26 @@ public class InventoryService {
     }
     
     // Registrar movimiento de salida de ubicación origen
+    BigDecimal previousLotQty = lot.getQtyAvailable();
+    BigDecimal postLotQty = previousLotQty.subtract(request.qty());
     InventoryMovement outMovement = new InventoryMovement();
     outMovement.setCompanyId(companyId);
     outMovement.setProductId(lot.getProductId());
     outMovement.setLotId(lot.getId());
     outMovement.setType("TRANSFER_OUT");
     outMovement.setQty(request.qty().negate());
-    outMovement.setPreviousQty(lot.getQtyAvailable());
-    outMovement.setNewQty(lot.getQtyAvailable().subtract(request.qty()));
+    outMovement.setRefType("TRANSFER");
+    outMovement.setRefId(lot.getId());
+    outMovement.setPreviousQty(previousLotQty);
+    outMovement.setNewQty(postLotQty);
     outMovement.setNote("Transferencia a ubicación " + request.targetLocationId());
-    outMovement.setCreatedBy(auditContext.getCurrentUser());
-    outMovement.setUserIp(auditContext.getUserIp());
+    outMovement.setLocationFromId(lot.getLocationId());
+    outMovement.setLocationToId(null);
+    enrichMovementWithAudit(outMovement, "TRANSFER", previousLotQty, postLotQty);
     movements.save(outMovement);
     
     // Actualizar cantidad del lote origen
-    lot.setQtyAvailable(lot.getQtyAvailable().subtract(request.qty()));
+    lot.setQtyAvailable(postLotQty);
     lots.save(lot);
     
     // Crear o actualizar lote en ubicación destino
@@ -1082,12 +1482,14 @@ public class InventoryService {
         .findFirst()
         .orElse(null);
     
+    BigDecimal targetPreviousQty;
+    BigDecimal targetNewQty;
     if (targetLot != null) {
-      // Lote existente, sumar cantidad
-      targetLot.setQtyAvailable(targetLot.getQtyAvailable().add(request.qty()));
+      targetPreviousQty = targetLot.getQtyAvailable();
+      targetNewQty = targetPreviousQty.add(request.qty());
+      targetLot.setQtyAvailable(targetNewQty);
       lots.save(targetLot);
     } else {
-      // Crear nuevo lote en ubicación destino
       targetLot = new InventoryLot();
       targetLot.setCompanyId(companyId);
       targetLot.setProductId(lot.getProductId());
@@ -1097,7 +1499,9 @@ public class InventoryService {
       targetLot.setCostUnit(lot.getCostUnit());
       targetLot.setMfgDate(lot.getMfgDate());
       targetLot.setExpDate(lot.getExpDate());
-      targetLot.setQtyAvailable(request.qty());
+      targetPreviousQty = BigDecimal.ZERO;
+      targetNewQty = request.qty();
+      targetLot.setQtyAvailable(targetNewQty);
       lots.save(targetLot);
     }
     
@@ -1108,13 +1512,57 @@ public class InventoryService {
     inMovement.setLotId(targetLot.getId());
     inMovement.setType("TRANSFER_IN");
     inMovement.setQty(request.qty());
-    inMovement.setPreviousQty(targetLot.getQtyAvailable().subtract(request.qty()));
-    inMovement.setNewQty(targetLot.getQtyAvailable());
+    inMovement.setRefType("TRANSFER");
+    inMovement.setRefId(lot.getId());
+    inMovement.setPreviousQty(targetPreviousQty);
+    inMovement.setNewQty(targetNewQty);
+    inMovement.setLocationFromId(lot.getLocationId());
+    inMovement.setLocationToId(request.targetLocationId());
     inMovement.setNote(request.note() != null ? request.note() : "Transferencia desde lote " + lot.getId());
-    inMovement.setCreatedBy(auditContext.getCurrentUser());
-    inMovement.setUserIp(auditContext.getUserIp());
+    enrichMovementWithAudit(inMovement, "TRANSFER", targetPreviousQty, targetNewQty);
     movements.save(inMovement);
     
     return lot;
+  }
+  
+  @Transactional(readOnly = true)
+  public List<com.datakomerz.pymes.inventory.dto.StockByLocationDTO> getStockByLocation(UUID productId) {
+    UUID companyId = companyContext.require();
+    
+    // Validar que el producto existe y pertenece al tenant
+    Product product = productRepository.findById(productId)
+        .orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
+    
+    if (!product.getCompanyId().equals(companyId)) {
+      throw new CrossTenantAccessException("Cross-tenant access denied");
+    }
+    
+    List<InventoryLot> lotsList = lots.findByCompanyIdAndProductIdOrderByCreatedAtAsc(companyId, productId);
+    
+    // Agrupar por ubicación y sumar cantidades
+    Map<UUID, BigDecimal> stockByLocation = new HashMap<>();
+    Map<UUID, InventoryLocation> locationsMap = new HashMap<>();
+    
+    for (InventoryLot lot : lotsList) {
+      if (lot.getLocationId() != null) {
+        stockByLocation.merge(lot.getLocationId(), lot.getQtyAvailable(), BigDecimal::add);
+        if (!locationsMap.containsKey(lot.getLocationId())) {
+          inventoryLocationRepository.findById(lot.getLocationId())
+              .ifPresent(loc -> locationsMap.put(loc.getId(), loc));
+        }
+      }
+    }
+    
+    return stockByLocation.entrySet().stream()
+        .map(entry -> {
+          InventoryLocation location = locationsMap.get(entry.getKey());
+          return new com.datakomerz.pymes.inventory.dto.StockByLocationDTO(
+              entry.getKey(),
+              location != null ? location.getCode() : "",
+              location != null ? location.getName() : "Ubicación eliminada",
+              entry.getValue()
+          );
+        })
+        .toList();
   }
 }

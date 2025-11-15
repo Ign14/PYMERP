@@ -1,4 +1,44 @@
-spring:
+public PurchaseOrderPayload buildPurchaseOrderPayload(Purchase purchase) {
+    Company company = companyRepository.findById(TenantContext.require())
+        .orElseThrow(() -> new NotFoundException("Company not found"));
+    
+    List<PurchaseOrderItem> items = purchase.getItems().stream()
+        .map(item -> PurchaseOrderItem.builder()
+            .productCode(item.getProduct() != null ? item.getProduct().getSku() : item.getServiceCode())
+            .description(item.getDescription())
+            .quantity(item.getQuantity())
+            .unit(item.getProduct() != null ? item.getProduct().getUnit() : "unidad")
+            .unitPrice(item.getUnitPrice())
+            .subtotal(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+            .build())
+        .toList();
+    
+    return PurchaseOrderPayload.builder()
+        .orderNumber(purchase.getDocumentNumber())
+        .orderDate(purchase.getDate())
+        .expectedDeliveryDate(purchase.getDate().plusDays(7)) // Default 7 días
+        .supplier(SupplierInfo.builder()
+            .name(purchase.getSupplier().getName())
+            .taxId(purchase.getSupplier().getTaxId())
+            .address(purchase.getSupplier().getAddress())
+            .phone(purchase.getSupplier().getPhone())
+            .email(purchase.getSupplier().getEmail())
+            .build())
+        .buyer(CompanyInfo.builder()
+            .name(company.getName())
+            .taxId(company.getTaxId())
+            .address(company.getAddress())
+            .build())
+        .items(items)
+        .subtotal(purchase.getSubtotal())
+        .tax(purchase.getTax())
+        .total(purchase.getTotal())
+        .paymentTerms("30 días desde recepción conforme")
+        .deliveryAddress(company.getAddress())
+        .notes(purchase.getNotes())
+        .approvedBy(purchase.getCreatedBy())
+        .build();
+}spring:
   datasource:
     url: "jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:pymes}"
     driver-class-name: org.postgresql.Driver
@@ -28,8 +68,8 @@ spring:
     console:
       enabled: false
   mail:
-    host: localhost
-    port: 1025
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
 
 billing:
   crypto:
@@ -72,7 +112,7 @@ app:
     secrets-validation:
       enabled: false  # Disabled for dev to allow default secrets
     captcha:
-      enabled: true
+      enabled: ${CAPTCHA_ENABLED:false}
       min-operand: 2
       max-operand: 10
 

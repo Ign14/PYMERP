@@ -4,6 +4,7 @@ import SessionAccessCard from '../components/settings/SessionAccessCard'
 import UserManagementCard from '../components/settings/UserManagementCard'
 import CompanyManagementCard from '../components/settings/CompanyManagementCard'
 import { useAuth } from '../context/AuthContext'
+import { AccountRequestManagement } from '../components/admin/AccountRequestManagement'
 
 export default function SettingsPage() {
   const { session } = useAuth()
@@ -24,6 +25,10 @@ export default function SettingsPage() {
     alignItems: 'stretch',
   } as const
 
+  const canManageRequests =
+    Array.isArray(session.roles) &&
+    session.roles.some(role => role === 'ROLE_ADMIN' || role === 'ROLE_DEVELOPER')
+
   return (
     <div className="page-section">
       <PageHeader
@@ -38,6 +43,7 @@ export default function SettingsPage() {
       <div className="mt-6">
         <CompanyManagementCard />
       </div>
+      {canManageRequests && <AccountRequestManagement />}
     </div>
   )
 }

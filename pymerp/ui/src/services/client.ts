@@ -1914,7 +1914,7 @@ function fallbackCancelPurchase(id: string): PurchaseSummary {
   return fallbackUpdatePurchase(id, { status: 'cancelled' })
 }
 
-function fallbackCreatePurchase(payload: PurchasePayload): { id: string } {
+function fallbackCreatePurchase(payload: PurchasePayload): PurchaseCreationResponse {
   const id = nextId('pur-demo')
   const summary: PurchaseSummary = {
     id,
@@ -1929,7 +1929,13 @@ function fallbackCreatePurchase(payload: PurchasePayload): { id: string } {
     issuedAt: payload.issuedAt,
   }
   demoState.purchases = [summary, ...demoState.purchases]
-  return { id }
+  return {
+    id,
+    docNumber: payload.docNumber,
+    total: payload.total,
+    itemsCreated: payload.items.length,
+    lotsCreated: payload.items.filter(item => item.productId).length,
+  }
 }
 
 function fallbackListPurchaseDaily(days = 14): PurchaseDailyPoint[] {
@@ -2507,7 +2513,7 @@ export type AccountRequestPayload = {
   companyName: string
   password: string
   confirmPassword: string
-  captcha: SimpleCaptchaPayload
+  captcha?: SimpleCaptchaPayload
 }
 
 export type AccountRequestResponse = {
@@ -2515,6 +2521,29 @@ export type AccountRequestResponse = {
   status: string
   createdAt: string
   message: string
+}
+
+export type AccountRequestAdmin = {
+  id: string
+  rut: string
+  fullName: string
+  email: string
+  companyName: string
+  address: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  createdAt: string
+  processedAt?: string | null
+  processedBy?: string | null
+  processedByUsername?: string | null
+  rejectionReason?: string | null
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export type AuthConfig = {
+  captchaEnabled: boolean
+  minPasswordLength: number
+  requireEmailVerification: boolean
 }
 
 export type SaleItemPayload = {
@@ -2786,6 +2815,14 @@ export type PurchasePayload = {
   receivedAt?: string
   paymentTermDays?: number
   items: PurchaseItemPayload[]
+}
+
+export type PurchaseCreationResponse = {
+  id: string
+  docNumber?: string | null
+  total?: number | null
+  itemsCreated: number
+  lotsCreated: number
 }
 
 export type LocationType = 'BODEGA' | 'CONTAINER' | 'LOCAL' | 'CAMION' | 'CAMIONETA'
@@ -3129,7 +3166,7 @@ export async function refreshAuth(payload: RefreshPayload): Promise<LoginRespons
 export async function submitAccountRequest(
   payload: AccountRequestPayload
 ): Promise<AccountRequestResponse> {
-  const body = {
+  const body: Record<string, unknown> = {
     rut: payload.rut,
     fullName: payload.fullName,
     address: payload.address,
@@ -3137,10 +3174,37 @@ export async function submitAccountRequest(
     companyName: payload.companyName,
     password: payload.password,
     confirmPassword: payload.confirmPassword,
-    captcha: payload.captcha,
+  }
+  if (payload.captcha) {
+    body.captcha = payload.captcha
   }
   const { data } = await api.post<AccountRequestResponse>('/v1/requests', body)
   return data
+}
+
+export async function getAuthConfig(): Promise<AuthConfig> {
+  const { data } = await api.get<AuthConfig>('/v1/auth/config')
+  return data
+}
+
+export async function listAccountRequests(params: {
+  status?: 'PENDING'
+  days?: number
+}): Promise<AccountRequestAdmin[]> {
+  const query =
+    params.status === 'PENDING'
+      ? '?status=PENDING'
+      : `?days=${params.days !== undefined ? params.days : 30}`
+  const { data } = await api.get<AccountRequestAdmin[]>(`/v1/admin/account-requests${query}`)
+  return data
+}
+
+export async function approveAccountRequest(id: string): Promise<void> {
+  await api.post(`/v1/admin/account-requests/${id}/approve`)
+}
+
+export async function rejectAccountRequest(id: string, reason: string): Promise<void> {
+  await api.post(`/v1/admin/account-requests/${id}/reject`, { reason })
 }
 
 export function getCurrentRefreshToken() {
@@ -3812,25 +3876,41 @@ export function listCustomerSegments(): Promise<CustomerSegmentSummary[]> {
   )
 }
 
+function normalizeCustomerPayload(payload: CustomerPayload): CustomerPayload {
+  const rawEmail = typeof payload.email === 'string' ? payload.email.trim() : undefined
+  const normalizedEmail = rawEmail && rawEmail.length > 0 ? rawEmail.toLowerCase() : undefined
+
+  if (normalizedEmail === payload.email) {
+    return payload
+  }
+
+  return {
+    ...payload,
+    email: normalizedEmail,
+  }
+}
+
 export function createCustomer(payload: CustomerPayload): Promise<Customer> {
+  const normalizedPayload = normalizeCustomerPayload(payload)
   return withOfflineFallback(
     'createCustomer',
     async () => {
-      const { data } = await api.post<Customer>('/v1/customers', payload)
+      const { data } = await api.post<Customer>('/v1/customers', normalizedPayload)
       return data
     },
-    () => fallbackCreateCustomer(payload)
+    () => fallbackCreateCustomer(normalizedPayload)
   )
 }
 
 export function updateCustomer(id: string, payload: CustomerPayload): Promise<Customer> {
+  const normalizedPayload = normalizeCustomerPayload(payload)
   return withOfflineFallback(
     'updateCustomer',
     async () => {
-      const { data } = await api.put<Customer>(`/v1/customers/${id}`, payload)
+      const { data } = await api.put<Customer>(`/v1/customers/${id}`, normalizedPayload)
       return data
     },
-    () => fallbackUpdateCustomer(id, payload)
+    () => fallbackUpdateCustomer(id, normalizedPayload)
   )
 }
 
@@ -4378,7 +4458,7 @@ export function listPurchaseDaily(days = 14): Promise<PurchaseDailyPoint[]> {
   )
 }
 
-export function createPurchase(payload: PurchasePayload, file?: File): Promise<{ id: string }> {
+export function createPurchase(payload: PurchasePayload, file?: File): Promise<PurchaseCreationResponse> {
   return withOfflineFallback(
     'createPurchase',
     async () => {
@@ -4388,7 +4468,7 @@ export function createPurchase(payload: PurchasePayload, file?: File): Promise<{
         formData.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }))
         formData.append('file', file)
 
-        const { data } = await api.post<{ id: string }>('/v1/purchases', formData, {
+        const { data } = await api.post<PurchaseCreationResponse>('/v1/purchases', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -4396,7 +4476,7 @@ export function createPurchase(payload: PurchasePayload, file?: File): Promise<{
         return data
       } else {
         // Sin archivo, usar JSON normal
-        const { data } = await api.post<{ id: string }>('/v1/purchases', payload)
+        const { data } = await api.post<PurchaseCreationResponse>('/v1/purchases', payload)
         return data
       }
     },
@@ -4446,6 +4526,10 @@ export async function listLocations(params?: ListLocationsParams): Promise<Locat
     },
     () => []
   )
+}
+
+export async function getLocations(params?: ListLocationsParams): Promise<Location[]> {
+  return listLocations(params)
 }
 
 export async function createLocation(payload: LocationPayload): Promise<Location> {

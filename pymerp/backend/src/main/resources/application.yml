@@ -38,7 +38,8 @@ billing:
   crypto:
     secret: ${BILLING_CRYPTO_SECRET:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
   webhook:
-    secret: ${BILLING_WEBHOOK_SECRET:change-me}
+    # Billing webhook secret must be >=24 characters and not a placeholder.
+    secret: ${BILLING_WEBHOOK_SECRET:billing-webhook-secret-24chars-long!!}
     tolerance: PT5M
   offline:
     enabled: true
@@ -53,6 +54,10 @@ billing:
       accent-color: "#2563eb"
       text-color: "#111827"
       table-header-color: "#e5e7eb"
+  idempotency:
+    ttl: PT6H
+    wait-timeout: PT5S
+    wait-poll-interval: PT0.25S
 
 management:
   endpoints:
@@ -77,22 +82,26 @@ app:
       - http://0.0.0.0:*
       - http://172.29.0.1:*
   security:
+    secrets-validation:
+      enabled: false
     jwt:
-      secret: ${JWT_SECRET:ZGV2LWp3dC1zZWNyZXQta2V5LWZvci1sb2NhbC1kZXZlbG9wbWVudC12YWxpZC1rZXktMTIzNDU2Nzg5MA==}
+      # JWT secret must be at least 32 characters long.
+      secret: ${JWT_SECRET:example-jwt-secret-32-characters-long}
       expiration-seconds: 86400
       refresh-expiration-seconds: 2592000
     captcha:
-      enabled: true
+      enabled: ${CAPTCHA_ENABLED:true}
       min-operand: 2
       max-operand: 10
 
 storage:
   s3:
-    bucket: ${STORAGE_S3_BUCKET:change-me-bucket}
-    access-key: ${STORAGE_S3_ACCESS_KEY:CHANGEMEACCESS}
-    secret-key: ${STORAGE_S3_SECRET_KEY:CHANGEMESECRET}
+    bucket: ${STORAGE_S3_BUCKET:local-dev-storage-bucket}
+    access-key: ${STORAGE_S3_ACCESS_KEY:localdevstorageaccess}
+    secret-key: ${STORAGE_S3_SECRET_KEY:localdevstoragesecret}
     region: ${STORAGE_S3_REGION:us-east-1}
 
 webhooks:
   hmac:
-    secret: ${WEBHOOKS_HMAC_SECRET:CHANGE_ME_HMAC_SECRET}
+    # HMAC key should be >=32 characters and unique per environment.
+    secret: ${WEBHOOKS_HMAC_SECRET:webhooks-hmac-secret-32chars!!}

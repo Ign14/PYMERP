@@ -1,0 +1,1 @@
+import{j as e}from"./index-C0DCX_lx.js";function d({title:l,description:s,actions:a}){return e.jsxs("div",{className:"page-header",children:[e.jsxs("div",{children:[e.jsx("h2",{children:l}),s?e.jsx("p",{className:"muted small",children:s}):null]}),a?e.jsx("div",{className:"header-actions",children:a}):null]})}export{d as P};

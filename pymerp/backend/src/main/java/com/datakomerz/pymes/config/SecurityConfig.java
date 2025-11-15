@@ -30,15 +30,18 @@ import org.springframework.security.config.annotation.web.configurers.AuthorizeH
 public class SecurityConfig {
 
   private final AppProperties appProperties;
+  private final SecurityProperties securityProperties;
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final AppUserDetailsService userDetailsService;
   private final LoggingContextFilter loggingContextFilter;
 
   public SecurityConfig(AppProperties appProperties,
+                        SecurityProperties securityProperties,
                         JwtAuthenticationFilter jwtAuthenticationFilter,
                         AppUserDetailsService userDetailsService,
                         LoggingContextFilter loggingContextFilter) {
     this.appProperties = appProperties;
+    this.securityProperties = securityProperties;
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     this.userDetailsService = userDetailsService;
     this.loggingContextFilter = loggingContextFilter;
@@ -54,7 +57,7 @@ public class SecurityConfig {
     // Añadir LoggingContextFilter ANTES de UsernamePasswordAuthenticationFilter
     http.addFilterBefore(loggingContextFilter, UsernamePasswordAuthenticationFilter.class);
 
-    boolean oidcEnabled = appProperties.getSecurity().getJwt().isOidcEnabled();
+    boolean oidcEnabled = securityProperties.getJwt().isOidcEnabled();
     Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> authorizeCustomizer =
       auth -> auth
         // Public actuator endpoints (health checks for load balancers)

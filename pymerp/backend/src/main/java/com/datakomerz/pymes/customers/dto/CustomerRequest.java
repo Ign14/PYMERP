@@ -10,9 +10,11 @@ import java.math.BigDecimal;
 
 public record CustomerRequest(
   @NotBlank @Size(max = 120) String name,
-  @Size(max = 20) 
-  @Pattern(regexp = "^[0-9]{1,2}\\.[0-9]{3}\\.[0-9]{3}-[0-9kK]$|^$", 
-           message = "RUT debe tener formato XX.XXX.XXX-X")
+  @Size(max = 20)
+  @Pattern(
+    regexp = "^(?:\\d{1,2}\\.\\d{3}\\.\\d{3}-[0-9kK]|\\d{7,8}-[0-9kK])?$",
+    message = "RUT debe tener formato XX.XXX.XXX-X"
+  )
   String rut,
   @Size(max = 500) String address,
   @DecimalMin(value = "-90.0", inclusive = true, message = "Latitude must be >= -90")

@@ -1,6 +1,9 @@
 package com.datakomerz.pymes.purchases;
 
+import com.datakomerz.pymes.billing.dto.PurchaseOrderPayload;
+import com.datakomerz.pymes.billing.render.LocalInvoiceRenderer;
 import com.datakomerz.pymes.multitenancy.ValidateTenant;
+import com.datakomerz.pymes.purchases.dto.PurchaseCreationResult;
 import com.datakomerz.pymes.purchases.dto.PurchaseDailyPoint;
 import com.datakomerz.pymes.purchases.dto.PurchaseReq;
 import com.datakomerz.pymes.purchases.dto.PurchaseSummary;
@@ -24,8 +27,11 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,24 +49,27 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/purchases")
 public class PurchaseController {
   private final PurchaseService service;
-  public PurchaseController(PurchaseService service) { this.service = service; }
+  private final LocalInvoiceRenderer localInvoiceRenderer;
+
+  public PurchaseController(PurchaseService service, LocalInvoiceRenderer localInvoiceRenderer) {
+    this.service = service;
+    this.localInvoiceRenderer = localInvoiceRenderer;
+  }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
-  public Map<String,Object> create(@Valid @RequestBody PurchaseReq req) {
-    var id = service.create(req);
-    return Map.of("id", id);
+  public PurchaseCreationResult create(@Valid @RequestBody PurchaseReq req) {
+    return service.create(req);
   }
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @ResponseStatus(HttpStatus.CREATED)
   @PreAuthorize("hasAnyRole('ERP_USER', 'ADMIN')")
-  public Map<String,Object> createWithFile(
+  public PurchaseCreationResult createWithFile(
       @RequestPart("data") @Valid PurchaseReq req,
       @RequestPart(value = "file", required = false) MultipartFile file) {
-    var id = service.createWithFile(req, file);
-    return Map.of("id", id);
+    return service.createWithFile(req, file);
   }
 
   @PutMapping("/{id}")
@@ -98,6 +107,25 @@ public class PurchaseController {
   @ValidateTenant(entityClass = Purchase.class)
   public com.datakomerz.pymes.purchases.dto.PurchaseDetail getDetail(@PathVariable UUID id) {
     return service.getDetail(id);
+  }
+
+  @GetMapping("/{id}/pdf")
+  @PreAuthorize("hasAnyAuthority('ADMIN', 'PURCHASING', 'WAREHOUSE')")
+  @ValidateTenant(entityClass = Purchase.class)
+  public ResponseEntity<byte[]> downloadPurchaseOrderPdf(@PathVariable UUID id) {
+    Purchase purchase = service.findById(id);
+    PurchaseOrderPayload payload = service.buildPurchaseOrderPayload(purchase);
+    LocalInvoiceRenderer.RenderedInvoice pdf = localInvoiceRenderer.renderPurchaseOrderPdf(payload);
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_PDF);
+    headers.setContentDisposition(
+        ContentDisposition.attachment().filename(pdf.filename()).build()
+    );
+
+    return ResponseEntity.ok()
+        .headers(headers)
+        .body(pdf.content());
   }
 
   @GetMapping("/metrics/daily")

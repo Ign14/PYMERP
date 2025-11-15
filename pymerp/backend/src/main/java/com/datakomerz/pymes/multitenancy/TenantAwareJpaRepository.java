@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.data.repository.NoRepositoryBean;
+import org.springframework.lang.NonNull;
 
 /**
  * Repository base class that enforces tenant isolation for entities annotated
@@ -31,13 +33,14 @@ public class TenantAwareJpaRepository<T, ID> extends SimpleJpaRepository<T, ID> 
   }
 
   @Override
-  public Optional<T> findById(ID id) {
-    return filterByTenant(super.findById(id));
+  public @NonNull Optional<T> findById(@NonNull ID id) {
+    return filterByTenant(super.findById(Objects.requireNonNull(id, "id must not be null")));
   }
 
   @Override
-  public List<T> findAllById(Iterable<ID> ids) {
-    List<T> results = super.findAllById(ids);
+  public @NonNull List<T> findAllById(@NonNull Iterable<ID> ids) {
+    Iterable<ID> safeIds = Objects.requireNonNull(ids, "ids must not be null");
+    List<T> results = super.findAllById(safeIds);
     if (!isTenantFilteredEntity() || results.isEmpty()) {
       return results;
     }
@@ -51,24 +54,25 @@ public class TenantAwareJpaRepository<T, ID> extends SimpleJpaRepository<T, ID> 
   }
 
   @Override
-  public T getReferenceById(ID id) {
-    T entity = super.getReferenceById(id);
+  public @NonNull T getReferenceById(@NonNull ID id) {
+    T entity = super.getReferenceById(Objects.requireNonNull(id, "id must not be null"));
     ensureVisible(entity);
     return entity;
   }
 
   @Override
-  public T getById(ID id) {
+  public @NonNull T getById(@NonNull ID id) {
     return getReferenceById(id);
   }
 
   @Override
-  public T getOne(ID id) {
+  public @NonNull T getOne(@NonNull ID id) {
     return getReferenceById(id);
   }
 
   @Override
-  public boolean existsById(ID id) {
+  public boolean existsById(@NonNull ID id) {
+    Objects.requireNonNull(id, "id must not be null");
     if (!isTenantFilteredEntity()) {
       return super.existsById(id);
     }
@@ -76,7 +80,8 @@ public class TenantAwareJpaRepository<T, ID> extends SimpleJpaRepository<T, ID> 
   }
 
   @Override
-  public void deleteById(ID id) {
+  public void deleteById(@NonNull ID id) {
+    Objects.requireNonNull(id, "id must not be null");
     if (!isTenantFilteredEntity()) {
       super.deleteById(id);
       return;
@@ -85,32 +90,32 @@ public class TenantAwareJpaRepository<T, ID> extends SimpleJpaRepository<T, ID> 
   }
 
   @Override
-  public void delete(T entity) {
-    if (entity == null) {
-      return;
-    }
+  public void delete(@NonNull T entity) {
+    Objects.requireNonNull(entity, "entity must not be null");
     ensureVisible(entity);
     super.delete(entity);
   }
 
   @Override
-  public void deleteAll(Iterable<? extends T> entities) {
+  public void deleteAll(@NonNull Iterable<? extends T> entities) {
+    Iterable<? extends T> safeEntities = Objects.requireNonNull(entities, "entities must not be null");
     if (!isTenantFilteredEntity()) {
-      super.deleteAll(entities);
+      super.deleteAll(safeEntities);
       return;
     }
-    for (T entity : entities) {
+    for (T entity : safeEntities) {
       delete(entity);
     }
   }
 
   @Override
-  public void deleteAllById(Iterable<? extends ID> ids) {
+  public void deleteAllById(@NonNull Iterable<? extends ID> ids) {
+    Iterable<? extends ID> safeIds = Objects.requireNonNull(ids, "ids must not be null");
     if (!isTenantFilteredEntity()) {
-      super.deleteAllById(ids);
+      super.deleteAllById(safeIds);
       return;
     }
-    for (ID id : ids) {
+    for (ID id : safeIds) {
       deleteById(id);
     }
   }

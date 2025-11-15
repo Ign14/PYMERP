@@ -1,6 +1,7 @@
 package com.datakomerz.pymes.sales.dto;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 
 /**
@@ -50,6 +51,27 @@ public class SalesKPIs {
         this.conversionRate = conversionRate;
         this.periodStart = periodStart;
         this.periodEnd = periodEnd;
+    }
+
+    public static SalesKPIs empty(LocalDate periodStart, LocalDate periodEnd) {
+        SalesKPIs kpis = new SalesKPIs();
+        kpis.setTotalRevenue(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setTotalCost(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setGrossProfit(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setProfitMargin(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setTotalOrders(0);
+        kpis.setAverageTicket(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setSalesGrowth(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setUniqueCustomers(0);
+        kpis.setCustomerRetentionRate(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setTopProductName("N/A");
+        kpis.setTopProductRevenue(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setTopCustomerName("N/A");
+        kpis.setTopCustomerRevenue(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setConversionRate(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        kpis.setPeriodStart(periodStart);
+        kpis.setPeriodEnd(periodEnd);
+        return kpis;
     }
 
     // Getters and Setters

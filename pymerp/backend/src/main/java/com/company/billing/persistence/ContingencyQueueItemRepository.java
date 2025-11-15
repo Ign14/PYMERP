@@ -14,6 +14,8 @@ public interface ContingencyQueueItemRepository extends JpaRepository<Contingenc
 
   Optional<ContingencyQueueItem> findByIdempotencyKey(String idempotencyKey);
 
+  Optional<ContingencyQueueItem> findByDocument_CompanyIdAndIdempotencyKey(UUID companyId, String idempotencyKey);
+
   List<ContingencyQueueItem> findTop20ByStatusInOrderByCreatedAtAsc(Collection<ContingencyQueueStatus> statuses);
 
   long countByStatus(ContingencyQueueStatus status);

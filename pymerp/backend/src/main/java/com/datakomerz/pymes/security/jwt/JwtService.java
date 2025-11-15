@@ -1,6 +1,6 @@
 package com.datakomerz.pymes.security.jwt;
 
-import com.datakomerz.pymes.config.AppProperties;
+import com.datakomerz.pymes.config.SecurityProperties;
 import com.datakomerz.pymes.security.AppUserDetails;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -18,15 +18,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtService {
 
-  private final AppProperties appProperties;
+  private final SecurityProperties securityProperties;
 
-  public JwtService(AppProperties appProperties) {
-    this.appProperties = appProperties;
+  public JwtService(SecurityProperties securityProperties) {
+    this.securityProperties = securityProperties;
   }
 
   public String generateToken(AppUserDetails user) {
     Instant now = Instant.now();
-    long expiry = appProperties.getSecurity().getJwt().getExpirationSeconds();
+    long expiry = securityProperties.getJwt().getExpirationSeconds();
     Instant expiration = now.plusSeconds(expiry);
     Set<String> roles = user.getAuthorities().stream()
       .map(Object::toString)
@@ -61,7 +61,7 @@ public class JwtService {
   }
 
   private SecretKey signingKey() {
-    String secret = appProperties.getSecurity().getJwt().getSecret();
+    String secret = securityProperties.getJwt().getSecret();
     if (secret == null || secret.length() < 32) {
       throw new IllegalStateException("JWT secret must be at least 32 characters");
     }

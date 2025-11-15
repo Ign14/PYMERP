@@ -6,7 +6,6 @@ import {
   getInventorySummary,
   listInventoryAlerts,
   listProducts,
-  updateInventorySettings,
   InventoryAlert,
   InventorySettings,
   InventorySummary,
@@ -14,7 +13,9 @@ import {
   Product,
 } from '../services/client'
 import PageHeader from '../components/layout/PageHeader'
-import LocationList from '../components/locations/LocationList'
+import LocationsPage from './inventory/LocationsPage'
+import LotsListPage from './inventory/LotsListPage'
+import InventoryMovementsCard from './inventory/InventoryMovementsCard'
 import InventoryAdjustmentDialog from '../components/dialogs/InventoryAdjustmentDialog'
 import ProductCatalogModal from '../components/dialogs/ProductCatalogModal'
 import ProductDetailModal from '../components/dialogs/ProductDetailModal'
@@ -46,12 +47,12 @@ function formatCurrency(value: number | string | null | undefined) {
 export default function InventoryPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'lots' | 'locations'>('lots')
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
   const [catalogModalOpen, setCatalogModalOpen] = useState(false)
   const [productFormOpen, setProductFormOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [thresholdValue, setThresholdValue] = useState<number | null>(null)
-  const [thresholdInput, setThresholdInput] = useState<string>('')
 
   const productsQuery = useQuery<Page<Product>, Error>({
     queryKey: ['products', { view: 'inventory' }],
@@ -70,13 +71,11 @@ export default function InventoryPage() {
         if (thresholdValue === null) {
           setThresholdValue(numeric)
         }
-        setThresholdInput(prev => (prev ? prev : String(numeric)))
         return
       }
     }
     if (!settingsQuery.isLoading && thresholdValue === null) {
       setThresholdValue(FALLBACK_THRESHOLD)
-      setThresholdInput(String(FALLBACK_THRESHOLD))
     }
   }, [settingsQuery.data, settingsQuery.isLoading, thresholdValue])
 
@@ -90,29 +89,6 @@ export default function InventoryPage() {
     enabled: thresholdValue !== null,
     queryFn: () => listInventoryAlerts(thresholdValue ?? undefined),
   })
-
-  const settingsMutation = useMutation({
-    mutationFn: (value: number) => updateInventorySettings({ lowStockThreshold: value }),
-    onSuccess: data => {
-      const numeric = Number(data.lowStockThreshold ?? 0)
-      if (Number.isFinite(numeric) && numeric > 0) {
-        setThresholdValue(numeric)
-        setThresholdInput(String(numeric))
-      }
-      queryClient.invalidateQueries({ queryKey: ['inventory', 'summary'] })
-      queryClient.invalidateQueries({ queryKey: ['inventory', 'alerts'] })
-      queryClient.setQueryData(['inventory', 'settings'], data)
-    },
-  })
-
-  const handleSaveThreshold = () => {
-    const value = Number(thresholdInput)
-    if (!Number.isFinite(value) || value <= 0) {
-      window.alert('Ingresa un umbral mayor a cero')
-      return
-    }
-    settingsMutation.mutate(value)
-  }
 
   const handleAdjustmentApplied = () => {
     queryClient.invalidateQueries({ queryKey: ['inventory', 'summary'] })
@@ -138,7 +114,7 @@ export default function InventoryPage() {
   const activeProducts = summary?.activeProducts ?? 0
   const lowStockAlerts = summary?.lowStockAlerts ?? alertsQuery.data?.length ?? 0
   const configuredThreshold =
-    summary?.lowStockThreshold ?? thresholdValue ?? Number(thresholdInput || 0)
+    summary?.lowStockThreshold ?? thresholdValue ?? FALLBACK_THRESHOLD
 
   const handleProductSelect = (product: Product) => {
     setCatalogModalOpen(false)
@@ -255,7 +231,35 @@ export default function InventoryPage() {
       </div>
 
       <section className="responsive-grid">
-        <LocationList />
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h2>Operaciones logísticas</h2>
+              <p className="muted small">
+                Visualiza lotes, asigna ubicaciones y gestiona centros logísticos desde un solo lugar.
+              </p>
+            </div>
+            <div className="inline-actions">
+              <button
+                className={`btn ghost${activeInventoryTab === 'lots' ? ' active' : ''}`}
+                type="button"
+                onClick={() => setActiveInventoryTab('lots')}
+              >
+                Lotes
+              </button>
+              <button
+                className={`btn ghost${activeInventoryTab === 'locations' ? ' active' : ''}`}
+                type="button"
+                onClick={() => setActiveInventoryTab('locations')}
+              >
+                Ubicaciones
+              </button>
+            </div>
+          </div>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          {activeInventoryTab === 'lots' ? <LotsListPage /> : <LocationsPage />}
+        </div>
       </section>
 
       {/* Nueva sección: Análisis de Inventario */}
@@ -293,166 +297,9 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <section className="responsive-grid">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 table-card">
-          <h3 className="text-neutral-100">Lotes con stock crítico</h3>
-          <div className="inline-actions" style={{ marginBottom: '0.75rem' }}>
-            <label className="muted small text-neutral-400" htmlFor="low-stock-threshold">
-              Umbral
-            </label>
-            <input
-              id="low-stock-threshold"
-              className="input bg-neutral-800 border-neutral-700 text-neutral-100"
-              type="number"
-              step="0.1"
-              min="0.1"
-              value={thresholdInput}
-              onChange={e => setThresholdInput(e.target.value)}
-              disabled={settingsMutation.isPending}
-            />
-            <button
-              className="btn"
-              type="button"
-              onClick={handleSaveThreshold}
-              disabled={settingsMutation.isPending}
-            >
-              {settingsMutation.isPending ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-          {settingsMutation.isError && (
-            <p className="error">
-              {(settingsMutation.error as Error)?.message ?? 'No se pudo actualizar el umbral'}
-            </p>
-          )}
-          <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Estado</th>
-                  <th>Producto</th>
-                  <th>Lote</th>
-                  <th>Disponible</th>
-                  <th>Expira</th>
-                  <th>Creado</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alertsQuery.isLoading && (
-                  <tr>
-                    <td colSpan={7} className="muted text-neutral-400">
-                      Cargando alertas...
-                    </td>
-                  </tr>
-                )}
-                {alertsQuery.isError && (
-                  <tr>
-                    <td colSpan={7} className="error text-red-400">
-                      {alertsQuery.error?.message ?? 'No se pudieron obtener alertas'}
-                    </td>
-                  </tr>
-                )}
-                {!alertsQuery.isLoading &&
-                  !alertsQuery.isError &&
-                  (alertsQuery.data ?? []).map(alert => {
-                    const product = productsIndex.get(alert.productId)
-                    const qtyAvailable = Number(alert.qtyAvailable)
-                    const threshold = thresholdValue ?? 10
-
-                    // Determinar nivel de urgencia
-                    const isCritical = qtyAvailable < 5 || qtyAvailable < threshold * 0.1
-                    const isLow = qtyAvailable >= 5 && qtyAvailable <= threshold
-
-                    // Verificar si está próximo a expirar (30 días)
-                    const expDate = alert.expDate ? new Date(alert.expDate) : null
-                    const today = new Date()
-                    const daysToExpiry = expDate
-                      ? Math.floor((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-                      : null
-                    const isExpiringSoon =
-                      daysToExpiry !== null && daysToExpiry <= 30 && daysToExpiry >= 0
-                    const isExpired = daysToExpiry !== null && daysToExpiry < 0
-
-                    const statusConfig = isCritical
-                      ? {
-                          icon: '🔴',
-                          label: 'Crítico',
-                          className: 'bg-red-950 text-red-400 border-red-800',
-                        }
-                      : isLow
-                        ? {
-                            icon: '🟡',
-                            label: 'Bajo',
-                            className: 'bg-yellow-950 text-yellow-400 border-yellow-800',
-                          }
-                        : {
-                            icon: '🟢',
-                            label: 'Normal',
-                            className: 'bg-green-950 text-green-400 border-green-800',
-                          }
-
-                    return (
-                      <tr
-                        key={alert.lotId}
-                        className={
-                          isExpired ? 'bg-red-950/20' : isExpiringSoon ? 'bg-yellow-950/20' : ''
-                        }
-                      >
-                        <td>
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${statusConfig.className}`}
-                          >
-                            <span>{statusConfig.icon}</span>
-                            <span>{statusConfig.label}</span>
-                          </span>
-                        </td>
-                        <td className="text-neutral-100">{product?.name ?? alert.productId}</td>
-                        <td className="mono text-neutral-300">{alert.lotId}</td>
-                        <td
-                          className={`mono font-semibold ${isCritical ? 'text-red-400' : isLow ? 'text-yellow-400' : 'text-neutral-100'}`}
-                        >
-                          {qtyAvailable.toFixed(2)}
-                        </td>
-                        <td
-                          className={`mono ${isExpired ? 'text-red-400 font-semibold' : isExpiringSoon ? 'text-yellow-400 font-semibold' : 'text-neutral-300'}`}
-                        >
-                          {expDate ? expDate.toLocaleDateString() : '-'}
-                          {isExpired && <span className="ml-2">❌ Vencido</span>}
-                          {isExpiringSoon && !isExpired && (
-                            <span className="ml-2">⚠️ {daysToExpiry}d</span>
-                          )}
-                        </td>
-                        <td className="mono small text-neutral-400">
-                          {new Date(alert.createdAt).toLocaleDateString()}
-                        </td>
-                        <td>
-                          <button
-                            className="btn ghost text-xs"
-                            type="button"
-                            onClick={() => {
-                              setAdjustDialogOpen(true)
-                            }}
-                            title="Reabastecimiento rápido"
-                          >
-                            + Stock
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                {!alertsQuery.isLoading &&
-                  !alertsQuery.isError &&
-                  (alertsQuery.data ?? []).length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="muted text-neutral-400 text-center py-8">
-                        ✅ Sin alertas de stock crítico
-                      </td>
-                    </tr>
-                  )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <section className="responsive-grid" style={{ marginTop: '2rem', gap: '1rem' }}>
+        <LotsListPage />
+        <InventoryMovementsCard />
       </section>
 
       <InventoryAuditPanel />

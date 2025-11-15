@@ -17,6 +17,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @Service
 public class LocationService {
@@ -97,7 +99,18 @@ public class LocationService {
 
     @Transactional
     public void delete(UUID id) {
+        UUID companyId = companyContext.require();
         Location location = findById(id);
+        
+        // Validar que no existan lotes referenciando esta ubicación
+        long referencedLots = inventoryLotRepository.countByCompanyIdAndLocationId(companyId, id);
+        if (referencedLots > 0) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "No se puede eliminar la ubicación porque tiene " + referencedLots + " lote(s) asignado(s). Reasigne los lotes primero."
+            );
+        }
+        
         locationRepository.delete(location);
     }
 

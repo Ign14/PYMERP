@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.datakomerz.pymes.company.dto.CompanyCreateRequest;
-import com.datakomerz.pymes.company.dto.CompanyRequest;
 import com.datakomerz.pymes.company.dto.CompanyResponse;
 import com.datakomerz.pymes.company.dto.ParentLocationResponse;
 
