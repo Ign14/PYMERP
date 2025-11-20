@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS account_requests (
     company_name VARCHAR(150) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     status VARCHAR(30) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_account_requests_status ON account_requests(status);

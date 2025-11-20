@@ -1,6 +1,6 @@
 -- V22: Create services table
 CREATE TABLE services (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     company_id UUID NOT NULL,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,

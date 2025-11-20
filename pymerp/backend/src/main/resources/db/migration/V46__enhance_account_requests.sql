@@ -13,7 +13,7 @@ BEGIN
 END $$;
 
 ALTER TABLE user_account_requests
-  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP WITH TIME ZONE,
   ADD COLUMN IF NOT EXISTS processed_by UUID,
   ADD COLUMN IF NOT EXISTS processed_by_username VARCHAR(120),
   ADD COLUMN IF NOT EXISTS rejection_reason TEXT,

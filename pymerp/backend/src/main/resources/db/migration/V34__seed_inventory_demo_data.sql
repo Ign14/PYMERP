@@ -38,7 +38,7 @@ DECLARE
     stock_levels INTEGER[] := ARRAY[5, 8, 12, 15, 20, 25, 30, 45, 60, 80, 100, 120, 150, 200];
     i INTEGER;
     j INTEGER;
-    base_date TIMESTAMPTZ;
+    base_date TIMESTAMP WITH TIME ZONE;
     random_stock INTEGER;
 BEGIN
     -- Obtener primera compañía

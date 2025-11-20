@@ -40,12 +40,12 @@ public class ContingencyQueueItem {
 
   @NotNull
   @JdbcTypeCode(SqlTypes.JSON)
-  @Column(name = "provider_payload", nullable = false, columnDefinition = "jsonb")
+  @Column(name = "provider_payload", nullable = false)
   private JsonNode providerPayload;
 
   @NotNull
   @Enumerated(EnumType.STRING)
-  @Column(name = "status", nullable = false, length = 24)
+  @Column(name = "status", nullable = false, length = 24, columnDefinition = "varchar(24)")
   private ContingencyQueueStatus status;
 
   @Column(name = "sync_attempts", nullable = false)
@@ -58,7 +58,7 @@ public class ContingencyQueueItem {
   private String errorDetail;
 
   @Lob
-  @Column(name = "encrypted_blob")
+  @Column(name = "encrypted_blob", columnDefinition = "bytea")
   private byte[] encryptedBlob;
 
   @CreationTimestamp

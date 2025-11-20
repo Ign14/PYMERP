@@ -6,8 +6,8 @@ CREATE TABLE inventory_locations (
   name VARCHAR(100) NOT NULL,
   description VARCHAR(255),
   enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX uq_inventory_locations_company_name
