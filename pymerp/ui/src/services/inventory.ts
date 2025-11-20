@@ -28,7 +28,7 @@ export type ListInventoryLocationsParams = {
 export async function getLocations(
   params?: ListInventoryLocationsParams
 ): Promise<Page<InventoryLocation>> {
-  const response = await api.get<Page<InventoryLocation>>('/api/v1/inventory/locations', {
+  const response = await api.get<Page<InventoryLocation>>('/v1/inventory/locations', {
     params,
   })
   return response.data
@@ -37,7 +37,7 @@ export async function getLocations(
 export async function createLocation(
   payload: InventoryLocationPayload
 ): Promise<InventoryLocation> {
-  const { data } = await api.post<InventoryLocation>('/api/v1/inventory/locations', payload)
+  const { data } = await api.post<InventoryLocation>('/v1/inventory/locations', payload)
   return data
 }
 
@@ -45,12 +45,12 @@ export async function updateLocation(
   id: string,
   payload: InventoryLocationPayload
 ): Promise<InventoryLocation> {
-  const { data } = await api.put<InventoryLocation>(`/api/v1/inventory/locations/${id}`, payload)
+  const { data } = await api.put<InventoryLocation>(`/v1/inventory/locations/${id}`, payload)
   return data
 }
 
 export async function toggleLocationEnabled(id: string, enabled: boolean): Promise<InventoryLocation> {
-  const { data } = await api.patch<InventoryLocation>(`/api/v1/inventory/locations/${id}`, {
+  const { data } = await api.patch<InventoryLocation>(`/v1/inventory/locations/${id}`, {
     enabled,
   })
   return data
@@ -283,7 +283,7 @@ export async function getStockByProduct(productId: string): Promise<StockByLocat
     return []
   }
   const { data } = await api.get<StockByLocationApiResponse[]>(
-    '/api/v1/inventory/stock/by-product',
+    '/v1/inventory/stock/by-product',
     {
       params: { productId },
     }

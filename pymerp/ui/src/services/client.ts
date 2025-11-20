@@ -2046,6 +2046,46 @@ api.interceptors.request.use(config => {
   return config
 })
 
+// Response interceptor para mejor manejo de errores
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (axios.isAxiosError(error)) {
+      // Error de red (servidor no responde)
+      if (!error.response) {
+        console.error('Network Error: No se puede conectar con el servidor', error)
+        error.message = 'No se puede conectar con el servidor. Verifica que el backend esté corriendo en http://localhost:8081'
+        return Promise.reject(error)
+      }
+
+      // Error de respuesta HTML en lugar de JSON
+      const contentType = error.response.headers['content-type']
+      if (contentType?.includes('text/html')) {
+        console.error('HTML Response Error: Se recibió HTML en lugar de JSON', {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response.status
+        })
+        error.message = `Error: El servidor retornó HTML en lugar de JSON. URL: ${error.config?.url || 'desconocida'}`
+        return Promise.reject(error)
+      }
+
+      // Errores HTTP estándar
+      if (error.response.status === 404) {
+        console.error('404 Not Found:', error.config?.url)
+        error.message = `Recurso no encontrado: ${error.config?.url || 'desconocida'}`
+      } else if (error.response.status === 500) {
+        error.message = error.response.data?.message || 'Error interno del servidor'
+      } else if (error.response.status === 401) {
+        error.message = 'No autorizado. Por favor inicia sesión nuevamente'
+      } else if (error.response.status === 403) {
+        error.message = 'Acceso denegado. No tienes permisos para esta acción'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 export type Page<T> = {
   content: T[]
   totalElements: number
@@ -4521,7 +4561,7 @@ export async function listLocations(params?: ListLocationsParams): Promise<Locat
   return withOfflineFallback(
     'listLocations',
     async () => {
-      const { data } = await api.get<Location[]>('/api/v1/inventory/locations', { params })
+      const { data } = await api.get<Location[]>('/v1/inventory/locations', { params })
       return data
     },
     () => []
@@ -4536,7 +4576,7 @@ export async function createLocation(payload: LocationPayload): Promise<Location
   return withOfflineFallback(
     'createLocation',
     async () => {
-      const { data } = await api.post<Location>('/api/v1/inventory/locations', payload)
+      const { data } = await api.post<Location>('/v1/inventory/locations', payload)
       return data
     },
     () => ({
@@ -4559,7 +4599,7 @@ export async function updateLocation(id: string, payload: LocationPayload): Prom
   return withOfflineFallback(
     'updateLocation',
     async () => {
-      const { data } = await api.put<Location>(`/api/v1/inventory/locations/${id}`, payload)
+      const { data } = await api.put<Location>(`/v1/inventory/locations/${id}`, payload)
       return data
     },
     () => ({
@@ -4582,7 +4622,7 @@ export async function deleteLocation(id: string): Promise<void> {
   return withOfflineFallback(
     'deleteLocation',
     async () => {
-      await api.delete(`/api/v1/inventory/locations/${id}`)
+      await api.delete(`/v1/inventory/locations/${id}`)
     },
     () => {}
   )
@@ -4607,7 +4647,7 @@ export async function getLocationStockSummary(): Promise<LocationStockSummary[]>
     'getLocationStockSummary',
     async () => {
       const { data } = await api.get<LocationStockSummary[]>(
-        '/api/v1/inventory/locations/stock-summary'
+        '/v1/inventory/locations/stock-summary'
       )
       return data
     },
@@ -4648,7 +4688,7 @@ export async function listServices(params?: ListServicesParams): Promise<Service
   return withOfflineFallback(
     'listServices',
     async () => {
-      const { data } = await api.get<ServiceDTO[]>('/api/v1/services', { params })
+      const { data } = await api.get<ServiceDTO[]>('/v1/services', { params })
       return data
     },
     () => []
@@ -4659,7 +4699,7 @@ export async function createService(payload: ServicePayload): Promise<ServiceDTO
   return withOfflineFallback(
     'createService',
     async () => {
-      const { data } = await api.post<ServiceDTO>('/api/v1/services', payload)
+      const { data } = await api.post<ServiceDTO>('/v1/services', payload)
       return data
     },
     () => ({
@@ -4950,10 +4990,205 @@ export async function getAccountsPayable(params?: {
   return data
 }
 
+export async function getAccountsReceivableBuckets(): Promise<PaymentBucketSummary[]> {
+  const { data } = await api.get<PaymentBucketSummary[]>('/v1/finances/accounts-receivable/buckets')
+  return data
+}
+
+export async function getAccountsPayableBuckets(): Promise<PaymentBucketSummary[]> {
+  const { data } = await api.get<PaymentBucketSummary[]>('/v1/finances/accounts-payable/buckets')
+  return data
+}
+
+export interface TrendDataPoint {
+  timestamp: string
+  total: number
+  count: number
+}
+
+export interface GetTrendsParams {
+  from: string // yyyy-MM-dd
+  to: string // yyyy-MM-dd
+  granularity?: 'auto' | 'day' | 'month' | 'quarter' | 'year'
+}
+
+export async function getTrends(params: GetTrendsParams): Promise<TrendDataPoint[]> {
+  const { data } = await api.get<TrendDataPoint[]>('/v1/analytics/trends', { params })
+  return data
+}
+
 export async function getCashflowProjection(days: number = 30): Promise<CashflowProjection[]> {
   const { data } = await api.get<CashflowProjection[]>('/v1/finances/cashflow', {
     params: { days },
   })
+  return data
+}
+
+// ============= INVENTORY INTEGRATION TYPES =============
+
+export type AllocationMode = 'AUTOMATIC_FIFO' | 'MANUAL'
+export type SaleDocumentType = 'FACTURA' | 'BOLETA' | 'NOTA_CREDITO' | 'NOTA_DEBITO' | 'GUIA_DESPACHO' | 'COTIZACION'
+export type PurchaseDocumentType = 'FACTURA' | 'BOLETA' | 'NOTA_CREDITO' | 'NOTA_DEBITO' | 'GUIA_DESPACHO'
+
+export interface SaleInventoryItemRequest {
+  productId: string
+  quantity: number
+  unitPrice: number
+  locationId: string
+}
+
+export interface SaleInventoryRequest {
+  documentType: SaleDocumentType
+  documentNumber: string
+  customerId: string
+  issueDate: string
+  items: SaleInventoryItemRequest[]
+  allocationMode: AllocationMode
+}
+
+export interface ManualLotAllocation {
+  lotId: string
+  quantity: number
+}
+
+export interface SaleManualInventoryItemRequest {
+  productId: string
+  totalQuantity: number
+  unitPrice: number
+  lotAllocations: ManualLotAllocation[]
+}
+
+export interface SaleManualInventoryRequest {
+  documentType: SaleDocumentType
+  documentNumber: string
+  customerId: string
+  issueDate: string
+  items: SaleManualInventoryItemRequest[]
+}
+
+export interface LotAllocationDetail {
+  lotId: string
+  batchName: string
+  quantity: number
+  expirationDate?: string
+  locationName: string
+}
+
+export interface ItemAllocationDetail {
+  productId: string
+  productName: string
+  totalQuantity: number
+  lotAllocations: LotAllocationDetail[]
+}
+
+export interface SaleInventoryResult {
+  saleId?: string
+  transactionIds: string[]
+  message: string
+  allocations: ItemAllocationDetail[]
+}
+
+export interface PurchaseInventoryItemRequest {
+  productId: string
+  quantity: number
+  unitCost: number
+  batchName?: string
+  expirationDate?: string
+  locationId: string
+}
+
+export interface PurchaseInventoryRequest {
+  documentType: PurchaseDocumentType
+  documentNumber: string
+  supplierId: string
+  issueDate: string
+  items: PurchaseInventoryItemRequest[]
+}
+
+export interface PurchaseInventoryResult {
+  purchaseId?: string
+  transactionIds: string[]
+  message: string
+}
+
+export interface ValidationError {
+  field: string
+  message: string
+  severity: 'CRITICAL' | 'WARNING'
+}
+
+export interface ValidationResult {
+  valid: boolean
+  errors: ValidationError[]
+  message: string
+}
+
+export interface LotAvailabilityDTO {
+  lotId: string
+  batchName: string
+  availableQuantity: number
+  expirationDate?: string
+  locationId: string
+  locationName: string
+  createdAt: string
+}
+
+// ============= PURCHASE INVENTORY INTEGRATION API =============
+
+export async function createPurchaseWithInventory(
+  request: PurchaseInventoryRequest
+): Promise<PurchaseInventoryResult> {
+  const { data } = await api.post<PurchaseInventoryResult>('/v1/purchases/with-inventory', request)
+  return data
+}
+
+export async function validatePurchase(request: PurchaseInventoryRequest): Promise<ValidationResult> {
+  const { data } = await api.post<ValidationResult>('/v1/purchases/validate', request)
+  return data
+}
+
+// ============= SALES INVENTORY INTEGRATION API =============
+
+export async function createSaleWithAutomaticAllocation(
+  request: SaleInventoryRequest
+): Promise<SaleInventoryResult> {
+  const { data } = await api.post<SaleInventoryResult>('/v1/sales/with-automatic-allocation', request)
+  return data
+}
+
+export async function createSaleWithManualAllocation(
+  request: SaleManualInventoryRequest
+): Promise<SaleInventoryResult> {
+  const { data } = await api.post<SaleInventoryResult>('/v1/sales/with-manual-allocation', request)
+  return data
+}
+
+export async function getAvailableLots(
+  productId: string,
+  companyId: string
+): Promise<LotAvailabilityDTO[]> {
+  const { data } = await api.get<LotAvailabilityDTO[]>(`/v1/sales/available-lots/${productId}`, {
+    params: { companyId },
+  })
+  return data
+}
+
+export async function getAvailableLotsInLocation(
+  productId: string,
+  locationId: string,
+  companyId: string
+): Promise<LotAvailabilityDTO[]> {
+  const { data } = await api.get<LotAvailabilityDTO[]>(
+    `/v1/sales/available-lots/${productId}/location/${locationId}`,
+    {
+      params: { companyId },
+    }
+  )
+  return data
+}
+
+export async function validateSale(request: SaleInventoryRequest): Promise<ValidationResult> {
+  const { data } = await api.post<ValidationResult>('/v1/sales/validate', request)
   return data
 }
 

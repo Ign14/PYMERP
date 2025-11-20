@@ -42,16 +42,26 @@ export default function FinanceSummaryCards() {
   }
 
   if (error || !summary) {
+    const errorMsg = error || 'No se pudo cargar el resumen'
     return (
-      <div className="bg-red-950 border border-red-800 text-red-400 rounded-2xl shadow-lg p-4 mb-6 flex items-center gap-3">
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fillRule="evenodd"
-            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-            clipRule="evenodd"
-          />
-        </svg>
-        <span>{error || 'No se pudo cargar el resumen'}</span>
+      <div className="bg-red-950 border border-red-800 text-red-400 rounded-2xl shadow-lg p-4 mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span className="font-semibold">Error al cargar Resumen financiero</span>
+        </div>
+        <p className="text-sm text-neutral-300 ml-8">{errorMsg}</p>
+        <button 
+          onClick={loadSummary}
+          className="mt-3 ml-8 px-4 py-2 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
+        >
+          Reintentar
+        </button>
       </div>
     )
   }

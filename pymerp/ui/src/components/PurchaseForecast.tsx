@@ -84,7 +84,12 @@ export default function PurchaseForecast() {
       )}
 
       {selectedSupplierId && error && (
-        <p className="text-center text-red-400">Error al cargar forecast</p>
+        <div className="text-center p-4 bg-red-950 border border-red-800 rounded">
+          <p className="text-red-400 font-semibold mb-1">⚠️ Error al cargar forecast</p>
+          <p className="text-sm text-neutral-300">
+            {error instanceof Error ? error.message : 'Error desconocido'}
+          </p>
+        </div>
       )}
 
       {forecast && (

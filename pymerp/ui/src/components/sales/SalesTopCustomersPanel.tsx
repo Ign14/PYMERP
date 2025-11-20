@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listCustomers, getCustomerStats } from '../../services/client'
 
 type CustomerStat = {
   customerId: string
@@ -23,98 +25,91 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
 }
 
-// Datos de demostración
-function generateTopCustomers(): CustomerStat[] {
-  return [
-    {
-      customerId: 'C001',
-      customerName: 'Empresa TechSolutions SpA',
-      totalRevenue: 15800000,
-      purchaseCount: 42,
-      avgTicket: 376190,
-      lastPurchaseDate: '2024-01-25',
-    },
-    {
-      customerId: 'C002',
-      customerName: 'Comercial Del Norte Ltda',
-      totalRevenue: 12400000,
-      purchaseCount: 38,
-      avgTicket: 326316,
-      lastPurchaseDate: '2024-01-24',
-    },
-    {
-      customerId: 'C003',
-      customerName: 'Servicios Integrales SA',
-      totalRevenue: 9800000,
-      purchaseCount: 28,
-      avgTicket: 350000,
-      lastPurchaseDate: '2024-01-23',
-    },
-    {
-      customerId: 'C004',
-      customerName: 'Distribuidora Central',
-      totalRevenue: 8500000,
-      purchaseCount: 52,
-      avgTicket: 163462,
-      lastPurchaseDate: '2024-01-25',
-    },
-    {
-      customerId: 'C005',
-      customerName: 'Constructora Horizonte',
-      totalRevenue: 7200000,
-      purchaseCount: 15,
-      avgTicket: 480000,
-      lastPurchaseDate: '2024-01-22',
-    },
-    {
-      customerId: 'C006',
-      customerName: 'Retail Express SpA',
-      totalRevenue: 6900000,
-      purchaseCount: 64,
-      avgTicket: 107813,
-      lastPurchaseDate: '2024-01-25',
-    },
-    {
-      customerId: 'C007',
-      customerName: 'Alimentos Frescos SA',
-      totalRevenue: 5800000,
-      purchaseCount: 31,
-      avgTicket: 187097,
-      lastPurchaseDate: '2024-01-21',
-    },
-    {
-      customerId: 'C008',
-      customerName: 'Transporte Rápido Ltda',
-      totalRevenue: 4500000,
-      purchaseCount: 22,
-      avgTicket: 204545,
-      lastPurchaseDate: '2024-01-20',
-    },
-    {
-      customerId: 'C009',
-      customerName: 'Farmacia Salud Total',
-      totalRevenue: 3800000,
-      purchaseCount: 48,
-      avgTicket: 79167,
-      lastPurchaseDate: '2024-01-25',
-    },
-    {
-      customerId: 'C010',
-      customerName: 'Mueblería El Roble',
-      totalRevenue: 3200000,
-      purchaseCount: 9,
-      avgTicket: 355556,
-      lastPurchaseDate: '2024-01-19',
-    },
-  ]
-}
-
 export default function SalesTopCustomersPanel({
   startDate,
   endDate,
 }: SalesTopCustomersPanelProps) {
-  const topCustomers = useMemo(() => generateTopCustomers(), [])
+  // Obtener todos los clientes activos
+  const customersQuery = useQuery({
+    queryKey: ['customers', 'all', 'active'],
+    queryFn: () => listCustomers({ active: true, page: 0, size: 1000 }),
+  })
+
+  // Obtener estadísticas para cada cliente
+  const customerStatsQueries = useQuery({
+    queryKey: ['customers', 'top-stats', customersQuery.data?.content?.map(c => c.id)],
+    queryFn: async () => {
+      if (!customersQuery.data?.content) return []
+      
+      const statsPromises = customersQuery.data.content.map(async (customer) => {
+        try {
+          const stats = await getCustomerStats(customer.id)
+          return {
+            customerId: customer.id,
+            customerName: customer.name || customer.businessName || 'Sin nombre',
+            totalRevenue: Number(stats.totalRevenue) || 0,
+            purchaseCount: stats.totalSales || 0,
+            avgTicket: stats.totalSales > 0 ? (Number(stats.totalRevenue) || 0) / stats.totalSales : 0,
+            lastPurchaseDate: stats.lastSaleDate || '',
+          }
+        } catch (err) {
+          console.error(`Error loading stats for customer ${customer.id}:`, err)
+          return null
+        }
+      })
+      
+      const results = await Promise.all(statsPromises)
+      return results.filter((r): r is CustomerStat => r !== null && r.totalRevenue > 0)
+    },
+    enabled: !!customersQuery.data?.content?.length,
+  })
+
+  const topCustomers = useMemo(() => {
+    if (!customerStatsQueries.data) return []
+    return customerStatsQueries.data
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      .slice(0, 10)
+  }, [customerStatsQueries.data])
+
   const maxRevenue = topCustomers.length > 0 ? topCustomers[0].totalRevenue : 1
+
+  if (customersQuery.isLoading || customerStatsQueries.isLoading) {
+    return (
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 mb-6">
+        <header className="mb-4">
+          <h2 className="text-xl font-semibold text-neutral-100 mb-1">👥 Top 10 Clientes</h2>
+          <p className="text-sm text-neutral-400">Cargando datos...</p>
+        </header>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-neutral-800 rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (customersQuery.isError || customerStatsQueries.isError) {
+    return (
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 mb-6">
+        <header className="mb-4">
+          <h2 className="text-xl font-semibold text-neutral-100 mb-1">👥 Top 10 Clientes</h2>
+          <p className="text-sm text-red-400">Error al cargar datos de clientes</p>
+        </header>
+      </div>
+    )
+  }
+
+  if (topCustomers.length === 0) {
+    return (
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 mb-6">
+        <header className="mb-4">
+          <h2 className="text-xl font-semibold text-neutral-100 mb-1">👥 Top 10 Clientes</h2>
+          <p className="text-sm text-neutral-400">No hay datos de ventas disponibles</p>
+        </header>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5 mb-6">
