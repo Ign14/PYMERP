@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
 
 spring:
   datasource:
@@ -33,13 +33,31 @@ spring:
           auth: ${MAIL_SMTP_AUTH:false}
           '[starttls.enable]': ${MAIL_SMTP_STARTTLS_ENABLE:false}
     default-encoding: UTF-8
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8082/realms/pymerp}
+      client:
+        registration:
+          keycloak:
+            client-id: ${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_ID:pymerp-frontend}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+              - email
+        provider:
+          keycloak:
+            issuer-uri: ${SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI:${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8082/realms/pymerp}}
 
 billing:
   crypto:
-    secret: ${BILLING_CRYPTO_SECRET:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
+    secret: ${BILLING_CRYPTO_SECRET:?BILLING_CRYPTO_SECRET is required}
   webhook:
     # Billing webhook secret must be >=24 characters and not a placeholder.
-    secret: ${BILLING_WEBHOOK_SECRET:billing-webhook-secret-24chars-long!!}
+    secret: ${BILLING_WEBHOOK_SECRET:?BILLING_WEBHOOK_SECRET is required}
     tolerance: PT5M
   offline:
     enabled: true
@@ -48,7 +66,7 @@ billing:
       maxAttempts: 5
       backoffMs: 60000
   pdf:
-    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8080/api/v1}
+    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8081/api/v1}
     branding:
       primary-color: "#1f2937"
       accent-color: "#2563eb"
@@ -83,10 +101,10 @@ app:
       - http://172.29.0.1:*
   security:
     secrets-validation:
-      enabled: false
+      enabled: true
     jwt:
       # JWT secret must be at least 32 characters long.
-      secret: ${JWT_SECRET:example-jwt-secret-32-characters-long}
+      secret: ${JWT_SECRET:?JWT_SECRET is required}
       expiration-seconds: 86400
       refresh-expiration-seconds: 2592000
     captcha:
@@ -96,12 +114,12 @@ app:
 
 storage:
   s3:
-    bucket: ${STORAGE_S3_BUCKET:local-dev-storage-bucket}
-    access-key: ${STORAGE_S3_ACCESS_KEY:localdevstorageaccess}
-    secret-key: ${STORAGE_S3_SECRET_KEY:localdevstoragesecret}
+    bucket: ${STORAGE_S3_BUCKET:?STORAGE_S3_BUCKET is required}
+    access-key: ${STORAGE_S3_ACCESS_KEY:?STORAGE_S3_ACCESS_KEY is required}
+    secret-key: ${STORAGE_S3_SECRET_KEY:?STORAGE_S3_SECRET_KEY is required}
     region: ${STORAGE_S3_REGION:us-east-1}
 
 webhooks:
   hmac:
     # HMAC key should be >=32 characters and unique per environment.
-    secret: ${WEBHOOKS_HMAC_SECRET:webhooks-hmac-secret-32chars!!}
+    secret: ${WEBHOOKS_HMAC_SECRET:?WEBHOOKS_HMAC_SECRET is required}
