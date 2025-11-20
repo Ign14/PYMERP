@@ -1,6 +1,6 @@
 -- Add received_at field to purchases table
 ALTER TABLE purchases 
-ADD COLUMN received_at TIMESTAMPTZ;
+ADD COLUMN received_at TIMESTAMP WITH TIME ZONE;
 
 -- Set default value for existing records to match issued_at
 UPDATE purchases 

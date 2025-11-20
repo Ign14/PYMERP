@@ -18,6 +18,10 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    placeholder-replacement: true
+    placeholders:
+      create_extension_pgcrypto: "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+      h2_uuid_alias: ""
   data:
     redis:
       host: ${REDIS_HOST:localhost}

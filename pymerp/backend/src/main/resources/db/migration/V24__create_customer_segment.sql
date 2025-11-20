@@ -1,6 +1,6 @@
 -- Create customer_segment table
 CREATE TABLE customer_segment (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     company_id UUID NOT NULL REFERENCES companies(id),
     code VARCHAR(100) NOT NULL,
     name VARCHAR(255) NOT NULL,
