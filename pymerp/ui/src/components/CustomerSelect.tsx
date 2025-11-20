@@ -21,10 +21,10 @@ import { computeNextPageParam, mergeCustomerPages } from './customersUtils'
 import useDebouncedValue from '../hooks/useDebouncedValue'
 import { isValidRut, normalizeRut } from '../utils/rut'
 import { parseProblemDetail } from '../utils/problemDetail'
+import { EMAIL_REGEX, normalizeEmail } from '../utils/validation'
 
 const PAGE_SIZE = 20
 const SORT_ORDER = 'name,asc'
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type FeedbackTone = 'success' | 'error' | null
 
@@ -47,7 +47,7 @@ type CustomerSelectProps = {
 
 type CreateFormState = {
   name: string
-  document: string
+  rut: string
   email: string
   phone: string
   address: string
@@ -58,7 +58,7 @@ type CreateFormErrors = Partial<Record<keyof CreateFormState, string>>
 
 const EMPTY_FORM: CreateFormState = {
   name: '',
-  document: '',
+  rut: '',
   email: '',
   phone: '',
   address: '',
@@ -83,18 +83,20 @@ function validateCreateForm(form: CreateFormState): {
     errors.name = 'El nombre no puede superar 120 caracteres'
   }
 
-  const documentInput = form.document.trim()
+  const rutInput = form.rut.trim()
   let normalizedRut: string | undefined
-  if (documentInput.length > 0) {
-    if (!isValidRut(documentInput)) {
-      errors.document = 'Ingresa un RUT válido'
+  if (rutInput.length > 0) {
+    if (!isValidRut(rutInput)) {
+      errors.rut = 'Ingresa un RUT válido'
     } else {
-      normalizedRut = normalizeRut(documentInput)
+      normalizedRut = normalizeRut(rutInput)
     }
   }
 
   const emailInput = form.email.trim()
-  if (emailInput && !EMAIL_REGEX.test(emailInput)) {
+  if (!emailInput) {
+    errors.email = 'El email es obligatorio'
+  } else if (!EMAIL_REGEX.test(emailInput.toLowerCase())) {
     errors.email = 'Ingresa un email válido'
   }
 
@@ -106,14 +108,35 @@ function validateCreateForm(form: CreateFormState): {
 
   const payload: CustomerPayload = {
     name: nameInput,
-    document: normalizedRut ?? toOptional(form.document),
-    email: emailInput ? emailInput.toLowerCase() : undefined,
+    rut: normalizedRut ?? toOptional(form.rut),
+    document: normalizedRut ?? toOptional(form.rut),
+    email: emailInput ? normalizeEmail(emailInput) : undefined,
     phone: phoneInput ? phoneInput.replace(/\s+/g, ' ').trim() : undefined,
     address: toOptional(form.address),
     commune: toOptional(form.commune),
   }
 
   return { payload, errors }
+}
+
+function mapBackendFieldToCreateForm(field: string): keyof CreateFormState | null {
+  switch (field) {
+    case 'name':
+      return 'name'
+    case 'rut':
+    case 'document':
+      return 'rut'
+    case 'email':
+      return 'email'
+    case 'phone':
+      return 'phone'
+    case 'address':
+      return 'address'
+    case 'commune':
+      return 'commune'
+    default:
+      return null
+  }
 }
 
 function useHighlightReset<T>(
@@ -255,6 +278,7 @@ export default function CustomerSelect({
     (customer: Customer) => {
       onSelect(customer)
       closeDropdown()
+      setSearchTerm(customer.name ?? '')
       setFeedback({ tone: null, message: null })
       onErrorDismiss?.()
       runOnNextFrame(() => inputRef.current?.blur())
@@ -359,20 +383,21 @@ export default function CustomerSelect({
     mutationFn: (payload: CustomerPayload) => createCustomer(payload),
     onSuccess: customer => {
       queryClient.invalidateQueries({ queryKey: ['customers'], exact: false })
-      setFeedback({ tone: 'success', message: 'Cliente creado' })
       setCreateOpen(false)
       setCreateForm({ ...EMPTY_FORM })
       setCreateErrors({})
       setCreateGlobalError(null)
       handleSelect(customer)
+      setFeedback({ tone: 'success', message: 'Cliente creado' })
       runOnNextFrame(() => inputRef.current?.focus())
     },
     onError: error => {
       const parsed = parseProblemDetail(error)
       const fieldErrors: CreateFormErrors = {}
       for (const [field, message] of Object.entries(parsed.fieldErrors)) {
-        if (message && field in EMPTY_FORM) {
-          fieldErrors[field as keyof CreateFormState] = message
+        const mappedField = mapBackendFieldToCreateForm(field)
+        if (message && mappedField) {
+          fieldErrors[mappedField] = message
         }
       }
       setCreateErrors(fieldErrors)
@@ -383,6 +408,7 @@ export default function CustomerSelect({
   const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreateGlobalError(null)
+    setCreateErrors({})
     const { payload, errors } = validateCreateForm(createForm)
     if (!payload || Object.keys(errors).length > 0) {
       setCreateErrors(errors)
@@ -393,7 +419,9 @@ export default function CustomerSelect({
 
   const renderOptionMeta = (customer: Customer) => {
     const meta: string[] = []
-    if (customer.document) {
+    if (customer.rut) {
+      meta.push(customer.rut)
+    } else if (customer.document) {
       meta.push(customer.document)
     }
     if (customer.email) {
@@ -580,6 +608,7 @@ export default function CustomerSelect({
                   onChange={event => {
                     setCreateForm(prev => ({ ...prev, name: event.target.value }))
                     setCreateErrors(prev => ({ ...prev, name: undefined }))
+                    setCreateGlobalError(null)
                   }}
                   required
                   minLength={3}
@@ -597,23 +626,24 @@ export default function CustomerSelect({
                 <span>RUT</span>
                 <input
                   type="text"
-                  className={`input${createErrors.document ? ' input-error' : ''}`}
-                  value={createForm.document}
+                  className={`input${createErrors.rut ? ' input-error' : ''}`}
+                  value={createForm.rut}
                   onChange={event => {
-                    setCreateForm(prev => ({ ...prev, document: event.target.value }))
-                    setCreateErrors(prev => ({ ...prev, document: undefined }))
+                    setCreateForm(prev => ({ ...prev, rut: event.target.value }))
+                    setCreateErrors(prev => ({ ...prev, rut: undefined }))
+                    setCreateGlobalError(null)
                   }}
                   placeholder="76.123.456-0"
                   disabled={createMutation.isPending}
                 />
-                {createErrors.document ? (
+                {createErrors.rut ? (
                   <span className="error" role="alert">
-                    {createErrors.document}
+                    {createErrors.rut}
                   </span>
                 ) : null}
               </label>
               <label>
-                <span>Email</span>
+                <span>Email *</span>
                 <input
                   type="email"
                   className={`input${createErrors.email ? ' input-error' : ''}`}
@@ -621,8 +651,10 @@ export default function CustomerSelect({
                   onChange={event => {
                     setCreateForm(prev => ({ ...prev, email: event.target.value }))
                     setCreateErrors(prev => ({ ...prev, email: undefined }))
+                    setCreateGlobalError(null)
                   }}
                   placeholder="contacto@cliente.cl"
+                  required
                   disabled={createMutation.isPending}
                 />
                 {createErrors.email ? (
@@ -639,6 +671,7 @@ export default function CustomerSelect({
                   value={createForm.phone}
                   onChange={event => {
                     setCreateForm(prev => ({ ...prev, phone: event.target.value }))
+                    setCreateGlobalError(null)
                   }}
                   placeholder="+56 9 1234 5678"
                   disabled={createMutation.isPending}
@@ -652,6 +685,7 @@ export default function CustomerSelect({
                   value={createForm.address}
                   onChange={event => {
                     setCreateForm(prev => ({ ...prev, address: event.target.value }))
+                    setCreateGlobalError(null)
                   }}
                   placeholder="Av. Principal 1234"
                   disabled={createMutation.isPending}
@@ -665,6 +699,7 @@ export default function CustomerSelect({
                   value={createForm.commune}
                   onChange={event => {
                     setCreateForm(prev => ({ ...prev, commune: event.target.value }))
+                    setCreateGlobalError(null)
                   }}
                   placeholder="Providencia"
                   disabled={createMutation.isPending}

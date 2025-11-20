@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import Modal from './Modal'
 import { listProducts, Product } from '../../services/client'
+import ProductStockByLocationChips from '../ProductStockByLocationChips'
 import placeholderImage from '../../../assets/product-placeholder.svg'
 
 type Props = {
@@ -149,13 +150,15 @@ export default function ProductCatalogModal({ open, onClose, onSelectProduct }: 
                         <span className="product-catalog-card-price">{price}</span>
                       </div>
 
-                      {product.category && (
-                        <span className="product-catalog-card-category" title={product.category}>
-                          {product.category}
-                        </span>
-                      )}
-                    </div>
-                  </button>
+                    {product.category && (
+                      <span className="product-catalog-card-category" title={product.category}>
+                        {product.category}
+                      </span>
+                    )}
+
+                    <ProductStockByLocationChips productId={product.id} enabled={open} />
+                  </div>
+                </button>
                 )
               })}
             </div>

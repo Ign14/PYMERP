@@ -38,7 +38,7 @@ app:
       expiration-seconds: 3600
       refresh-expiration-seconds: 86400
     captcha:
-      enabled: true
+      enabled: ${CAPTCHA_ENABLED:true}
       min-operand: 2
       max-operand: 10
   cache:

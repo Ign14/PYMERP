@@ -29,6 +29,7 @@ import com.datakomerz.pymes.billing.config.BillingWebhookProperties;
 import com.datakomerz.pymes.billing.security.BillingWebhookSignatureVerifier;
 import com.datakomerz.pymes.sales.Sale;
 import com.datakomerz.pymes.sales.SaleRepository;
+import com.datakomerz.pymes.multitenancy.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,6 +150,12 @@ class BillingOfflineFlowIT {
     sale.setIssuedAt(OffsetDateTime.now());
     sale.setPaymentTermDays(30);
     saleRepository.saveAndFlush(sale);
+    TenantContext.setTenantId(sale.getCompanyId());
+  }
+
+  @AfterEach
+  void tearDownTenantContext() {
+    TenantContext.clear();
   }
 
   @Test

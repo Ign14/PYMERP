@@ -1,4 +1,13 @@
-import { FormEvent, MouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FormEvent,
+  MouseEvent,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
@@ -9,6 +18,7 @@ import {
   AccountRequestPayload,
   AccountRequestResponse,
   LoginPayload,
+  getAuthConfig,
   submitAccountRequest,
 } from '../services/client'
 import { isValidRut, normalizeRut } from '../utils/rut'
@@ -37,7 +47,7 @@ type CaptchaChallenge = {
 }
 
 const SUCCESS_MESSAGE = '¡Muchas gracias! Te contactaremos lo antes posible. PYMERP.cl'
-const CAPTCHA_ENABLED =
+const ENV_CAPTCHA_ENABLED =
   String(import.meta.env.VITE_CAPTCHA_ENABLED ?? 'true').toLowerCase() !== 'false'
 
 const initialRequestState: RequestFormState = {
@@ -74,7 +84,10 @@ export default function LandingExperience({
   const [requestForm, setRequestForm] = useState<RequestFormState>(initialRequestState)
   const [requestError, setRequestError] = useState<string | null>(null)
   const [confirmationMessage, setConfirmationMessage] = useState<string>(SUCCESS_MESSAGE)
-  const [requestCaptcha, setRequestCaptcha] = useState<CaptchaChallenge>(() => createChallenge())
+  const [captchaEnabled, setCaptchaEnabled] = useState<boolean>(ENV_CAPTCHA_ENABLED)
+  const [requestCaptcha, setRequestCaptcha] = useState<CaptchaChallenge | null>(() =>
+    ENV_CAPTCHA_ENABLED ? createChallenge() : null
+  )
   const [requestCaptchaAnswer, setRequestCaptchaAnswer] = useState<string>('')
 
   const loginEmailRef = useRef<HTMLInputElement | null>(null)
@@ -116,6 +129,15 @@ export default function LandingExperience({
     },
   })
 
+  const regenerateCaptcha = useCallback(() => {
+    if (captchaEnabled) {
+      setRequestCaptcha(createChallenge())
+    } else {
+      setRequestCaptcha(null)
+    }
+    setRequestCaptchaAnswer('')
+  }, [captchaEnabled])
+
   const requestMutation = useMutation<AccountRequestResponse, unknown, AccountRequestPayload>({
     mutationFn: submitAccountRequest,
     onSuccess: response => {
@@ -123,12 +145,10 @@ export default function LandingExperience({
       setConfirmationMessage(response?.message ?? SUCCESS_MESSAGE)
       setPanel('success')
       setRequestForm(initialRequestState)
-      setRequestCaptcha(createChallenge())
-      setRequestCaptchaAnswer('')
+      regenerateCaptcha()
     },
     onError: error => {
-      setRequestCaptcha(createChallenge())
-      setRequestCaptchaAnswer('')
+      regenerateCaptcha()
       if (axios.isAxiosError(error)) {
         const data = error.response?.data as
           | { detail?: string; message?: string; error?: string }
@@ -167,6 +187,23 @@ export default function LandingExperience({
   // para permitir que el usuario abra el panel de inicio de sesión y cambie de cuenta.
 
   useEffect(() => {
+    let active = true
+    getAuthConfig()
+      .then(config => {
+        if (!active || typeof config?.captchaEnabled !== 'boolean') {
+          return
+        }
+        setCaptchaEnabled(config.captchaEnabled)
+      })
+      .catch(() => {
+        /* noop: entorno dev puede no exponer el endpoint */
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (panel === 'login') {
       const target = loginEmailRef.current ?? loginPasswordRef.current
       target?.focus()
@@ -200,10 +237,12 @@ export default function LandingExperience({
   }, [panel, isAuthenticated])
 
   useEffect(() => {
-    if (!CAPTCHA_ENABLED) {
-      setRequestCaptchaAnswer(String(requestCaptcha.a + requestCaptcha.b))
-    }
-  }, [requestCaptcha])
+    setRequestCaptchaAnswer('')
+  }, [requestCaptcha, captchaEnabled])
+
+  useEffect(() => {
+    regenerateCaptcha()
+  }, [captchaEnabled, regenerateCaptcha])
 
   useEffect(() => {
     if (loginCooldownSeconds <= 0) {
@@ -262,27 +301,36 @@ export default function LandingExperience({
     const trimmedRut = normalizeRut(requestForm.rut)
     if (!isValidRut(trimmedRut)) {
       setRequestError('El RUT ingresado no es válido')
-      setRequestCaptcha(createChallenge())
-      setRequestCaptchaAnswer('')
+      regenerateCaptcha()
       return
     }
     if (requestForm.password !== requestForm.confirmPassword) {
       setRequestError('Las contraseñas no coinciden')
       return
     }
-    const expected = requestCaptcha.a + requestCaptcha.b
-    const normalizedAnswer = requestCaptchaAnswer.trim()
-    if (CAPTCHA_ENABLED) {
+    let captchaPayload: AccountRequestPayload['captcha']
+    if (captchaEnabled) {
+      if (!requestCaptcha) {
+        setRequestError('No se pudo generar un captcha válido. Intenta nuevamente.')
+        regenerateCaptcha()
+        return
+      }
+      const normalizedAnswer = requestCaptchaAnswer.trim()
       const provided = Number.parseInt(normalizedAnswer, 10)
+      const expected = requestCaptcha.a + requestCaptcha.b
       if (!normalizedAnswer || Number.isNaN(provided) || provided !== expected) {
         setRequestError('Debes resolver el captcha correctamente')
-        setRequestCaptcha(createChallenge())
-        setRequestCaptchaAnswer('')
+        regenerateCaptcha()
         return
+      }
+      captchaPayload = {
+        a: requestCaptcha.a,
+        b: requestCaptcha.b,
+        answer: normalizedAnswer,
       }
     }
 
-    requestMutation.mutate({
+    const payload: AccountRequestPayload = {
       rut: trimmedRut,
       fullName: requestForm.fullName.trim(),
       address: requestForm.address.trim(),
@@ -290,19 +338,17 @@ export default function LandingExperience({
       companyName: requestForm.companyName.trim(),
       password: requestForm.password,
       confirmPassword: requestForm.confirmPassword,
-      captcha: {
-        a: requestCaptcha.a,
-        b: requestCaptcha.b,
-        answer: CAPTCHA_ENABLED ? normalizedAnswer : String(expected),
-      },
-    })
+    }
+    if (captchaPayload) {
+      payload.captcha = captchaPayload
+    }
+    requestMutation.mutate(payload)
   }
 
   const openRequestPanel = () => {
     setRequestError(null)
     setRequestForm(initialRequestState)
-    setRequestCaptcha(createChallenge())
-    setRequestCaptchaAnswer('')
+    regenerateCaptcha()
     setPanel('request')
   }
 
@@ -505,25 +551,26 @@ export default function LandingExperience({
                       minLength={8}
                     />
                   </label>
-                  <label className="landing-label landing-captcha">
-                    <span className="landing-captcha__label">
-                      Captcha: ¿Cuánto es {requestCaptcha.a} + {requestCaptcha.b}?
-                    </span>
-                    <input
-                      inputMode="numeric"
-                      pattern="\\d*"
-                      value={requestCaptchaAnswer}
-                      onChange={event =>
-                        setRequestCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ''))
-                      }
-                      required={CAPTCHA_ENABLED}
-                      aria-required={CAPTCHA_ENABLED}
-                      aria-label={`Captcha: ¿Cuánto es ${requestCaptcha.a} + ${requestCaptcha.b}?`}
-                    />
-                  </label>
-                  {!CAPTCHA_ENABLED && (
+                  {captchaEnabled && requestCaptcha ? (
+                    <label className="landing-label landing-captcha">
+                      <span className="landing-captcha__label">
+                        Captcha: ¿Cuánto es {requestCaptcha.a} + {requestCaptcha.b}?
+                      </span>
+                      <input
+                        inputMode="numeric"
+                        pattern="\\d*"
+                        value={requestCaptchaAnswer}
+                        onChange={event =>
+                          setRequestCaptchaAnswer(event.target.value.replace(/[^0-9]/g, ''))
+                        }
+                        required={captchaEnabled}
+                        aria-required={captchaEnabled}
+                        aria-label={`Captcha: ¿Cuánto es ${requestCaptcha.a} + ${requestCaptcha.b}?`}
+                      />
+                    </label>
+                  ) : (
                     <p className="landing-captcha__label" role="status">
-                      Captcha deshabilitado en este entorno (respuesta enviada automáticamente).
+                      Captcha deshabilitado en este entorno (no se requiere validación).
                     </p>
                   )}
                   {requestError && (

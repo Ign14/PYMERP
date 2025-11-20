@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>${documentTitle}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #111827; background: #ffffff; }
+    .header { display: flex; justify-content: space-between; gap: 20px; border-bottom: 3px solid ${accentColor}; padding-bottom: 18px; margin-bottom: 24px; }
+    .logo img { max-height: 80px; }
+    .company-info { font-size: 13px; }
+    .document-meta { text-align: right; font-size: 13px; }
+    .document-title { font-size: 24px; font-weight: bold; color: ${accentColor}; margin-bottom: 6px; }
+    .watermark { color: #dc2626; font-weight: bold; text-transform: uppercase; font-size: 12px; }
+    .info-section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 18px; margin-bottom: 18px; background: #f9fafb; }
+    .info-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+    thead th { background: ${tableHeaderColor}; color: ${primaryColor}; padding: 10px; text-transform: uppercase; font-size: 12px; }
+    tbody td { border-bottom: 1px solid #e5e7eb; padding: 10px; }
+    .totals { margin-top: 18px; text-align: right; font-size: 13px; }
+    .totals div { margin-bottom: 4px; }
+    .totals .total { font-size: 18px; font-weight: bold; color: ${accentColor}; }
+    .footer { margin-top: 40px; font-size: 12px; color: #4b5563; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">${logoHtml}</div>
+    <div class="company-info">
+      <strong>${companyName}</strong><br/>
+      RUT: ${companyTaxId}<br/>
+      ${companyAddress}<br/>
+      ${companyEmail} - ${companyPhone}
+    </div>
+    <div class="document-meta">
+      <div class="document-title">${documentTitle}</div>
+      <div class="watermark">${watermarkText}</div>
+      <div><strong>${documentNumberLabel}:</strong> ${documentNumber}</div>
+      <div><strong>Fecha:</strong> ${quotationDate}</div>
+      <div><strong>Válida hasta:</strong> ${quotationValidUntil}</div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <div class="info-title">Cliente</div>
+    <div>${customerName}</div>
+    <div>RUT: ${customerTaxId}</div>
+    <div>${customerAddress}</div>
+    <div>${customerEmail}</div>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Descripción</th>
+      <th>Cantidad</th>
+      <th>Precio Unit.</th>
+      <th>Descuento</th>
+      <th>Total</th>
+    </tr>
+    </thead>
+    <tbody>
+    ${itemsRows}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div>Subtotal: ${totalsSubtotal}</div>
+    <div>IVA: ${totalsVat}</div>
+    <div class="total">TOTAL: ${totalsTotal}</div>
+  </div>
+
+  <div class="footer">
+    <div>${footerText}</div>
+    <div>${notes}</div>
+  </div>
+</body>
+</html>

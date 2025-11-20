@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: "jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:pymes}"
+    url: "jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:55432}/${POSTGRES_DB:pymes}"
     driver-class-name: org.postgresql.Driver
     username: ${POSTGRES_USER:pymes}
     password: ${POSTGRES_PASSWORD:pymes}
@@ -28,17 +28,12 @@ spring:
     console:
       enabled: false
   mail:
-    host: localhost
-    port: 1025
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
 
 billing:
   crypto:
     secret: ${BILLING_CRYPTO_SECRET:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://localhost:8082/realms/pymerp
   webhook:
     secret: ${BILLING_WEBHOOK_SECRET:dev-webhook-secret}
     tolerance: PT5M
@@ -49,7 +44,7 @@ billing:
       maxAttempts: 5
       backoffMs: 15000
   pdf:
-    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8080/api/v1}
+    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8081/api/v1}
     branding:
       primary-color: "#1f2937"
       accent-color: "#2563eb"
@@ -60,19 +55,31 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: never
+      show-details: when_authorized
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: pymerp-backend
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   health:
     redis:
       enabled: false
 app:
   security:
+    jwt:
+      oidc-enabled: ${APP_SECURITY_JWT_OIDC_ENABLED:true}
     secrets-validation:
       enabled: false  # Disabled for dev to allow default secrets
     captcha:
-      enabled: true
+      enabled: ${CAPTCHA_ENABLED:false}
       min-operand: 2
       max-operand: 10
 

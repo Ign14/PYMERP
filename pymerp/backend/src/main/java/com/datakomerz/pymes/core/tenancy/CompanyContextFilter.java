@@ -1,5 +1,4 @@
 package com.datakomerz.pymes.core.tenancy;
-import org.springframework.lang.NonNull;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -10,15 +9,18 @@ import java.util.UUID;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.datakomerz.pymes.multitenancy.TenantInterceptor;
 
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 100)
 public class CompanyContextFilter extends OncePerRequestFilter {
 
-  public static final String COMPANY_HEADER = "X-Company-Id";
+  public static final String COMPANY_HEADER = TenantInterceptor.TENANT_HEADER;
 
   private final CompanyContext companyContext;
 

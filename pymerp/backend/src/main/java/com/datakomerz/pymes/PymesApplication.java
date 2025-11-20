@@ -12,9 +12,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import com.company.billing.persistence.CryptoProperties;
 import com.company.billing.persistence.CryptoConfiguration;
 import com.company.billing.persistence.DefaultCryptoService;
+import com.datakomerz.pymes.billing.config.BillingIdempotencyProperties;
 import com.datakomerz.pymes.billing.config.BillingOfflineProperties;
 import com.datakomerz.pymes.billing.config.BillingWebhookProperties;
 import com.datakomerz.pymes.config.AppProperties;
+import com.datakomerz.pymes.config.SecurityProperties;
 
 @SpringBootApplication
 @EntityScan(basePackages = {"com.datakomerz.pymes", "com.company.billing.persistence"})
@@ -24,9 +26,11 @@ import com.datakomerz.pymes.config.AppProperties;
 )
 @EnableConfigurationProperties({
     AppProperties.class,
+    SecurityProperties.class,
     CryptoProperties.class,
     BillingWebhookProperties.class,
-    BillingOfflineProperties.class
+    BillingOfflineProperties.class,
+    BillingIdempotencyProperties.class
 })
 @Import({CryptoConfiguration.class, DefaultCryptoService.class})
 @EnableScheduling

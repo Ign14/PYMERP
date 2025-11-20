@@ -10,7 +10,8 @@ import java.util.UUID;
 public class PurchaseItem {
   @Id @Column(columnDefinition="uuid") private UUID id;
   @Column(name="purchase_id", nullable=false, columnDefinition="uuid") private UUID purchaseId;
-  @Column(name="product_id", nullable=false, columnDefinition="uuid") private UUID productId;
+  @Column(name="product_id", columnDefinition="uuid") private UUID productId;
+  @Column(name="service_id", columnDefinition="uuid") private UUID serviceId;
   @Column(nullable=false, precision=14, scale=3) private BigDecimal qty;
   @Column(nullable=false, precision=14, scale=4) private BigDecimal unitCost;
   @Column(precision=5, scale=2) private BigDecimal vatRate;
@@ -25,6 +26,8 @@ public class PurchaseItem {
   public void setPurchaseId(UUID purchaseId) { this.purchaseId = purchaseId; }
   public UUID getProductId() { return productId; }
   public void setProductId(UUID productId) { this.productId = productId; }
+  public UUID getServiceId() { return serviceId; }
+  public void setServiceId(UUID serviceId) { this.serviceId = serviceId; }
   public BigDecimal getQty() { return qty; }
   public void setQty(BigDecimal qty) { this.qty = qty; }
   public BigDecimal getUnitCost() { return unitCost; }

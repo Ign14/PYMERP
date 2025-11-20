@@ -21,15 +21,18 @@ public class ListCustomersUseCase {
     this.mapper = mapper;
   }
 
-  public PagedResponse<CustomerResponse> handle(String query, String segment, Boolean active, int page, int size) {
+  public PagedResponse<CustomerResponse> handle(String query, String segment, Boolean active, boolean includeInactive, int page, int size) {
     int pageIndex = Math.max(page, 0);
     int pageSize = size <= 0 ? 20 : Math.min(size, 100);
     Pageable pageable = PageRequest.of(pageIndex, pageSize, Sort.by("createdAt").descending());
     boolean hasQuery = StringUtils.hasText(query);
     boolean hasSegment = StringUtils.hasText(segment);
     boolean activeOnly = active == null || Boolean.TRUE.equals(active);
+    boolean includeInactiveRequested = includeInactive || Boolean.FALSE.equals(active);
     Page<CustomerResponse> result;
-    if (!hasQuery && !hasSegment && activeOnly) {
+    if (includeInactiveRequested) {
+      result = service.searchIncludingInactive(query, segment, pageable).map(mapper::toResponse);
+    } else if (!hasQuery && !hasSegment && activeOnly) {
       result = service.findAll(pageable).map(mapper::toResponse);
     } else {
       result = service.search(query, segment, active, pageable).map(mapper::toResponse);

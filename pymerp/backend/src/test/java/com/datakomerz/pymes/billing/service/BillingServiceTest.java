@@ -18,11 +18,13 @@ import com.datakomerz.pymes.billing.provider.BillingProvider.IssueInvoiceResult;
 import com.datakomerz.pymes.billing.render.LocalInvoiceRenderer;
 import com.datakomerz.pymes.billing.render.StubLocalInvoiceRenderer;
 import com.datakomerz.pymes.billing.service.BillingDocumentView.DocumentLinks;
+import com.datakomerz.pymes.billing.service.BillingIdempotencyStore;
 import com.datakomerz.pymes.billing.support.InvoicePayloadFixtures;
 import com.datakomerz.pymes.sales.Sale;
 import com.datakomerz.pymes.sales.SaleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.datakomerz.pymes.multitenancy.TenantContext;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -30,7 +32,11 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,6 +74,8 @@ class BillingServiceTest {
 
   private Sale sale;
 
+  private static final String DEFAULT_PAYLOAD_HASH = "payload-hash";
+
   @BeforeEach
   void setUp() {
     jdbcTemplate.execute("""
@@ -101,17 +109,25 @@ class BillingServiceTest {
     sale.setIssuedAt(OffsetDateTime.now());
     sale.setPaymentTermDays(30);
     saleRepository.saveAndFlush(sale);
+    TenantContext.setTenantId(sale.getCompanyId());
+  }
+
+  @AfterEach
+  void tearDown() {
+    TenantContext.clear();
   }
 
   @Test
   void issueInvoiceOffline_enqueuesDocumentAndReturnsLocalLink() {
     InvoicePayload payload = InvoicePayloadFixtures.fiscalOffline(sale.getId());
 
-    var view = billingService.issueInvoice(
+    var result = billingService.issueInvoice(
         true,
         "OFFLINE",
         payload,
-        "invoice-offline-key");
+        "invoice-offline-key",
+        DEFAULT_PAYLOAD_HASH);
+    BillingDocumentView view = result.document();
 
     assertThat(view.category()).isEqualTo(com.datakomerz.pymes.billing.model.DocumentCategory.FISCAL);
     assertThat(view.fiscalStatus()).isEqualTo(FiscalDocumentStatus.OFFLINE_PENDING);
@@ -137,11 +153,13 @@ class BillingServiceTest {
 
     InvoicePayload payload = InvoicePayloadFixtures.fiscalOnline(sale.getId());
 
-    var view = billingService.issueInvoice(
+    var result = billingService.issueInvoice(
         false,
         "GOOD",
         payload,
-        "invoice-online-key");
+        "invoice-online-key",
+        DEFAULT_PAYLOAD_HASH);
+    BillingDocumentView view = result.document();
 
     assertThat(view.fiscalStatus()).isEqualTo(FiscalDocumentStatus.SENT);
     assertThat(view.offline()).isFalse();
@@ -163,9 +181,10 @@ class BillingServiceTest {
         false,
         "GOOD",
         payload,
-        "invoice-failed-key"))
-        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
-        .hasMessageContaining("Rule violation");
+        "invoice-failed-key",
+        DEFAULT_PAYLOAD_HASH))
+        .isInstanceOf(BillingProviderException.class)
+        .hasMessageContaining("Billing provider rejected invoice");
 
     FiscalDocument document = fiscalDocumentRepository.findAll().stream()
         .findFirst()
@@ -229,6 +248,11 @@ class BillingServiceTest {
     @Bean
     TestBillingProvider billingProvider() {
       return new TestBillingProvider();
+    }
+
+    @Bean
+    BillingIdempotencyStore billingIdempotencyStore() {
+      return new InMemoryBillingIdempotencyStore();
     }
   }
 
@@ -317,6 +341,42 @@ class BillingServiceTest {
     @Override
     public ProviderDocument fetchDocument(String providerDocumentId) {
       throw new UnsupportedOperationException("Not implemented in test");
+    }
+  }
+
+  static class InMemoryBillingIdempotencyStore implements BillingIdempotencyStore {
+
+    private final ConcurrentMap<String, BillingIdempotencyStore.IdempotencyEntry> entries = new ConcurrentHashMap<>();
+
+    @Override
+    public Optional<IdempotencyEntry> findEntry(UUID tenantId, String idempotencyKey) {
+      return Optional.ofNullable(entries.get(key(tenantId, idempotencyKey)));
+    }
+
+    @Override
+    public boolean reserve(UUID tenantId, String idempotencyKey, String payloadHash) {
+      String key = key(tenantId, idempotencyKey);
+      return entries.putIfAbsent(key, new IdempotencyEntry(null, payloadHash)) == null;
+    }
+
+    @Override
+    public Optional<IdempotencyEntry> awaitCompletion(UUID tenantId, String idempotencyKey) {
+      return findEntry(tenantId, idempotencyKey)
+          .filter(entry -> entry.documentId() != null);
+    }
+
+    @Override
+    public void complete(UUID tenantId, String idempotencyKey, String payloadHash, UUID documentId) {
+      entries.put(key(tenantId, idempotencyKey), new IdempotencyEntry(documentId, payloadHash));
+    }
+
+    @Override
+    public void invalidate(UUID tenantId, String idempotencyKey) {
+      entries.remove(key(tenantId, idempotencyKey));
+    }
+
+    private String key(UUID tenantId, String idempotencyKey) {
+      return tenantId + ":" + idempotencyKey;
     }
   }
 }

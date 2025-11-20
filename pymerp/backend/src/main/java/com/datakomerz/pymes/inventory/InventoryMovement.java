@@ -25,6 +25,9 @@ public class InventoryMovement extends TenantAwareEntity {
   @Column(name="reason_code") private String reasonCode;
   @Column(name="previous_qty") private BigDecimal previousQty;
   @Column(name="new_qty") private BigDecimal newQty;
+  @Column(name="location_from_id", columnDefinition="uuid") private UUID locationFromId;
+  @Column(name="location_to_id", columnDefinition="uuid") private UUID locationToId;
+  @Column(name="trace_id") private String traceId;
   
   @Column(name="created_at") private OffsetDateTime createdAt;
 
@@ -59,6 +62,12 @@ public class InventoryMovement extends TenantAwareEntity {
   public void setPreviousQty(BigDecimal previousQty) { this.previousQty = previousQty; }
   public BigDecimal getNewQty() { return newQty; }
   public void setNewQty(BigDecimal newQty) { this.newQty = newQty; }
+  public UUID getLocationFromId() { return locationFromId; }
+  public void setLocationFromId(UUID locationFromId) { this.locationFromId = locationFromId; }
+  public UUID getLocationToId() { return locationToId; }
+  public void setLocationToId(UUID locationToId) { this.locationToId = locationToId; }
+  public String getTraceId() { return traceId; }
+  public void setTraceId(String traceId) { this.traceId = traceId; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
   public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

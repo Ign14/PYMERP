@@ -25,6 +25,7 @@ public class UserAccountAdminService {
 
   private static final Set<String> ALLOWED_ROLES = Set.of(
     "ROLE_ADMIN",
+    "ROLE_DEVELOPER",
     "ROLE_SALES",
     "ROLE_SELLER",
     "ROLE_PURCHASES",

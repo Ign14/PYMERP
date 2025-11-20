@@ -1,22 +1,30 @@
 package com.datakomerz.pymes.purchases;
 
+import com.datakomerz.pymes.billing.dto.PurchaseOrderPayload;
+import com.datakomerz.pymes.billing.dto.PurchaseOrderPayload.CompanyInfo;
+import com.datakomerz.pymes.billing.dto.PurchaseOrderPayload.PurchaseOrderItem;
+import com.datakomerz.pymes.billing.dto.PurchaseOrderPayload.SupplierInfo;
+import com.datakomerz.pymes.company.Company;
+import com.datakomerz.pymes.company.CompanyRepository;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.inventory.InventoryLot;
 import com.datakomerz.pymes.inventory.InventoryLotRepository;
 import com.datakomerz.pymes.inventory.InventoryMovement;
 import com.datakomerz.pymes.inventory.InventoryMovementRepository;
+import com.datakomerz.pymes.purchases.dto.PurchaseCreationResult;
 import com.datakomerz.pymes.purchases.dto.PurchaseDailyPoint;
+import com.datakomerz.pymes.purchases.dto.PurchaseItemReq;
 import com.datakomerz.pymes.purchases.dto.PurchaseReq;
 import com.datakomerz.pymes.purchases.dto.PurchaseSummary;
 import com.datakomerz.pymes.purchases.dto.PurchaseUpdateRequest;
-import com.datakomerz.pymes.services.ServiceRepository;
 import com.datakomerz.pymes.storage.StorageService;
 import com.datakomerz.pymes.suppliers.Supplier;
 import com.datakomerz.pymes.suppliers.SupplierRepository;
 import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
-import com.datakomerz.pymes.locations.Location;
-import com.datakomerz.pymes.locations.LocationRepository;
+import com.datakomerz.pymes.inventory.AuditContextService;
+import com.datakomerz.pymes.inventory.InventoryLocation;
+import com.datakomerz.pymes.inventory.InventoryLocationRepository;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,6 +39,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import jakarta.persistence.EntityNotFoundException;
+import com.datakomerz.pymes.services.ServiceRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -41,176 +52,273 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class PurchaseService {
+  private static final String DEFAULT_LOCATION_CODE = "DEFAULT";
+  private static final String DEFAULT_LOCATION_NAME = "Ubicación por defecto";
+
   private final PurchaseRepository purchases;
   private final PurchaseItemRepository items;
   private final InventoryLotRepository lots;
   private final InventoryMovementRepository movements;
   private final CompanyContext companyContext;
+  private final CompanyRepository companyRepository;
   private final SupplierRepository suppliers;
   private final ServiceRepository serviceRepository;
   private final StorageService storageService;
   private final ProductRepository productRepository;
-  private final LocationRepository locationRepository;
+  private final InventoryLocationRepository inventoryLocationRepository;
+  private final AuditContextService auditContext;
 
   public PurchaseService(PurchaseRepository purchases,
                          PurchaseItemRepository items,
                          InventoryLotRepository lots,
                          InventoryMovementRepository movements,
                          CompanyContext companyContext,
+                         CompanyRepository companyRepository,
                          SupplierRepository suppliers,
-                         ServiceRepository serviceRepository,
                          StorageService storageService,
                          ProductRepository productRepository,
-                         LocationRepository locationRepository) {
+                         InventoryLocationRepository inventoryLocationRepository,
+                         AuditContextService auditContext,
+                         ServiceRepository serviceRepository) {
     this.purchases = purchases;
     this.items = items;
     this.lots = lots;
     this.movements = movements;
     this.companyContext = companyContext;
+    this.companyRepository = companyRepository;
     this.suppliers = suppliers;
-    this.serviceRepository = serviceRepository;
     this.storageService = storageService;
     this.productRepository = productRepository;
-    this.locationRepository = locationRepository;
+    this.inventoryLocationRepository = inventoryLocationRepository;
+    this.auditContext = auditContext;
+    this.serviceRepository = serviceRepository;
   }
 
   @Transactional
-  public UUID create(PurchaseReq req) {
+  public PurchaseCreationResult create(PurchaseReq req) {
     UUID companyId = companyContext.require();
+    List<PurchaseItemReq> itemRequests = requireItems(req.items());
 
-    var purchase = new Purchase();
+    Purchase purchase = buildPurchase(req, companyId);
+    purchases.save(purchase);
+
+    PurchaseProcessingResult processed = processItems(purchase, itemRequests, companyId);
+    return buildCreationResult(purchase, processed);
+  }
+
+  @Transactional
+  public PurchaseCreationResult createWithFile(PurchaseReq req, MultipartFile file) {
+    UUID companyId = companyContext.require();
+    List<PurchaseItemReq> itemRequests = requireItems(req.items());
+
+    Purchase purchase = buildPurchase(req, companyId);
+    purchases.save(purchase);
+    attachDocumentIfPresent(companyId, purchase, req, file);
+
+    PurchaseProcessingResult processed = processItems(purchase, itemRequests, companyId);
+    return buildCreationResult(purchase, processed);
+  }
+
+  private Purchase buildPurchase(PurchaseReq req, UUID companyId) {
+    Purchase purchase = new Purchase();
     purchase.setCompanyId(companyId);
     purchase.setSupplierId(req.supplierId());
     purchase.setDocType(req.docType());
     purchase.setDocNumber(req.docNumber());
-    purchase.setStatus("received");
+    purchase.setStatus(req.status() != null && !req.status().isBlank() ? req.status() : "received");
     purchase.setNet(req.net());
     purchase.setVat(req.vat());
     purchase.setTotal(req.total());
     purchase.setPdfUrl(req.pdfUrl());
     purchase.setIssuedAt(req.issuedAt());
     purchase.setReceivedAt(req.receivedAt());
-    purchases.save(purchase);
-
-    for (var itemReq : req.items()) {
-      var item = new PurchaseItem();
-      item.setPurchaseId(purchase.getId());
-      item.setProductId(itemReq.productId());
-      item.setQty(itemReq.qty());
-      item.setUnitCost(itemReq.unitCost());
-      item.setVatRate(itemReq.vatRate());
-      item.setMfgDate(itemReq.mfgDate());
-      item.setExpDate(itemReq.expDate());
-      items.save(item);
-
-      // Si es un producto, crear lote y movimiento de inventario
-      if (itemReq.isProduct()) {
-        var lot = new InventoryLot();
-        lot.setCompanyId(companyId);
-        lot.setProductId(itemReq.productId());
-        lot.setPurchaseItemId(item.getId());
-        lot.setQtyAvailable(itemReq.qty());
-        lot.setCostUnit(itemReq.unitCost());
-        lot.setMfgDate(itemReq.mfgDate());
-        lot.setExpDate(itemReq.expDate());
-        lot.setLocationId(itemReq.locationId());
-        lots.save(lot);
-
-        var movement = new InventoryMovement();
-        movement.setCompanyId(companyId);
-        movement.setProductId(itemReq.productId());
-        movement.setLotId(lot.getId());
-        movement.setType("PURCHASE_IN");
-        movement.setQty(itemReq.qty());
-        movement.setRefType("PURCHASE");
-        movement.setRefId(purchase.getId());
-        movements.save(movement);
-      } 
-      // Si es un servicio, actualizar lastPurchaseDate
-      else if (itemReq.isService()) {
-        serviceRepository.findById(itemReq.serviceId()).ifPresent(service -> {
-          service.setLastPurchaseDate(LocalDate.now());
-          serviceRepository.save(service);
-        });
-      }
-    }
-    return purchase.getId();
+    purchase.setPaymentTermDays(req.paymentTermDays());
+    return purchase;
   }
 
-  @Transactional
-  public UUID createWithFile(PurchaseReq req, MultipartFile file) {
-    UUID companyId = companyContext.require();
-
-    var purchase = new Purchase();
-    purchase.setCompanyId(companyId);
-    purchase.setSupplierId(req.supplierId());
-    purchase.setDocType(req.docType());
-    purchase.setDocNumber(req.docNumber());
-    purchase.setStatus("received");
-    purchase.setNet(req.net());
-    purchase.setVat(req.vat());
-    purchase.setTotal(req.total());
-    purchase.setIssuedAt(req.issuedAt());
-    purchase.setReceivedAt(req.receivedAt());
-    purchases.save(purchase);
-
-    // Guardar archivo PDF si se proporcionó
-    if (file != null && !file.isEmpty()) {
-      try {
-        String pdfUrl = storageService.storePurchaseDocument(companyId, purchase.getId(), file);
-        purchase.setPdfUrl(pdfUrl);
+  private void attachDocumentIfPresent(UUID companyId,
+                                       Purchase purchase,
+                                       PurchaseReq req,
+                                       MultipartFile file) {
+    if (file == null || file.isEmpty()) {
+      if (req.pdfUrl() != null && purchase.getPdfUrl() == null) {
+        purchase.setPdfUrl(req.pdfUrl());
         purchases.save(purchase);
-      } catch (IOException e) {
-        throw new RuntimeException("Error al guardar documento PDF", e);
       }
-    } else if (req.pdfUrl() != null) {
-      purchase.setPdfUrl(req.pdfUrl());
+      return;
+    }
+    try {
+      String pdfUrl = storageService.storePurchaseDocument(companyId, purchase.getId(), file);
+      purchase.setPdfUrl(pdfUrl);
       purchases.save(purchase);
+    } catch (IOException e) {
+      throw new RuntimeException("Error al guardar documento PDF", e);
     }
+  }
 
-    for (var itemReq : req.items()) {
-      var item = new PurchaseItem();
-      item.setPurchaseId(purchase.getId());
-      item.setProductId(itemReq.productId());
-      item.setQty(itemReq.qty());
-      item.setUnitCost(itemReq.unitCost());
-      item.setVatRate(itemReq.vatRate());
-      item.setMfgDate(itemReq.mfgDate());
-      item.setExpDate(itemReq.expDate());
-      items.save(item);
+  private List<PurchaseItemReq> requireItems(List<PurchaseItemReq> requestItems) {
+    if (requestItems == null || requestItems.isEmpty()) {
+      throw new IllegalArgumentException("La orden debe contener al menos un item");
+    }
+    return List.copyOf(requestItems);
+  }
 
-      // Si es un producto, crear lote y movimiento de inventario
+  private PurchaseProcessingResult processItems(Purchase purchase,
+                                                List<PurchaseItemReq> itemRequests,
+                                                UUID companyId) {
+    int lotsCreated = 0;
+    int itemsCreated = 0;
+
+    for (PurchaseItemReq itemReq : itemRequests) {
+      PurchaseItem savedItem = persistPurchaseItem(purchase, itemReq, companyId);
+      itemsCreated++;
       if (itemReq.isProduct()) {
-        var lot = new InventoryLot();
-        lot.setCompanyId(companyId);
-        lot.setProductId(itemReq.productId());
-        lot.setPurchaseItemId(item.getId());
-        lot.setQtyAvailable(itemReq.qty());
-        lot.setCostUnit(itemReq.unitCost());
-        lot.setMfgDate(itemReq.mfgDate());
-        lot.setExpDate(itemReq.expDate());
-        lot.setLocationId(itemReq.locationId());
-        lots.save(lot);
-
-        var movement = new InventoryMovement();
-        movement.setCompanyId(companyId);
-        movement.setProductId(itemReq.productId());
-        movement.setLotId(lot.getId());
-        movement.setType("PURCHASE_IN");
-        movement.setQty(itemReq.qty());
-        movement.setRefType("PURCHASE");
-        movement.setRefId(purchase.getId());
-        movements.save(movement);
-      } 
-      // Si es un servicio, actualizar lastPurchaseDate
-      else if (itemReq.isService()) {
-        serviceRepository.findById(itemReq.serviceId()).ifPresent(service -> {
-          service.setLastPurchaseDate(LocalDate.now());
-          serviceRepository.save(service);
-        });
+        createInventoryLot(savedItem, itemReq, purchase, companyId);
+        lotsCreated++;
       }
     }
-    return purchase.getId();
+    return new PurchaseProcessingResult(itemsCreated, lotsCreated);
+  }
+
+  private PurchaseItem persistPurchaseItem(Purchase purchase,
+                                           PurchaseItemReq itemReq,
+                                           UUID companyId) {
+    if (itemReq.isProduct()) {
+      ensureProductBelongsToCompany(itemReq.productId(), companyId);
+    } else if (itemReq.isService()) {
+      ensureServiceBelongsToCompany(itemReq.serviceId(), companyId);
+    } else {
+      throw new IllegalArgumentException("Cada item debe indicar producto o servicio");
+    }
+
+    PurchaseItem item = new PurchaseItem();
+    item.setPurchaseId(purchase.getId());
+    item.setProductId(itemReq.productId());
+    item.setServiceId(itemReq.serviceId());
+    item.setQty(itemReq.qty());
+    item.setUnitCost(itemReq.unitCost());
+    item.setVatRate(itemReq.vatRate());
+    item.setMfgDate(itemReq.mfgDate());
+    item.setExpDate(itemReq.expDate());
+    return items.save(item);
+  }
+
+  private void ensureProductBelongsToCompany(UUID productId, UUID companyId) {
+    Product product = productRepository.findById(productId)
+        .orElseThrow(() -> new EntityNotFoundException("Producto no encontrado: " + productId));
+    if (!companyId.equals(product.getCompanyId())) {
+      throw new IllegalArgumentException("Producto no pertenece a la empresa actual");
+    }
+  }
+
+  private void ensureServiceBelongsToCompany(UUID serviceId, UUID companyId) {
+    com.datakomerz.pymes.services.Service service = serviceRepository.findById(serviceId)
+        .orElseThrow(() -> new EntityNotFoundException("Servicio no encontrado: " + serviceId));
+    if (!companyId.equals(service.getCompanyId())) {
+      throw new IllegalArgumentException("Servicio no pertenece a la empresa actual");
+    }
+  }
+
+  private void createInventoryLot(PurchaseItem item,
+                                  PurchaseItemReq itemReq,
+                                  Purchase purchase,
+                                  UUID companyId) {
+    InventoryLocation lotLocation = resolveLotLocation(companyId, itemReq.locationId());
+
+    InventoryLot lot = new InventoryLot();
+    lot.setCompanyId(companyId);
+    lot.setProductId(item.getProductId());
+    lot.setPurchaseItemId(item.getId());
+    lot.setPurchaseId(purchase.getId());
+    lot.setQtyAvailable(itemReq.qty());
+    lot.setCostUnit(itemReq.unitCost());
+    lot.setMfgDate(itemReq.mfgDate());
+    lot.setExpDate(itemReq.expDate());
+    lot.setLocationId(lotLocation.getId());
+    lots.save(lot);
+
+    InventoryMovement movement = new InventoryMovement();
+    movement.setCompanyId(companyId);
+    movement.setProductId(item.getProductId());
+    movement.setLotId(lot.getId());
+    movement.setType("PURCHASE_IN");
+    movement.setQty(itemReq.qty());
+    movement.setRefType("PURCHASE");
+    movement.setRefId(purchase.getId());
+    movement.setReasonCode("PURCHASE");
+    movement.setPreviousQty(BigDecimal.ZERO);
+    movement.setNewQty(lot.getQtyAvailable());
+    movement.setLocationFromId(null);
+    movement.setLocationToId(lotLocation.getId());
+    movement.setNote("Ingreso a " + formatLocationLabel(lotLocation));
+    movement.setCreatedBy(auditContext.getCurrentUser());
+    movement.setUserIp(auditContext.getUserIp());
+    movement.setTraceId(auditContext.getTraceId());
+    movements.save(movement);
+  }
+
+  private PurchaseCreationResult buildCreationResult(Purchase purchase,
+                                                     PurchaseProcessingResult processed) {
+    return new PurchaseCreationResult(
+        purchase.getId(),
+        purchase.getDocNumber(),
+        purchase.getTotal(),
+        processed.itemsCreated(),
+        processed.lotsCreated()
+    );
+  }
+
+  private record PurchaseProcessingResult(int itemsCreated, int lotsCreated) {}
+
+  private InventoryLocation resolveLotLocation(UUID companyId, UUID requestedLocationId) {
+    if (requestedLocationId == null) {
+      return ensureDefaultLocation(companyId);
+    }
+    InventoryLocation location = inventoryLocationRepository.findById(requestedLocationId)
+        .orElseThrow(() -> new IllegalArgumentException(
+            "Ubicación de inventario no encontrada: " + requestedLocationId));
+    if (!companyId.equals(location.getCompanyId())) {
+      throw new IllegalArgumentException("La ubicación no pertenece a la empresa actual");
+    }
+    if (Boolean.FALSE.equals(location.getEnabled())) {
+      throw new IllegalArgumentException("La ubicación seleccionada está deshabilitada");
+    }
+    return location;
+  }
+
+  private InventoryLocation ensureDefaultLocation(UUID companyId) {
+    return inventoryLocationRepository
+        .findByCompanyIdAndCode(companyId, DEFAULT_LOCATION_CODE)
+        .orElseGet(() -> createDefaultLocation(companyId));
+  }
+
+  private InventoryLocation createDefaultLocation(UUID companyId) {
+    InventoryLocation location = new InventoryLocation();
+    location.setCompanyId(companyId);
+    location.setCode(DEFAULT_LOCATION_CODE);
+    location.setName(DEFAULT_LOCATION_NAME);
+    location.setDescription("Creada automáticamente para compras sin ubicación definida");
+    location.setEnabled(true);
+    try {
+      return inventoryLocationRepository.save(location);
+    } catch (DataIntegrityViolationException ex) {
+      return inventoryLocationRepository
+          .findByCompanyIdAndCode(companyId, DEFAULT_LOCATION_CODE)
+          .orElseThrow(() -> ex);
+    }
+  }
+
+  private String formatLocationLabel(InventoryLocation location) {
+    if (location == null) {
+      return DEFAULT_LOCATION_NAME;
+    }
+    if (location.getName() != null && !location.getName().isBlank()) {
+      return location.getName();
+    }
+    if (location.getCode() != null && !location.getCode().isBlank()) {
+      return location.getCode();
+    }
+    return DEFAULT_LOCATION_NAME;
   }
 
   @Transactional(readOnly = true)
@@ -799,6 +907,121 @@ public class PurchaseService {
   }
 
   @Transactional(readOnly = true)
+  public Purchase findById(UUID id) {
+    Purchase purchase = purchases.findById(id)
+        .orElseThrow(() -> new EntityNotFoundException("Compra no encontrada"));
+    UUID companyId = companyContext.require();
+    if (!companyId.equals(purchase.getCompanyId())) {
+      throw new EntityNotFoundException("Compra no encontrada");
+    }
+    return purchase;
+  }
+
+  @Transactional(readOnly = true)
+  public PurchaseOrderPayload buildPurchaseOrderPayload(Purchase purchase) {
+    Objects.requireNonNull(purchase, "purchase is required");
+    UUID companyId = companyContext.require();
+    if (!companyId.equals(purchase.getCompanyId())) {
+      throw new EntityNotFoundException("Compra no pertenece al tenant actual");
+    }
+
+    Company company = companyRepository.findById(companyId)
+        .orElseThrow(() -> new EntityNotFoundException("Empresa no encontrada"));
+    Supplier supplier = suppliers.findById(purchase.getSupplierId())
+        .orElseThrow(() -> new EntityNotFoundException("Proveedor no encontrado"));
+
+    List<PurchaseItem> purchaseItems = items.findByPurchaseId(purchase.getId());
+    Map<UUID, Product> productsById = new HashMap<>();
+    Set<UUID> productIds = purchaseItems.stream()
+        .map(PurchaseItem::getProductId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+    if (!productIds.isEmpty()) {
+      productRepository.findAllById(productIds)
+          .forEach(product -> productsById.put(product.getId(), product));
+    }
+
+    Map<UUID, com.datakomerz.pymes.services.Service> servicesById = new HashMap<>();
+    Set<UUID> serviceIds = purchaseItems.stream()
+        .map(PurchaseItem::getServiceId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+    if (!serviceIds.isEmpty()) {
+      serviceRepository.findAllById(serviceIds)
+          .forEach(service -> servicesById.put(service.getId(), service));
+    }
+
+    List<PurchaseOrderItem> orderItems = purchaseItems.stream()
+        .map(item -> {
+          Product product = item.getProductId() != null ? productsById.get(item.getProductId()) : null;
+          com.datakomerz.pymes.services.Service service = item.getServiceId() != null
+              ? servicesById.get(item.getServiceId())
+              : null;
+          String code = product != null ? product.getSku()
+              : service != null ? service.getCode() : "";
+          String description = product != null ? product.getName()
+              : service != null ? service.getName() : "Ítem";
+          String unitLabel = product != null ? "unid." : "serv.";
+          java.math.BigDecimal quantity = item.getQty() != null ? item.getQty() : java.math.BigDecimal.ZERO;
+          java.math.BigDecimal unitCost = item.getUnitCost() != null ? item.getUnitCost() : java.math.BigDecimal.ZERO;
+          java.math.BigDecimal lineSubtotal = unitCost.multiply(quantity);
+          return PurchaseOrderItem.builder()
+              .productCode(code)
+              .description(description)
+              .quantity(quantity)
+              .unit(unitLabel)
+              .unitPrice(unitCost)
+              .subtotal(lineSubtotal)
+              .build();
+        })
+        .collect(Collectors.toList());
+
+    LocalDate orderDate = purchase.getIssuedAt() != null
+        ? purchase.getIssuedAt().toLocalDate()
+        : LocalDate.now();
+    LocalDate expectedDelivery = purchase.getReceivedAt() != null
+        ? purchase.getReceivedAt().toLocalDate()
+        : orderDate.plusDays(7);
+
+    SupplierInfo supplierInfo = SupplierInfo.builder()
+        .name(supplier.getName())
+        .taxId(supplier.getRut())
+        .address(supplier.getAddress())
+        .phone(supplier.getPhone())
+        .email(supplier.getEmail())
+        .build();
+    CompanyInfo buyerInfo = CompanyInfo.builder()
+        .name(company.getBusinessName())
+        .taxId(company.getRut())
+        .address(company.getAddress())
+        .phone(company.getPhone())
+        .email(company.getEmail())
+        .build();
+    String paymentTerms = purchase.getPaymentTermDays() > 0
+        ? purchase.getPaymentTermDays() + " días desde recepción conforme"
+        : "Pago inmediato";
+    String deliveryAddress = Optional.ofNullable(company.getAddress()).orElse("");
+    String notes = Optional.ofNullable(purchase.getStatus()).orElse("");
+    String approvedBy = Optional.ofNullable(purchase.getCreatedBy()).orElse("");
+
+    return PurchaseOrderPayload.builder()
+        .orderNumber(purchase.getDocNumber())
+        .orderDate(orderDate)
+        .expectedDeliveryDate(expectedDelivery)
+        .supplier(supplierInfo)
+        .buyer(buyerInfo)
+        .items(orderItems)
+        .subtotal(purchase.getNet())
+        .tax(purchase.getVat())
+        .total(purchase.getTotal())
+        .paymentTerms(paymentTerms)
+        .deliveryAddress(deliveryAddress)
+        .notes(notes)
+        .approvedBy(approvedBy)
+        .build();
+  }
+
+  @Transactional(readOnly = true)
   public com.datakomerz.pymes.purchases.dto.PurchaseDetail getDetail(UUID id) {
     UUID companyId = companyContext.require();
     
@@ -823,6 +1046,10 @@ public class PurchaseService {
         .map(PurchaseItem::getProductId)
         .filter(Objects::nonNull)
         .collect(Collectors.toSet());
+    Set<UUID> serviceIds = purchaseItems.stream()
+        .map(PurchaseItem::getServiceId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
     
     Map<UUID, String> productNames = new HashMap<>();
     Map<UUID, String> productSkus = new HashMap<>();
@@ -831,6 +1058,14 @@ public class PurchaseService {
       for (Product p : products) {
         productNames.put(p.getId(), p.getName());
         productSkus.put(p.getId(), p.getSku());
+      }
+    }
+
+    Map<UUID, String> serviceNames = new HashMap<>();
+    if (!serviceIds.isEmpty()) {
+      List<com.datakomerz.pymes.services.Service> services = serviceRepository.findAllById(serviceIds);
+      for (com.datakomerz.pymes.services.Service service : services) {
+        serviceNames.put(service.getId(), service.getName());
       }
     }
     
@@ -846,8 +1081,8 @@ public class PurchaseService {
     
     Map<UUID, String> locationCodes = new HashMap<>();
     if (!locationIds.isEmpty()) {
-      List<Location> locations = locationRepository.findAllById(locationIds);
-      for (Location loc : locations) {
+      List<InventoryLocation> locations = inventoryLocationRepository.findAllById(locationIds);
+      for (InventoryLocation loc : locations) {
         locationCodes.put(loc.getId(), loc.getCode());
       }
     }
@@ -856,21 +1091,26 @@ public class PurchaseService {
     List<com.datakomerz.pymes.purchases.dto.PurchaseDetailLine> lines = purchaseItems.stream()
         .map(item -> {
           InventoryLot lot = lots.findByPurchaseItemId(item.getId()).stream().findFirst().orElse(null);
+          UUID locationId = lot != null ? lot.getLocationId() : null;
           
           return new com.datakomerz.pymes.purchases.dto.PurchaseDetailLine(
               item.getId(),
               item.getProductId(),
-              null, // serviceId - no está en PurchaseItem actual
-              productNames.getOrDefault(item.getProductId(), "Producto " + item.getProductId()),
-              null, // serviceName
-              productSkus.get(item.getProductId()),
+              item.getServiceId(),
+              item.getProductId() != null
+                  ? productNames.getOrDefault(item.getProductId(), "Producto " + item.getProductId())
+                  : null,
+              item.getServiceId() != null
+                  ? serviceNames.getOrDefault(item.getServiceId(), "Servicio " + item.getServiceId())
+                  : null,
+              item.getProductId() != null ? productSkus.get(item.getProductId()) : null,
               item.getQty(),
               item.getUnitCost(),
               item.getVatRate(),
               item.getMfgDate(),
               item.getExpDate(),
-              lot != null ? lot.getLocationId() : null,
-              lot != null && lot.getLocationId() != null ? locationCodes.get(lot.getLocationId()) : null
+              locationId,
+              locationId != null ? locationCodes.get(locationId) : null
           );
         })
         .collect(Collectors.toList());

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Orden de compra ${orderNumber}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 28px; color: #0f172a; }
+    .header { display: flex; justify-content: space-between; border-bottom: 3px solid #059669; padding-bottom: 14px; margin-bottom: 20px; }
+    .logo img { max-height: 80px; }
+    .doc-info { text-align: right; }
+    .doc-title { font-size: 24px; font-weight: bold; color: #059669; margin: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 14px; margin-bottom: 18px; }
+    .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; background: #f8fafc; font-size: 13px; }
+    .panel strong { display: block; margin-bottom: 6px; text-transform: uppercase; font-size: 11px; color: #475569; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+    thead th { background: #ecfdf5; color: #047857; padding: 10px; text-transform: uppercase; font-size: 12px; }
+    tbody td { border-bottom: 1px solid #e2e8f0; padding: 10px; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    .totals { margin-top: 16px; max-width: 300px; margin-left: auto; font-size: 13px; }
+    .totals div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #cbd5f5; }
+    .totals .total { font-weight: bold; color: #047857; border-bottom: none; font-size: 16px; }
+    .footer { margin-top: 30px; font-size: 13px; }
+    .approval { margin-top: 40px; text-align: center; border-top: 1px solid #0f172a; padding-top: 10px; width: 260px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">${logoHtml}</div>
+    <div class="doc-info">
+      <p class="doc-title">ORDEN DE COMPRA</p>
+      <div>N° ${orderNumber}</div>
+      <div>Fecha: ${orderDate}</div>
+      <div>Entrega esperada: ${expectedDelivery}</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <strong>Comprador</strong>
+      <div>${buyerName}</div>
+      <div>RUT: ${buyerTaxId}</div>
+      <div>${buyerAddress}</div>
+      <div>${buyerPhone}</div>
+      <div>${buyerEmail}</div>
+    </div>
+    <div class="panel">
+      <strong>Proveedor</strong>
+      <div>${supplierName}</div>
+      <div>RUT: ${supplierTaxId}</div>
+      <div>${supplierAddress}</div>
+      <div>${supplierPhone}</div>
+      <div>${supplierEmail}</div>
+    </div>
+    <div class="panel">
+      <strong>Entrega</strong>
+      <div>${deliveryAddress}</div>
+      <div>Condiciones de pago: ${paymentTerms}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Detalle</th>
+      <th>Cant.</th>
+      <th>Unidad</th>
+      <th>Precio Unit.</th>
+      <th>Subtotal</th>
+    </tr>
+    </thead>
+    <tbody>
+    ${itemsRows}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div><span>Subtotal</span><span>${subtotal}</span></div>
+    <div><span>IVA</span><span>${tax}</span></div>
+    <div class="total"><span>Total</span><span>${total}</span></div>
+  </div>
+
+  <div class="footer">
+    <div><strong>Observaciones:</strong> ${notes}</div>
+  </div>
+
+  <div class="approval">
+    <div style="margin-bottom:6px;">${approvedBy}</div>
+    <div>Aprobado por</div>
+  </div>
+</body>
+</html>

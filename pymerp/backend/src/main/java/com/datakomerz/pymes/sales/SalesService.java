@@ -1,12 +1,12 @@
 package com.datakomerz.pymes.sales;
 
-import com.datakomerz.pymes.common.captcha.SimpleCaptchaValidationService;
 import com.datakomerz.pymes.common.payments.PaymentTerm;
 import com.datakomerz.pymes.company.CompanyRepository;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.customers.Customer;
 import com.datakomerz.pymes.customers.CustomerRepository;
 import com.datakomerz.pymes.inventory.InventoryService;
+import com.datakomerz.pymes.pricing.PricingService;
 import com.datakomerz.pymes.products.Product;
 import com.datakomerz.pymes.products.ProductRepository;
 import com.datakomerz.pymes.sales.dto.SaleDetail;
@@ -21,7 +21,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,16 +34,28 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SalesService {
+  private static final Logger log = LoggerFactory.getLogger(SalesService.class);
+  private static final SaleDocumentType[] KPI_DOC_TYPES = {SaleDocumentType.FACTURA, SaleDocumentType.BOLETA};
+  private static final SalePaymentMethod[] KPI_PAYMENT_METHODS = {
+    SalePaymentMethod.EFECTIVO,
+    SalePaymentMethod.TRANSFERENCIA,
+    SalePaymentMethod.TARJETAS
+  };
+
   private final SaleRepository sales;
   private final SaleItemRepository items;
   private final InventoryService inventory;
@@ -49,6 +63,8 @@ public class SalesService {
   private final CustomerRepository customers;
   private final ProductRepository products;
   private final CompanyRepository companies;
+  private final PricingService pricingService;
+  private final Environment environment;
 
   public SalesService(SaleRepository sales,
                       SaleItemRepository items,
@@ -56,7 +72,9 @@ public class SalesService {
                       CompanyContext companyContext,
                       CustomerRepository customers,
                       ProductRepository products,
-                      CompanyRepository companies) {
+                      CompanyRepository companies,
+                      PricingService pricingService,
+                      Environment environment) {
     this.sales = sales;
     this.items = items;
     this.inventory = inventory;
@@ -64,6 +82,8 @@ public class SalesService {
     this.customers = customers;
     this.products = products;
     this.companies = companies;
+    this.pricingService = pricingService;
+    this.environment = environment;
   }
 
   @Transactional
@@ -357,6 +377,149 @@ public class SalesService {
       lineTotal
     );
   }
+
+  @Transactional
+  public int seedSalesData() {
+    ensureDevProfile();
+    UUID companyId = companyContext.require();
+    ThreadLocalRandom random = ThreadLocalRandom.current();
+
+    List<Customer> seedCustomers = selectSeedCustomers(random);
+    List<PricedProduct> seedProducts = selectSeedProducts(random);
+    LocalDate today = LocalDate.now();
+
+    int created = 0;
+    for (int i = 0; i < 15; i++) {
+      LocalDate saleDate = today.minusDays(random.nextInt(45));
+      Customer customer = seedCustomers.get(random.nextInt(seedCustomers.size()));
+      int itemsPerSale = 1 + random.nextInt(4);
+      List<SeedLine> lines = buildSeedLines(seedProducts, itemsPerSale, random);
+
+      BigDecimal net = lines.stream()
+        .map(line -> line.unitPrice().multiply(line.quantity()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add)
+        .setScale(2, RoundingMode.HALF_UP);
+      BigDecimal vat = net.multiply(new BigDecimal("0.19")).setScale(0, RoundingMode.HALF_UP);
+      BigDecimal total = net.add(vat).setScale(2, RoundingMode.HALF_UP);
+
+      SaleDocumentType docType = pickRandomDocType(random);
+      SalePaymentMethod paymentMethod = pickRandomPaymentMethod(random);
+      PaymentTerm paymentTerm = pickRandomPaymentTerm(random);
+
+      Sale sale = new Sale();
+      sale.setCompanyId(companyId);
+      sale.setCustomerId(customer.getId());
+      sale.setStatus("emitida");
+      sale.setNet(net);
+      sale.setVat(vat);
+      sale.setTotal(total);
+      sale.setDocType(docType.label());
+      sale.setPaymentMethod(paymentMethod.label());
+      sale.setPaymentTermDays(paymentTerm.getDays());
+      sale.setIssuedAt(randomIssuedAt(saleDate, random));
+      sales.save(sale);
+
+      List<SaleItem> saleItems = new ArrayList<>();
+      for (SeedLine line : lines) {
+        SaleItem saleItem = new SaleItem();
+        saleItem.setSaleId(sale.getId());
+        saleItem.setProductId(line.productId());
+        saleItem.setQty(line.quantity());
+        saleItem.setUnitPrice(line.unitPrice());
+        saleItem.setDiscount(BigDecimal.ZERO);
+        saleItems.add(saleItem);
+      }
+      items.saveAll(saleItems);
+
+      created++;
+      log.info("Venta seed creada: {} items, cliente {}, fecha {}", lines.size(), customer.getName(), sale.getIssuedAt());
+    }
+
+    log.info("✅ Seed completado: {} ventas creadas para la compañía {}", created, companyId);
+    return created;
+  }
+
+  private List<Customer> selectSeedCustomers(ThreadLocalRandom random) {
+    List<Customer> allCustomers = new ArrayList<>(customers.findAll());
+    if (allCustomers.size() < 3) {
+      throw new IllegalStateException("Debe haber al menos 3 clientes registrados primero");
+    }
+    Collections.shuffle(allCustomers, random);
+    int limit = Math.min(5, allCustomers.size());
+    return new ArrayList<>(allCustomers.subList(0, limit));
+  }
+
+  private List<PricedProduct> selectSeedProducts(ThreadLocalRandom random) {
+    List<Product> allProducts = products.findAll();
+    List<PricedProduct> pricedProducts = new ArrayList<>();
+    for (Product product : allProducts) {
+      pricingService.latestPrice(product.getId()).ifPresent(price -> pricedProducts.add(new PricedProduct(product, price)));
+    }
+    if (pricedProducts.size() < 3) {
+      throw new IllegalStateException("Debe haber al menos 3 productos con precio para generar ventas de prueba");
+    }
+    Collections.shuffle(pricedProducts, random);
+    int limit = Math.min(10, pricedProducts.size());
+    return new ArrayList<>(pricedProducts.subList(0, limit));
+  }
+
+  private List<SeedLine> buildSeedLines(List<PricedProduct> products,
+                                        int itemsPerSale,
+                                        ThreadLocalRandom random) {
+    List<PricedProduct> pool = new ArrayList<>(products);
+    Collections.shuffle(pool, random);
+    List<SeedLine> lines = new ArrayList<>();
+    for (int i = 0; i < itemsPerSale; i++) {
+      PricedProduct selected = pool.get(i % pool.size());
+      int quantity = 1 + random.nextInt(5);
+      BigDecimal quantityValue = BigDecimal.valueOf(quantity).setScale(3, RoundingMode.HALF_UP);
+      double variance = random.nextDouble(0.9, 1.15);
+      BigDecimal unitPrice = selected.price()
+        .multiply(BigDecimal.valueOf(variance))
+        .setScale(4, RoundingMode.HALF_UP);
+      lines.add(new SeedLine(selected.product().getId(), quantityValue, unitPrice));
+    }
+    return lines;
+  }
+
+  private SaleDocumentType pickRandomDocType(ThreadLocalRandom random) {
+    return KPI_DOC_TYPES[random.nextInt(KPI_DOC_TYPES.length)];
+  }
+
+  private SalePaymentMethod pickRandomPaymentMethod(ThreadLocalRandom random) {
+    return KPI_PAYMENT_METHODS[random.nextInt(KPI_PAYMENT_METHODS.length)];
+  }
+
+  private PaymentTerm pickRandomPaymentTerm(ThreadLocalRandom random) {
+    PaymentTerm[] terms = PaymentTerm.values();
+    return terms[random.nextInt(terms.length)];
+  }
+
+  private OffsetDateTime randomIssuedAt(LocalDate saleDate, ThreadLocalRandom random) {
+    int hour = random.nextInt(8, 21);
+    int minute = random.nextInt(0, 60);
+    return saleDate.atTime(hour, minute)
+      .atZone(ZoneId.systemDefault())
+      .toOffsetDateTime();
+  }
+
+  private void ensureDevProfile() {
+    if (!isDevProfileActive()) {
+      throw new IllegalStateException("Solo disponible en perfil dev");
+    }
+  }
+
+  private boolean isDevProfileActive() {
+    return Arrays.stream(environment.getActiveProfiles()).anyMatch(this::isDevProfile)
+      || Arrays.stream(environment.getDefaultProfiles()).anyMatch(this::isDevProfile);
+  }
+
+  private boolean isDevProfile(String profile) {
+    return profile != null && profile.equalsIgnoreCase("dev");
+  }
+
+  private record PricedProduct(Product product, BigDecimal price) {}
+  private record SeedLine(UUID productId, BigDecimal quantity, BigDecimal unitPrice) {}
   
   /**
    * Calcula KPIs avanzados de ventas para un período específico
@@ -365,6 +528,9 @@ public class SalesService {
    * @return SalesKPIs con métricas del período
    */
   public com.datakomerz.pymes.sales.dto.SalesKPIs getSalesKPIs(LocalDate startDate, LocalDate endDate) {
+    UUID companyId = companyContext.require();
+    log.info("Calculando KPIs para período: {} a {} (tenant={})", startDate, endDate, companyId);
+
     // Obtener todas las ventas del período
     List<Sale> periodSales = sales.findAll().stream()
         .filter(s -> s.getIssuedAt() != null)
@@ -373,17 +539,26 @@ public class SalesService {
           return !saleDate.isBefore(startDate) && !saleDate.isAfter(endDate);
         })
         .collect(Collectors.toList());
-    
+
     // Filtrar ventas emitidas
     List<Sale> emittedSales = periodSales.stream()
         .filter(s -> "emitida".equalsIgnoreCase(s.getStatus()))
         .collect(Collectors.toList());
-    
+
+    log.info("Ventas encontradas en período: {} (emitidas: {})", periodSales.size(), emittedSales.size());
+
+    if (emittedSales.isEmpty()) {
+      log.warn("⚠️ No hay ventas en el período especificado");
+      return com.datakomerz.pymes.sales.dto.SalesKPIs.empty(startDate, endDate);
+    }
+
     // Total Revenue
     BigDecimal totalRevenue = emittedSales.stream()
         .map(Sale::getTotal)
         .filter(Objects::nonNull)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    log.info("Total revenue calculado: {}", totalRevenue);
     
     // Total Cost (aproximado: 60% del revenue como estimación)
     BigDecimal totalCost = totalRevenue.multiply(new BigDecimal("0.60"));
@@ -513,7 +688,7 @@ public class SalesService {
           .multiply(new BigDecimal("100"));
     }
     
-    return new com.datakomerz.pymes.sales.dto.SalesKPIs(
+    com.datakomerz.pymes.sales.dto.SalesKPIs kpis = new com.datakomerz.pymes.sales.dto.SalesKPIs(
         totalRevenue.setScale(2, RoundingMode.HALF_UP),
         totalCost.setScale(2, RoundingMode.HALF_UP),
         grossProfit.setScale(2, RoundingMode.HALF_UP),
@@ -531,6 +706,9 @@ public class SalesService {
         startDate,
         endDate
     );
+    log.info("✅ KPIs calculados: revenue={}, orders={}, customers={}",
+        kpis.getTotalRevenue(), kpis.getTotalOrders(), kpis.getUniqueCustomers());
+    return kpis;
   }
 
   /**

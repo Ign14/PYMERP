@@ -1,5 +1,7 @@
 package com.datakomerz.pymes.customers;
 
+import com.datakomerz.pymes.common.FieldValidationException;
+import com.datakomerz.pymes.common.ValueNormalizer;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.customers.dto.CustomerRequest;
 import com.datakomerz.pymes.customers.dto.CustomerSaleHistoryItem;
@@ -20,8 +22,8 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 @Service
 @Transactional
@@ -30,11 +32,16 @@ public class CustomerService {
   private final CustomerRepository repository;
   private final CompanyContext companyContext;
   private final SaleRepository saleRepository;
+  private final ValueNormalizer valueNormalizer;
 
-  public CustomerService(CustomerRepository repository, CompanyContext companyContext, SaleRepository saleRepository) {
+  public CustomerService(CustomerRepository repository,
+                         CompanyContext companyContext,
+                         SaleRepository saleRepository,
+                         ValueNormalizer valueNormalizer) {
     this.repository = repository;
     this.companyContext = companyContext;
     this.saleRepository = saleRepository;
+    this.valueNormalizer = valueNormalizer;
   }
 
   public static final String UNASSIGNED_SEGMENT_CODE = "__UNASSIGNED__";
@@ -51,19 +58,33 @@ public class CustomerService {
     return repository.searchCustomers(null, null, Boolean.TRUE, pageable);
   }
 
+  @PreAuthorize("hasRole('ADMIN')")
+  @Transactional(Transactional.TxType.SUPPORTS)
+  public Page<Customer> findAllIncludingInactive(Pageable pageable) {
+    return searchIncludingInactive(null, null, pageable);
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
+  @Transactional(Transactional.TxType.SUPPORTS)
+  public Page<Customer> searchIncludingInactive(String query, String segment, Pageable pageable) {
+    UUID companyId = companyContext.require();
+    String normalizedSearch = normalizeSearch(query);
+    String normalizedSegment = normalizeSegment(segment);
+    return repository.searchCustomersIncludingInactive(
+      normalizedSearch,
+      normalizedSegment,
+      companyId,
+      pageable
+    );
+  }
+
   @Transactional(Transactional.TxType.SUPPORTS)
   public Page<Customer> search(String query, String segment, Boolean active, Pageable pageable) {
     companyContext.require();
-    String search = query == null ? "" : query.trim();
-    String normalizedSegment = segment == null ? null : segment.trim();
-    
-    // Handle special unassigned segment code
-    if (UNASSIGNED_SEGMENT_CODE.equalsIgnoreCase(normalizedSegment)) {
-      normalizedSegment = null; // Will match segment IS NULL in query
-    }
-    
+    String normalizedSearch = normalizeSearch(query);
+    String normalizedSegment = normalizeSegment(segment);
     return repository.searchCustomers(
-      search.isEmpty() ? null : search,
+      normalizedSearch,
       normalizedSegment,
       active,
       pageable
@@ -72,9 +93,13 @@ public class CustomerService {
 
   @CacheEvict(value = "customers", allEntries = true)
   public Customer create(CustomerRequest request) {
+    UUID companyId = companyContext.require();
+    String normalizedEmail = valueNormalizer.normalizeEmail(request.email());
+    ensureUniqueEmail(companyId, normalizedEmail, null);
+
     Customer entity = new Customer();
-    entity.setCompanyId(companyContext.require());
-    apply(entity, request);
+    entity.setCompanyId(companyId);
+    apply(entity, request, normalizedEmail);
     return repository.save(entity);
   }
 
@@ -84,7 +109,9 @@ public class CustomerService {
     companyContext.require();
     Customer entity = repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + id));
-    apply(entity, request);
+    String normalizedEmail = valueNormalizer.normalizeEmail(request.email());
+    ensureUniqueEmail(entity.getCompanyId(), normalizedEmail, entity.getId());
+    apply(entity, request, normalizedEmail);
     return repository.save(entity);
   }
 
@@ -97,9 +124,7 @@ public class CustomerService {
     companyContext.require();
     Customer entity = repository.findById(id)
       .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + id));
-    // Soft delete: marcar como inactivo
-    entity.setActive(false);
-    repository.save(entity);
+    repository.delete(entity);
   }
 
   @ValidateTenant(entityClass = Customer.class, entityParamIndex = 0)
@@ -123,24 +148,28 @@ public class CustomerService {
       .toList();
   }
 
-  private void apply(Customer entity, CustomerRequest request) {
-    entity.setName(request.name().trim());
-    entity.setRut(normalize(request.rut()));
-    entity.setAddress(normalize(request.address()));
+  private void apply(Customer entity, CustomerRequest request, String normalizedEmail) {
+    entity.setName(valueNormalizer.normalize(request.name()));
+    entity.setRut(normalizeRut(request.rut()));
+    entity.setAddress(valueNormalizer.normalize(request.address()));
     entity.setLat(request.lat());
     entity.setLng(request.lng());
-    entity.setPhone(normalize(request.phone()));
-    entity.setEmail(normalize(request.email()));
-    entity.setSegment(normalize(request.segment()));
-    entity.setContactPerson(normalize(request.contactPerson()));
-    entity.setNotes(normalize(request.notes()));
+    entity.setPhone(valueNormalizer.normalize(request.phone()));
+    entity.setEmail(normalizedEmail);
+    entity.setSegment(valueNormalizer.normalize(request.segment()));
+    entity.setContactPerson(valueNormalizer.normalize(request.contactPerson()));
+    entity.setNotes(valueNormalizer.normalize(request.notes()));
     if (request.active() != null) {
       entity.setActive(request.active());
     }
   }
 
-  private String normalize(String value) {
-    return StringUtils.hasText(value) ? value.trim() : null;
+  private String normalizeSearch(String query) {
+    return valueNormalizer.normalizeSearch(query);
+  }
+
+  private String normalizeSegment(String segment) {
+    return valueNormalizer.normalizeSegment(segment, UNASSIGNED_SEGMENT_CODE);
   }
 
   @Transactional(Transactional.TxType.SUPPORTS)
@@ -196,20 +225,40 @@ public class CustomerService {
    */
   @Transactional(Transactional.TxType.SUPPORTS)
   public List<Customer> exportToCSV(String query, String segment, Boolean active) {
-    String search = query == null ? "" : query.trim();
-    String normalizedSegment = segment == null ? null : segment.trim();
-    
-    // Handle special unassigned segment code
-    if (UNASSIGNED_SEGMENT_CODE.equalsIgnoreCase(normalizedSegment)) {
-      normalizedSegment = null;
-    }
-    
+    companyContext.require();
+    String normalizedSearch = normalizeSearch(query);
+    String normalizedSegment = normalizeSegment(segment);
+
     // Get all customers without pagination
     return repository.searchCustomers(
-      search.isEmpty() ? null : search,
+      normalizedSearch,
       normalizedSegment,
       active,
       Pageable.unpaged()
     ).getContent();
+  }
+
+  private void ensureUniqueEmail(UUID companyId, String normalizedEmail, UUID excludeId) {
+    if (normalizedEmail == null || companyId == null) {
+      return;
+    }
+    boolean taken = repository.existsByCompanyIdAndEmailIgnoreCase(companyId, normalizedEmail, excludeId);
+    if (taken) {
+      throw new FieldValidationException("email", "Ya existe un cliente con este email");
+    }
+  }
+
+  private String normalizeRut(String value) {
+    String normalized = valueNormalizer.normalize(value);
+    if (normalized == null) {
+      return null;
+    }
+    String cleaned = normalized.replace(".", "").replace("-", "").toUpperCase();
+    if (cleaned.length() <= 1) {
+      return cleaned;
+    }
+    String body = cleaned.substring(0, cleaned.length() - 1);
+    String dv = cleaned.substring(cleaned.length() - 1);
+    return body + "-" + dv;
   }
 }

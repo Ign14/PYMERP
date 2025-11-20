@@ -28,7 +28,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,9 +67,14 @@ public class CustomerController {
   public PagedResponse<CustomerResponse> list(@RequestParam(name = "q", defaultValue = "") String q,
                                               @RequestParam(name = "segment", required = false) String segment,
                                               @RequestParam(name = "active", required = false) Boolean active,
+                                              @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive,
                                               @RequestParam(defaultValue = "0") int page,
                                               @RequestParam(defaultValue = "20") int size) {
-    return listCustomersUseCase.handle(q, segment, active, page, size);
+    boolean wantsInactive = includeInactive || Boolean.FALSE.equals(active);
+    if (wantsInactive && !currentUserIsAdmin()) {
+      throw new AccessDeniedException("Only ADMIN users can include inactive customers");
+    }
+    return listCustomersUseCase.handle(q, segment, active, includeInactive, page, size);
   }
 
   @GetMapping("/segments")
@@ -263,5 +270,14 @@ public class CustomerController {
       return "\"" + value.replace("\"", "\"\"") + "\"";
     }
     return value;
+  }
+
+  private boolean currentUserIsAdmin() {
+    var authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null) {
+      return false;
+    }
+    return authentication.getAuthorities().stream()
+      .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
   }
 }

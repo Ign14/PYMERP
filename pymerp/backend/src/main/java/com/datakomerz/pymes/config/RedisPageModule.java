@@ -23,11 +23,11 @@ public class RedisPageModule extends SimpleModule {
     addDeserializer(PageImpl.class, new PageImplDeserializer());
   }
 
-  private static class PageImplDeserializer extends JsonDeserializer<PageImpl> {
+  private static class PageImplDeserializer extends JsonDeserializer<PageImpl<?>> {
     private static final TypeReference<List<Object>> CONTENT_TYPE = new TypeReference<>() {};
 
     @Override
-    public PageImpl deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+    public PageImpl<?> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
       JsonNode node = p.getCodec().readTree(p);
       JsonNode contentNode = node.get("content");
       List<?> content = p.getCodec().readValue(contentNode.traverse(p.getCodec()), CONTENT_TYPE);

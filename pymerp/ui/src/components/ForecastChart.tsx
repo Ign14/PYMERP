@@ -33,9 +33,11 @@ export default function ForecastChart() {
   }
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     return (
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
-        <p className="text-red-400">Error al cargar pronósticos: {String(error)}</p>
+        <p className="text-red-400 font-semibold mb-2">⚠️ Error al calcular el pronóstico</p>
+        <p className="text-neutral-400 text-sm">{errorMessage}</p>
       </div>
     )
   }

@@ -9,9 +9,13 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "customers")
+@SQLDelete(sql = "UPDATE customers SET active=false WHERE id=?")
+@SQLRestriction("active=true")
 @TenantFiltered
 public class Customer extends AuditableEntity {
 

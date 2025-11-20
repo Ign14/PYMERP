@@ -1,0 +1,127 @@
+> Task :clean
+
+> Task :compileJava
+warning: unknown enum constant When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+warning: unknown enum constant When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+warning: unknown enum constant When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+3 warnings
+
+> Task :processResources
+> Task :classes
+> Task :resolveMainClassName
+> Task :bootJar
+> Task :jar
+> Task :assemble
+
+> Task :compileTestJava
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:41: error: cannot find symbol
+import org.springframework.boot.test.context.ActiveProfiles;
+                                            ^
+  symbol:   class ActiveProfiles
+  location: package org.springframework.boot.test.context
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:42: error: cannot find symbol
+import org.springframework.boot.test.context.DynamicPropertyRegistry;
+                                            ^
+  symbol:   class DynamicPropertyRegistry
+  location: package org.springframework.boot.test.context
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:43: error: cannot find symbol
+import org.springframework.boot.test.context.DynamicPropertySource;
+                                            ^
+  symbol:   class DynamicPropertySource
+  location: package org.springframework.boot.test.context
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:44: error: cannot find symbol
+import org.springframework.boot.test.context.LocalServerPort;
+                                            ^
+  symbol:   class LocalServerPort
+  location: package org.springframework.boot.test.context
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\integration\AbstractIT.java:6: error: cannot find symbol
+import org.testcontainers.containers.RedisContainer;
+                                    ^
+  symbol:   class RedisContainer
+  location: package org.testcontainers.containers
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:52: error: cannot find symbol
+@ActiveProfiles("test")
+ ^
+  symbol: class ActiveProfiles
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:59: error: cannot find symbol
+  static void overrideProperties(DynamicPropertyRegistry registry) {
+                                 ^
+  symbol:   class DynamicPropertyRegistry
+  location: class BillingIdempotencyIT
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\integration\AbstractIT.java:20: error: cannot find symbol
+  protected static final RedisContainer REDIS = new RedisContainer("redis:8.2-alpine");
+                         ^
+  symbol:   class RedisContainer
+  location: class AbstractIT
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\service\BillingServiceTest.java:350: error: cannot find symbol
+    public Optional<IdempotencyEntry> findEntry(UUID tenantId, String idempotencyKey) {
+           ^
+  symbol:   class Optional
+  location: class InMemoryBillingIdempotencyStore
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\service\BillingServiceTest.java:361: error: cannot find symbol
+    public Optional<IdempotencyEntry> awaitCompletion(UUID tenantId, String idempotencyKey) {
+           ^
+  symbol:   class Optional
+  location: class InMemoryBillingIdempotencyStore
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:58: error: cannot find symbol
+  @DynamicPropertySource
+   ^
+  symbol:   class DynamicPropertySource
+  location: class BillingIdempotencyIT
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:64: error: cannot find symbol
+  @LocalServerPort
+   ^
+  symbol:   class LocalServerPort
+  location: class BillingIdempotencyIT
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\service\BillingServiceTest.java:113: error: cannot find symbol
+  @AfterEach
+   ^
+  symbol:   class AfterEach
+  location: class BillingServiceTest
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\api\BillingControllerTest.java:146: error: method issueInvoice in class BillingService cannot be applied to given types;
+    verify(billingService, never()).issueInvoice(anyBoolean(), any(), any(), any());
+                                   ^
+  required: boolean,String,InvoicePayload,String,String
+  found:    boolean,Object,Object,Object
+  reason: actual and formal argument lists differ in length
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\integration\AbstractIT.java:20: error: cannot find symbol
+  protected static final RedisContainer REDIS = new RedisContainer("redis:8.2-alpine");
+                                                    ^
+  symbol:   class RedisContainer
+  location: class AbstractIT
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\integration\BillingIdempotencyIT.java:95: error: reference to execute is ambiguous
+    redisTemplate.execute(connection -> {
+                 ^
+  both method <T#1>execute(RedisCallback<T#1>) in RedisTemplate and method <T#2>execute(SessionCallback<T#2>) in RedisTemplate match
+  where T#1,T#2 are type-variables:
+    T#1 extends Object declared in method <T#1>execute(RedisCallback<T#1>)
+    T#2 extends Object declared in method <T#2>execute(SessionCallback<T#2>)
+C:\Users\ignac\Documents\Centro de modelacion xd\PYMERP\pymerp\backend\src\test\java\com\datakomerz\pymes\billing\service\BillingServiceTest.java:351: error: cannot find symbol
+      return Optional.ofNullable(entries.get(key(tenantId, idempotencyKey)));
+             ^
+  symbol:   variable Optional
+  location: class InMemoryBillingIdempotencyStore
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+17 errors
+
+> Task :compileTestJava FAILED
+> Task :checkstyleMain
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileTestJava'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+
+BUILD FAILED in 38s
+8 actionable tasks: 8 executed

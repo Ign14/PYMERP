@@ -63,7 +63,7 @@ public class AuthResponseFactory {
       }
       String normalized = role.trim().toUpperCase(Locale.ROOT);
       switch (normalized) {
-        case "ROLE_ADMIN" -> modules.addAll(ALL_MODULES);
+        case "ROLE_ADMIN", "ROLE_DEVELOPER" -> modules.addAll(ALL_MODULES);
         case "ROLE_SALES", "ROLE_SELLER" -> modules.addAll(List.of("dashboard", "sales", "customers", "reports"));
         case "ROLE_PURCHASES", "ROLE_BUYER" -> modules.addAll(List.of("dashboard", "purchases", "suppliers", "inventory", "reports"));
         case "ROLE_INVENTORY" -> modules.addAll(List.of("dashboard", "inventory", "suppliers", "reports"));

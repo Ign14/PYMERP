@@ -7,7 +7,7 @@ import com.datakomerz.pymes.auth.TenantMismatchException;
 import com.datakomerz.pymes.auth.UserDisabledException;
 import com.datakomerz.pymes.auth.dto.AuthResponse;
 import com.datakomerz.pymes.auth.dto.RefreshRequest;
-import com.datakomerz.pymes.config.AppProperties;
+import com.datakomerz.pymes.config.SecurityProperties;
 import com.datakomerz.pymes.core.tenancy.CompanyContext;
 import com.datakomerz.pymes.security.AppUserDetails;
 import com.datakomerz.pymes.security.jwt.JwtService;
@@ -33,18 +33,18 @@ public class RefreshTokenUseCase {
 
   private final RefreshTokenService refreshTokenService;
   private final JwtService jwtService;
-  private final AppProperties appProperties;
+  private final SecurityProperties securityProperties;
   private final CompanyContext companyContext;
   private final AuthResponseFactory authResponseFactory;
 
   public RefreshTokenUseCase(RefreshTokenService refreshTokenService,
                              JwtService jwtService,
-                             AppProperties appProperties,
+                             SecurityProperties securityProperties,
                              CompanyContext companyContext,
                              AuthResponseFactory authResponseFactory) {
     this.refreshTokenService = refreshTokenService;
     this.jwtService = jwtService;
-    this.appProperties = appProperties;
+    this.securityProperties = securityProperties;
     this.companyContext = companyContext;
     this.authResponseFactory = authResponseFactory;
   }
@@ -68,8 +68,8 @@ public class RefreshTokenUseCase {
     validateTenant(userDetails, span);
 
     String token = jwtService.generateToken(userDetails);
-    long expiresIn = appProperties.getSecurity().getJwt().getExpirationSeconds();
-    long refreshExpiresIn = appProperties.getSecurity().getJwt().getRefreshExpirationSeconds();
+    long expiresIn = securityProperties.getJwt().getExpirationSeconds();
+    long refreshExpiresIn = securityProperties.getJwt().getRefreshExpirationSeconds();
 
     AuthResponse response = authResponseFactory.build(
       userDetails,

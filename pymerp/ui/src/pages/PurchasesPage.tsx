@@ -38,6 +38,7 @@ import PurchasesCategoryAnalysis from '../components/purchases/PurchasesCategory
 import PurchasesPaymentMethodAnalysis from '../components/purchases/PurchasesPaymentMethodAnalysis'
 import PurchasesPerformanceMetrics from '../components/purchases/PurchasesPerformanceMetrics'
 import PurchasesExportDialog from '../components/purchases/PurchasesExportDialog'
+import ServiceList from '../components/services/ServiceList'
 import {
   ColumnDef,
   flexRender,
@@ -103,6 +104,9 @@ function triggerBrowserDownload(file: DocumentFile, filename: string) {
 
 export default function PurchasesPage() {
   const queryClient = useQueryClient()
+  const refreshInventoryStockCache = () => {
+    queryClient.invalidateQueries({ queryKey: ['inventory', 'stockByProduct'], exact: false })
+  }
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
@@ -465,6 +469,10 @@ export default function PurchasesPage() {
         statusFilter={statusFilter}
       />
 
+      <section className="responsive-grid" style={{ marginBottom: '2rem' }}>
+        <ServiceList />
+      </section>
+
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
         <div className="filter-bar">
           <input
@@ -701,13 +709,19 @@ export default function PurchasesPage() {
       <PurchaseCreateDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onCreated={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ['purchases'] })
+          refreshInventoryStockCache()
+        }}
       />
 
       <PurchaseImportDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}
-        onImported={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ['purchases'] })
+          refreshInventoryStockCache()
+        }}
       />
 
       <PurchasesExportDialog

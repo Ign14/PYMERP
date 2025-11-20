@@ -1,24 +1,28 @@
 package com.datakomerz.pymes.locations;
 
+import com.datakomerz.pymes.audit.AuditableEntity;
 import com.datakomerz.pymes.multitenancy.TenantFiltered;
-import com.datakomerz.pymes.multitenancy.TenantAwareEntity;
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
-import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.UUID;
 
 @Entity
-@Table(name = "locations", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"company_id", "code"})
-})
+@Table(
+    name = "locations",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "code"})
+)
 @TenantFiltered
-public class Location extends TenantAwareEntity {
+public class Location extends AuditableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @Column(columnDefinition = "uuid")
     private UUID id;
 
     @Column(nullable = false, length = 50)
@@ -27,37 +31,39 @@ public class Location extends TenantAwareEntity {
     @Column(nullable = false, length = 255)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private LocationType type;
+
+    @Column(name = "business_name", length = 255)
+    private String businessName;
+
+    @Column(length = 20)
+    private String rut;
+
     @Column(length = 500)
     private String description;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private LocationType type;
+    private LocationStatus status;
 
-    @Column(name = "parent_location_id")
-    private UUID parentLocationId;
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null) {
+            this.id = UUID.randomUUID();
+        }
+        if (this.status == null) {
+            this.status = LocationStatus.ACTIVE;
+        }
+    }
 
-    @Column(nullable = false)
-    private Boolean active = true;
-
-    @Column(name = "is_blocked", nullable = false)
-    private Boolean isBlocked = false;
-
-    @Column(precision = 14, scale = 3)
-    private BigDecimal capacity;
-
-    @Column(name = "capacity_unit", length = 20)
-    private String capacityUnit = "UNITS";
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
-
-    // Getters and Setters
+    @PreUpdate
+    protected void onUpdate() {
+        if (this.status == null) {
+            this.status = LocationStatus.ACTIVE;
+        }
+    }
 
     public UUID getId() {
         return id;
@@ -83,14 +89,6 @@ public class Location extends TenantAwareEntity {
         this.name = name;
     }
 
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
     public LocationType getType() {
         return type;
     }
@@ -99,59 +97,35 @@ public class Location extends TenantAwareEntity {
         this.type = type;
     }
 
-    public UUID getParentLocationId() {
-        return parentLocationId;
+    public String getBusinessName() {
+        return businessName;
     }
 
-    public void setParentLocationId(UUID parentLocationId) {
-        this.parentLocationId = parentLocationId;
+    public void setBusinessName(String businessName) {
+        this.businessName = businessName;
     }
 
-    public Boolean getActive() {
-        return active;
+    public String getRut() {
+        return rut;
     }
 
-    public void setActive(Boolean active) {
-        this.active = active;
+    public void setRut(String rut) {
+        this.rut = rut;
     }
 
-    public Boolean getIsBlocked() {
-        return isBlocked;
+    public String getDescription() {
+        return description;
     }
 
-    public void setIsBlocked(Boolean isBlocked) {
-        this.isBlocked = isBlocked;
+    public void setDescription(String description) {
+        this.description = description;
     }
 
-    public BigDecimal getCapacity() {
-        return capacity;
+    public LocationStatus getStatus() {
+        return status;
     }
 
-    public void setCapacity(BigDecimal capacity) {
-        this.capacity = capacity;
-    }
-
-    public String getCapacityUnit() {
-        return capacityUnit;
-    }
-
-    public void setCapacityUnit(String capacityUnit) {
-        this.capacityUnit = capacityUnit;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(OffsetDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public OffsetDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(OffsetDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setStatus(LocationStatus status) {
+        this.status = status;
     }
 }

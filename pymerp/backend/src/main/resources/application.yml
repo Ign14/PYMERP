@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
 
 spring:
   datasource:
@@ -33,12 +33,31 @@ spring:
           auth: ${MAIL_SMTP_AUTH:false}
           '[starttls.enable]': ${MAIL_SMTP_STARTTLS_ENABLE:false}
     default-encoding: UTF-8
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8082/realms/pymerp}
+      client:
+        registration:
+          keycloak:
+            client-id: ${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_ID:pymerp-frontend}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+              - email
+        provider:
+          keycloak:
+            issuer-uri: ${SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI:${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8082/realms/pymerp}}
 
 billing:
   crypto:
-    secret: ${BILLING_CRYPTO_SECRET:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
+    secret: ${BILLING_CRYPTO_SECRET:?BILLING_CRYPTO_SECRET is required}
   webhook:
-    secret: ${BILLING_WEBHOOK_SECRET:change-me}
+    # Billing webhook secret must be >=24 characters and not a placeholder.
+    secret: ${BILLING_WEBHOOK_SECRET:?BILLING_WEBHOOK_SECRET is required}
     tolerance: PT5M
   offline:
     enabled: true
@@ -47,12 +66,16 @@ billing:
       maxAttempts: 5
       backoffMs: 60000
   pdf:
-    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8080/api/v1}
+    documents-base-url: ${BILLING_DOCUMENTS_BASE_URL:http://localhost:8081/api/v1}
     branding:
       primary-color: "#1f2937"
       accent-color: "#2563eb"
       text-color: "#111827"
       table-header-color: "#e5e7eb"
+  idempotency:
+    ttl: PT6H
+    wait-timeout: PT5S
+    wait-poll-interval: PT0.25S
 
 management:
   endpoints:
@@ -77,22 +100,26 @@ app:
       - http://0.0.0.0:*
       - http://172.29.0.1:*
   security:
+    secrets-validation:
+      enabled: true
     jwt:
-      secret: ${JWT_SECRET:ZGV2LWp3dC1zZWNyZXQta2V5LWZvci1sb2NhbC1kZXZlbG9wbWVudC12YWxpZC1rZXktMTIzNDU2Nzg5MA==}
+      # JWT secret must be at least 32 characters long.
+      secret: ${JWT_SECRET:?JWT_SECRET is required}
       expiration-seconds: 86400
       refresh-expiration-seconds: 2592000
     captcha:
-      enabled: true
+      enabled: ${CAPTCHA_ENABLED:true}
       min-operand: 2
       max-operand: 10
 
 storage:
   s3:
-    bucket: ${STORAGE_S3_BUCKET:change-me-bucket}
-    access-key: ${STORAGE_S3_ACCESS_KEY:CHANGEMEACCESS}
-    secret-key: ${STORAGE_S3_SECRET_KEY:CHANGEMESECRET}
+    bucket: ${STORAGE_S3_BUCKET:?STORAGE_S3_BUCKET is required}
+    access-key: ${STORAGE_S3_ACCESS_KEY:?STORAGE_S3_ACCESS_KEY is required}
+    secret-key: ${STORAGE_S3_SECRET_KEY:?STORAGE_S3_SECRET_KEY is required}
     region: ${STORAGE_S3_REGION:us-east-1}
 
 webhooks:
   hmac:
-    secret: ${WEBHOOKS_HMAC_SECRET:CHANGE_ME_HMAC_SECRET}
+    # HMAC key should be >=32 characters and unique per environment.
+    secret: ${WEBHOOKS_HMAC_SECRET:?WEBHOOKS_HMAC_SECRET is required}

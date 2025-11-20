@@ -27,10 +27,12 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -150,6 +152,22 @@ public class SalesController {
     LocalDate endDate = to != null ? to : LocalDate.now();
 
     return salesService.getSalesKPIs(startDate, endDate);
+  }
+
+  @PostMapping("/seed-data")
+  @PreAuthorize("hasAnyAuthority('ADMIN', 'DEVELOPER')")
+  public ResponseEntity<Map<String, Object>> seedSalesData() {
+    int created = salesService.seedSalesData();
+
+    LocalDate today = LocalDate.now();
+    LocalDate startDate = today.minusDays(30);
+    com.datakomerz.pymes.sales.dto.SalesKPIs kpis = salesService.getSalesKPIs(startDate, today);
+
+    return ResponseEntity.ok(Map.of(
+        "message", "Datos de ventas creados exitosamente",
+        "salesCreated", created,
+        "kpis", kpis
+    ));
   }
 
   @GetMapping("/abc-analysis")

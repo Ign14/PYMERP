@@ -1,6 +1,6 @@
 package com.datakomerz.pymes.auth;
 
-import com.datakomerz.pymes.config.AppProperties;
+import com.datakomerz.pymes.config.SecurityProperties;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import java.security.SecureRandom;
@@ -24,16 +24,16 @@ public class RefreshTokenService {
   private final RefreshTokenRepository refreshTokenRepository;
   private final UserAccountRepository userAccountRepository;
   private final PasswordEncoder passwordEncoder;
-  private final AppProperties appProperties;
+  private final SecurityProperties securityProperties;
 
   public RefreshTokenService(RefreshTokenRepository refreshTokenRepository,
                              UserAccountRepository userAccountRepository,
                              PasswordEncoder passwordEncoder,
-                             AppProperties appProperties) {
+                             SecurityProperties securityProperties) {
     this.refreshTokenRepository = refreshTokenRepository;
     this.userAccountRepository = userAccountRepository;
     this.passwordEncoder = passwordEncoder;
-    this.appProperties = appProperties;
+    this.securityProperties = securityProperties;
   }
 
   @Transactional
@@ -109,7 +109,7 @@ public class RefreshTokenService {
     RefreshToken refresh = new RefreshToken();
     refresh.setUserId(user.getId());
     refresh.setTokenHash(passwordEncoder.encode(rawToken));
-    refresh.setExpiresAt(OffsetDateTime.now().plusSeconds(appProperties.getSecurity().getJwt().getRefreshExpirationSeconds()));
+    refresh.setExpiresAt(OffsetDateTime.now().plusSeconds(securityProperties.getJwt().getRefreshExpirationSeconds()));
     RefreshToken persisted = refreshTokenRepository.save(refresh);
     return new RawRefreshToken(persisted.getId(), rawToken);
   }

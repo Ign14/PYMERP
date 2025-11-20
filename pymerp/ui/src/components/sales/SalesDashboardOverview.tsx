@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import DailyAvgCard from './DailyAvgCard'
 import Total14DaysCard from './Total14DaysCard'
 import { createCurrencyFormatter } from '../../utils/currency'
-import { getSalesWindowMetrics, SalesWindowMetrics } from '../../services/client'
+import client, { getSalesWindowMetrics, SalesKPIs, SalesWindowMetrics } from '../../services/client'
 
 type SalesDashboardOverviewProps = {
   startDate: string
@@ -30,12 +30,52 @@ export default function SalesDashboardOverview({
     return diffDays
   }, [startDate, endDate])
 
+  const {
+    data: kpis,
+    isLoading: isKpisLoading,
+    error: kpisError,
+  } = useQuery<SalesKPIs, Error>({
+    queryKey: ['sales-kpis', startDate, endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        from: startDate,
+        to: endDate,
+      })
+
+      console.log('Fetching KPIs:', params.toString())
+
+      const response = await client.get<SalesKPIs>(`/v1/sales/kpis?${params.toString()}`)
+
+      console.log('KPIs received:', response.data)
+
+      return response.data
+    },
+  })
+
+  if (isKpisLoading) {
+    return <div>Cargando KPIs...</div>
+  }
+
+  if (kpisError) {
+    return <div>Error: {kpisError.message}</div>
+  }
+
+  if (!kpis) {
+    return <div>No hay datos disponibles</div>
+  }
+
+  console.log('Rendering KPIs:', {
+    totalRevenue: kpis.totalRevenue,
+    totalOrders: kpis.totalOrders,
+    profitMargin: kpis.profitMargin,
+  })
+
   // Obtener métricas de ventas del período especificado
   const {
     data: salesMetrics,
-    isLoading,
-    error,
-  } = useQuery<SalesWindowMetrics>({
+    isLoading: isMetricsLoading,
+    error: metricsError,
+  } = useQuery<SalesWindowMetrics, Error>({
     queryKey: ['sales-window-metrics', days],
     queryFn: () => getSalesWindowMetrics(`${days}d`),
   })
@@ -54,7 +94,7 @@ export default function SalesDashboardOverview({
 
   const rangeLabel = `Últimos ${days} días`
 
-  if (isLoading) {
+  if (isMetricsLoading) {
     return (
       <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">
@@ -76,7 +116,7 @@ export default function SalesDashboardOverview({
     )
   }
 
-  if (error) {
+  if (metricsError) {
     return (
       <section aria-labelledby="sales-dashboard-overview-heading" className="mb-6">
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-lg p-5">

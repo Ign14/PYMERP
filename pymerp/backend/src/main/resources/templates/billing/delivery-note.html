@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>${documentTitle}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid ${accentColor}; padding-bottom: 12px; margin-bottom: 20px; }
+    .logo img { max-height: 72px; }
+    .document-meta { text-align: right; }
+    .document-title { font-size: 22px; font-weight: bold; color: ${accentColor}; margin-bottom: 6px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; background: #f9fafb; font-size: 13px; }
+    .card strong { display: block; margin-bottom: 4px; text-transform: uppercase; font-size: 11px; color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    thead th { background: ${tableHeaderColor}; color: ${primaryColor}; padding: 8px; text-transform: uppercase; font-size: 12px; }
+    tbody td { border-bottom: 1px solid #e5e7eb; padding: 10px; font-size: 13px; }
+    .footer { margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 12px; font-size: 12px; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">${logoHtml}</div>
+    <div>
+      <strong>${companyName}</strong><br/>
+      RUT: ${companyTaxId}<br/>
+      ${companyAddress}
+    </div>
+    <div class="document-meta">
+      <div class="document-title">${documentTitle}</div>
+      <div><strong>${documentNumberLabel}:</strong> ${documentNumber}</div>
+      <div><strong>Fecha:</strong> ${issuedAt}</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="card">
+      <strong>Cliente</strong>
+      <div>${customerName}</div>
+      <div>RUT: ${customerTaxId}</div>
+      <div>${customerAddress}</div>
+    </div>
+    <div class="card">
+      <strong>Destino</strong>
+      <div>${deliveryAddress}</div>
+    </div>
+    <div class="card">
+      <strong>Transporte</strong>
+      <div>Conductor: ${driverName}</div>
+      <div>Patente: ${vehiclePlate}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Descripción</th>
+      <th>Cantidad</th>
+    </tr>
+    </thead>
+    <tbody>
+    ${deliveryItemsRows}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    ${deliveryNotes}
+  </div>
+</body>
+</html>

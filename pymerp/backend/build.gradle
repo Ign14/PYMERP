@@ -1,11 +1,15 @@
 import org.gradle.api.plugins.quality.Checkstyle
 
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
 plugins {
   id "java"
-  id "org.springframework.boot" version "3.3.3"
+  id "org.springframework.boot" version "3.3.13"
   id "io.spring.dependency-management" version "1.1.6"
   id "checkstyle"
   id "com.diffplug.spotless" version "6.25.0"
+  id "jacoco"
 }
 
 group = "com.datakomerz"
@@ -16,6 +20,10 @@ java {
 }
 
 repositories { mavenCentral() }
+
+jacoco {
+  toolVersion = "0.8.11"
+}
 
 dependencies {
   implementation "org.springframework.boot:spring-boot-starter-web"
@@ -63,9 +71,36 @@ dependencies {
   testImplementation "com.h2database:h2"
   testImplementation "org.testcontainers:testcontainers:1.19.3"
   testImplementation "org.testcontainers:junit-jupiter:1.19.3"
+  testImplementation "org.testcontainers:postgresql:1.19.3"
+  testImplementation "com.redis:testcontainers-redis:2.2.2"
+  testImplementation "io.rest-assured:rest-assured:5.3.1"
 }
 
-tasks.named("test") { useJUnitPlatform() }
+tasks.named("test") {
+  useJUnitPlatform()
+  finalizedBy("jacocoTestReport", "jacocoTestCoverageVerification")
+}
+
+tasks.named("jacocoTestReport", JacocoReport) {
+  dependsOn(tasks.named("test"))
+  reports {
+    xml.required.set(true)
+    html.required.set(true)
+  }
+}
+
+tasks.named("jacocoTestCoverageVerification", JacocoCoverageVerification) {
+  dependsOn(tasks.named("test"))
+  executionData(tasks.named("test"))
+  sourceSets(sourceSets.main)
+  violationRules {
+    rule {
+      limit {
+        minimum = 0.7
+      }
+    }
+  }
+}
 
 checkstyle {
   toolVersion = "10.17.0"
@@ -107,4 +142,7 @@ tasks.named("checkstyleTest").configure {
   include(boundedContextTargets.collect { it.replace("src/main/java/", "") })
 }
 
-tasks.named("check") { dependsOn("spotlessCheck") }
+tasks.named("check") {
+  dependsOn("spotlessCheck")
+  dependsOn("jacocoTestCoverageVerification")
+}

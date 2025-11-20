@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { listProducts } from '../../services/client'
 
 export default function InventoryReplenishmentPanel() {
@@ -7,6 +8,8 @@ export default function InventoryReplenishmentPanel() {
     queryKey: ['products-replenishment'],
     queryFn: () => listProducts({ size: 100, status: 'all' }),
   })
+
+  const navigate = useNavigate()
 
   const products = productsQuery.data?.content ?? []
 
@@ -120,6 +123,16 @@ export default function InventoryReplenishmentPanel() {
                 </div>
                 <button
                   className={`w-full mt-2 px-4 py-2 ${urgencyConfig.bg} ${urgencyConfig.text} border ${urgencyConfig.border} rounded-lg hover:bg-opacity-80 transition`}
+                  onClick={() => {
+                    const suggestedQty = Math.max(Math.ceil(item.suggestedOrder), 1)
+                    const params = new URLSearchParams({
+                      productId: item.id,
+                      currentQty: String(item.stock),
+                      reorderPoint: String(item.reorderPoint),
+                      suggestedQty: String(suggestedQty),
+                    })
+                    navigate(`/app/purchases/new?${params.toString()}`)
+                  }}
                 >
                   Generar Orden de Compra
                 </button>

@@ -36,13 +36,13 @@ describe('CustomerSelect', () => {
     {
       id: 'cus-001',
       name: 'Cafetería Plaza',
-      document: '76.123.456-0',
+      rut: '76.123.456-0',
       email: 'contacto@cafeteriaplaza.cl',
     },
     {
       id: 'cus-002',
       name: 'MiniMarket Central',
-      document: '77.987.654-3',
+      rut: '77.987.654-3',
       email: 'compras@mmcentral.cl',
     },
   ]
@@ -82,7 +82,7 @@ describe('CustomerSelect', () => {
 
     await waitFor(() => expect(listCustomersMock).toHaveBeenCalled())
 
-    await user.click(screen.getByRole('textbox', { name: /cliente/i }))
+    await user.click(screen.getByRole('combobox', { name: /cliente/i }))
 
     const option = await screen.findByRole('option', { name: /MiniMarket Central/i })
     await user.click(option)
@@ -98,7 +98,7 @@ describe('CustomerSelect', () => {
     const { user } = renderComponent()
 
     await waitFor(() => expect(listCustomersMock).toHaveBeenCalled())
-    await user.click(screen.getByRole('textbox', { name: /cliente/i }))
+    await user.click(screen.getByRole('combobox', { name: /cliente/i }))
 
     const emptyState = await screen.findByText(/Sin resultados\. ¿Crear cliente\?/i)
     expect(emptyState).toBeInTheDocument()
@@ -114,7 +114,7 @@ describe('CustomerSelect', () => {
     const { user } = renderComponent()
 
     await waitFor(() => expect(listCustomersMock).toHaveBeenCalled())
-    await user.click(screen.getByRole('textbox', { name: /cliente/i }))
+    await user.click(screen.getByRole('combobox', { name: /cliente/i }))
     await user.click(screen.getByRole('button', { name: /Crear cliente/i }))
 
     const dialog = await screen.findByRole('dialog', { name: /Nuevo cliente/i })
@@ -130,6 +130,7 @@ describe('CustomerSelect', () => {
     await user.click(saveButton)
 
     expect(await within(dialog).findByText(/Ingresa un RUT válido/i)).toBeInTheDocument()
+    expect(await within(dialog).findByText(/El email es obligatorio/i)).toBeInTheDocument()
   })
 
   it('crea un nuevo cliente y lo selecciona automáticamente', async () => {
@@ -138,13 +139,13 @@ describe('CustomerSelect', () => {
     const { user } = renderComponent({ onSelect })
 
     await waitFor(() => expect(listCustomersMock).toHaveBeenCalled())
-    await user.click(screen.getByRole('textbox', { name: /cliente/i }))
+    await user.click(screen.getByRole('combobox', { name: /cliente/i }))
     await user.click(screen.getByRole('button', { name: /Crear cliente/i }))
 
     createCustomerMock.mockResolvedValueOnce({
       id: 'cus-999',
       name: 'Cliente Demo',
-      document: '12345678-5',
+      rut: '12345678-5',
       email: 'cliente@demo.cl',
     })
 
@@ -158,7 +159,7 @@ describe('CustomerSelect', () => {
     await waitFor(() => expect(createCustomerMock).toHaveBeenCalled())
     expect(createCustomerMock.mock.calls[0][0]).toMatchObject({
       name: 'Cliente Demo',
-      document: '12345678-5',
+      rut: '12345678-5',
       email: 'cliente@demo.cl',
     })
 
@@ -169,6 +170,6 @@ describe('CustomerSelect', () => {
     )
 
     expect(await screen.findByText(/Cliente creado/i)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /cliente/i })).toHaveValue('Cliente Demo')
+    expect(screen.getByRole('combobox', { name: /cliente/i })).toHaveValue('Cliente Demo')
   })
 })

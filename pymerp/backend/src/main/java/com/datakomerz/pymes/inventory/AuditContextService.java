@@ -1,6 +1,7 @@
 package com.datakomerz.pymes.inventory;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.MDC;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -50,5 +51,12 @@ public class AuditContextService {
       // En caso de error, retornar null
     }
     return null;
+  }
+
+  /**
+   * Obtiene el traceId generado para el request actual (si está disponible).
+   */
+  public String getTraceId() {
+    return MDC.get("traceId");
   }
 }

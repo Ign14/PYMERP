@@ -24,6 +24,7 @@ import com.datakomerz.pymes.billing.service.BillingDocumentView;
 import com.datakomerz.pymes.billing.service.BillingDocumentView.DocumentFileView;
 import com.datakomerz.pymes.billing.service.BillingDocumentView.DocumentLinks;
 import com.datakomerz.pymes.billing.service.BillingService;
+import com.datakomerz.pymes.billing.service.IdempotencyPayloadHasher;
 import com.datakomerz.pymes.billing.service.InvoicePayloadFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -57,6 +58,9 @@ class BillingControllerTest {
   @Mock
   private InvoicePayloadFactory payloadFactory;
 
+  @Mock
+  private IdempotencyPayloadHasher payloadHasher;
+
   private MockMvc mockMvc;
 
   private ObjectMapper objectMapper;
@@ -81,6 +85,7 @@ class BillingControllerTest {
         objectMapper.createObjectNode());
 
     when(payloadFactory.fromInvoiceRequest(any(IssueInvoiceRequest.class))).thenReturn(payload);
+    when(payloadHasher.hash(any(IssueInvoiceRequest.class))).thenReturn("hash");
 
     BillingDocumentView view = new BillingDocumentView(
         DocumentCategory.FISCAL,
@@ -108,8 +113,8 @@ class BillingControllerTest {
             OffsetDateTime.now(ZoneOffset.UTC)
         )));
 
-    when(billingService.issueInvoice(anyBoolean(), any(), eq(payload), eq("invoice-req-key")))
-        .thenReturn(view);
+    when(billingService.issueInvoice(anyBoolean(), any(), eq(payload), eq("invoice-req-key"), eq("hash")))
+        .thenReturn(new BillingService.InvoiceIssuanceResult(view, true));
 
     Map<String, Object> request = buildInvoiceRequestPayload(saleId);
 
@@ -124,7 +129,7 @@ class BillingControllerTest {
         .andExpect(MockMvcResultMatchers.jsonPath("$.links.officialPdf").doesNotExist())
         .andExpect(MockMvcResultMatchers.jsonPath("$.files[0].storageKey", is("billing/fiscal/local.pdf")));
 
-    verify(billingService).issueInvoice(anyBoolean(), any(), eq(payload), eq("invoice-req-key"));
+    verify(billingService).issueInvoice(anyBoolean(), any(), eq(payload), eq("invoice-req-key"), eq("hash"));
   }
 
   @Test
@@ -138,7 +143,7 @@ class BillingControllerTest {
             .content(objectMapper.writeValueAsString(request)))
         .andExpect(MockMvcResultMatchers.status().isBadRequest());
 
-    verify(billingService, never()).issueInvoice(anyBoolean(), any(), any(), any());
+    verify(billingService, never()).issueInvoice(anyBoolean(), any(), any(), any(), any());
   }
 
   @Test

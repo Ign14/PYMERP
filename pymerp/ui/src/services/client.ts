@@ -1914,7 +1914,7 @@ function fallbackCancelPurchase(id: string): PurchaseSummary {
   return fallbackUpdatePurchase(id, { status: 'cancelled' })
 }
 
-function fallbackCreatePurchase(payload: PurchasePayload): { id: string } {
+function fallbackCreatePurchase(payload: PurchasePayload): PurchaseCreationResponse {
   const id = nextId('pur-demo')
   const summary: PurchaseSummary = {
     id,
@@ -1929,7 +1929,13 @@ function fallbackCreatePurchase(payload: PurchasePayload): { id: string } {
     issuedAt: payload.issuedAt,
   }
   demoState.purchases = [summary, ...demoState.purchases]
-  return { id }
+  return {
+    id,
+    docNumber: payload.docNumber,
+    total: payload.total,
+    itemsCreated: payload.items.length,
+    lotsCreated: payload.items.filter(item => item.productId).length,
+  }
 }
 
 function fallbackListPurchaseDaily(days = 14): PurchaseDailyPoint[] {
@@ -2039,6 +2045,46 @@ api.interceptors.request.use(config => {
   config.headers = headers
   return config
 })
+
+// Response interceptor para mejor manejo de errores
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (axios.isAxiosError(error)) {
+      // Error de red (servidor no responde)
+      if (!error.response) {
+        console.error('Network Error: No se puede conectar con el servidor', error)
+        error.message = 'No se puede conectar con el servidor. Verifica que el backend esté corriendo en http://localhost:8081'
+        return Promise.reject(error)
+      }
+
+      // Error de respuesta HTML en lugar de JSON
+      const contentType = error.response.headers['content-type']
+      if (contentType?.includes('text/html')) {
+        console.error('HTML Response Error: Se recibió HTML en lugar de JSON', {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response.status
+        })
+        error.message = `Error: El servidor retornó HTML en lugar de JSON. URL: ${error.config?.url || 'desconocida'}`
+        return Promise.reject(error)
+      }
+
+      // Errores HTTP estándar
+      if (error.response.status === 404) {
+        console.error('404 Not Found:', error.config?.url)
+        error.message = `Recurso no encontrado: ${error.config?.url || 'desconocida'}`
+      } else if (error.response.status === 500) {
+        error.message = error.response.data?.message || 'Error interno del servidor'
+      } else if (error.response.status === 401) {
+        error.message = 'No autorizado. Por favor inicia sesión nuevamente'
+      } else if (error.response.status === 403) {
+        error.message = 'Acceso denegado. No tienes permisos para esta acción'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
 export type Page<T> = {
   content: T[]
@@ -2507,7 +2553,7 @@ export type AccountRequestPayload = {
   companyName: string
   password: string
   confirmPassword: string
-  captcha: SimpleCaptchaPayload
+  captcha?: SimpleCaptchaPayload
 }
 
 export type AccountRequestResponse = {
@@ -2515,6 +2561,29 @@ export type AccountRequestResponse = {
   status: string
   createdAt: string
   message: string
+}
+
+export type AccountRequestAdmin = {
+  id: string
+  rut: string
+  fullName: string
+  email: string
+  companyName: string
+  address: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  createdAt: string
+  processedAt?: string | null
+  processedBy?: string | null
+  processedByUsername?: string | null
+  rejectionReason?: string | null
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export type AuthConfig = {
+  captchaEnabled: boolean
+  minPasswordLength: number
+  requireEmailVerification: boolean
 }
 
 export type SaleItemPayload = {
@@ -2788,20 +2857,27 @@ export type PurchasePayload = {
   items: PurchaseItemPayload[]
 }
 
-export type LocationType = 'WAREHOUSE' | 'SHELF' | 'BIN'
+export type PurchaseCreationResponse = {
+  id: string
+  docNumber?: string | null
+  total?: number | null
+  itemsCreated: number
+  lotsCreated: number
+}
+
+export type LocationType = 'BODEGA' | 'CONTAINER' | 'LOCAL' | 'CAMION' | 'CAMIONETA'
+export type LocationStatus = 'ACTIVE' | 'BLOCKED'
 
 export type Location = {
   id: string
   companyId: string
   code: string
   name: string
-  description?: string
   type: LocationType
-  parentLocationId?: string
-  active: boolean
-  isBlocked: boolean
-  capacity?: number
-  capacityUnit?: string
+  businessName?: string | null
+  rut?: string | null
+  description?: string | null
+  status: LocationStatus
   createdAt: string
   updatedAt: string
 }
@@ -2809,13 +2885,11 @@ export type Location = {
 export type LocationPayload = {
   code: string
   name: string
-  description?: string
   type: LocationType
-  parentLocationId?: string
-  active?: boolean
-  isBlocked?: boolean
-  capacity?: number
-  capacityUnit?: string
+  businessName?: string
+  rut?: string
+  description?: string
+  status?: LocationStatus
 }
 
 export type PurchaseSummary = {
@@ -3132,7 +3206,7 @@ export async function refreshAuth(payload: RefreshPayload): Promise<LoginRespons
 export async function submitAccountRequest(
   payload: AccountRequestPayload
 ): Promise<AccountRequestResponse> {
-  const body = {
+  const body: Record<string, unknown> = {
     rut: payload.rut,
     fullName: payload.fullName,
     address: payload.address,
@@ -3140,10 +3214,37 @@ export async function submitAccountRequest(
     companyName: payload.companyName,
     password: payload.password,
     confirmPassword: payload.confirmPassword,
-    captcha: payload.captcha,
+  }
+  if (payload.captcha) {
+    body.captcha = payload.captcha
   }
   const { data } = await api.post<AccountRequestResponse>('/v1/requests', body)
   return data
+}
+
+export async function getAuthConfig(): Promise<AuthConfig> {
+  const { data } = await api.get<AuthConfig>('/v1/auth/config')
+  return data
+}
+
+export async function listAccountRequests(params: {
+  status?: 'PENDING'
+  days?: number
+}): Promise<AccountRequestAdmin[]> {
+  const query =
+    params.status === 'PENDING'
+      ? '?status=PENDING'
+      : `?days=${params.days !== undefined ? params.days : 30}`
+  const { data } = await api.get<AccountRequestAdmin[]>(`/v1/admin/account-requests${query}`)
+  return data
+}
+
+export async function approveAccountRequest(id: string): Promise<void> {
+  await api.post(`/v1/admin/account-requests/${id}/approve`)
+}
+
+export async function rejectAccountRequest(id: string, reason: string): Promise<void> {
+  await api.post(`/v1/admin/account-requests/${id}/reject`, { reason })
 }
 
 export function getCurrentRefreshToken() {
@@ -3291,20 +3392,6 @@ export function deleteCompanyWithDetails(id: string): Promise<void> {
     () => Promise.resolve()
   )
 }
-
-export function getCompanyParentLocations(companyId: string): Promise<ParentLocationResponse[]> {
-  return withOfflineFallback(
-    'getCompanyParentLocations',
-    async () => {
-      const { data } = await api.get<ParentLocationResponse[]>(
-        `/v1/companies/${companyId}/parent-locations`
-      )
-      return data
-    },
-    () => []
-  )
-}
-
 export function listUserAccounts(): Promise<UserAccount[]> {
   return withOfflineFallback(
     'listUserAccounts',
@@ -3829,25 +3916,41 @@ export function listCustomerSegments(): Promise<CustomerSegmentSummary[]> {
   )
 }
 
+function normalizeCustomerPayload(payload: CustomerPayload): CustomerPayload {
+  const rawEmail = typeof payload.email === 'string' ? payload.email.trim() : undefined
+  const normalizedEmail = rawEmail && rawEmail.length > 0 ? rawEmail.toLowerCase() : undefined
+
+  if (normalizedEmail === payload.email) {
+    return payload
+  }
+
+  return {
+    ...payload,
+    email: normalizedEmail,
+  }
+}
+
 export function createCustomer(payload: CustomerPayload): Promise<Customer> {
+  const normalizedPayload = normalizeCustomerPayload(payload)
   return withOfflineFallback(
     'createCustomer',
     async () => {
-      const { data } = await api.post<Customer>('/v1/customers', payload)
+      const { data } = await api.post<Customer>('/v1/customers', normalizedPayload)
       return data
     },
-    () => fallbackCreateCustomer(payload)
+    () => fallbackCreateCustomer(normalizedPayload)
   )
 }
 
 export function updateCustomer(id: string, payload: CustomerPayload): Promise<Customer> {
+  const normalizedPayload = normalizeCustomerPayload(payload)
   return withOfflineFallback(
     'updateCustomer',
     async () => {
-      const { data } = await api.put<Customer>(`/v1/customers/${id}`, payload)
+      const { data } = await api.put<Customer>(`/v1/customers/${id}`, normalizedPayload)
       return data
     },
-    () => fallbackUpdateCustomer(id, payload)
+    () => fallbackUpdateCustomer(id, normalizedPayload)
   )
 }
 
@@ -4395,7 +4498,7 @@ export function listPurchaseDaily(days = 14): Promise<PurchaseDailyPoint[]> {
   )
 }
 
-export function createPurchase(payload: PurchasePayload, file?: File): Promise<{ id: string }> {
+export function createPurchase(payload: PurchasePayload, file?: File): Promise<PurchaseCreationResponse> {
   return withOfflineFallback(
     'createPurchase',
     async () => {
@@ -4405,7 +4508,7 @@ export function createPurchase(payload: PurchasePayload, file?: File): Promise<{
         formData.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }))
         formData.append('file', file)
 
-        const { data } = await api.post<{ id: string }>('/v1/purchases', formData, {
+        const { data } = await api.post<PurchaseCreationResponse>('/v1/purchases', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -4413,7 +4516,7 @@ export function createPurchase(payload: PurchasePayload, file?: File): Promise<{
         return data
       } else {
         // Sin archivo, usar JSON normal
-        const { data } = await api.post<{ id: string }>('/v1/purchases', payload)
+        const { data } = await api.post<PurchaseCreationResponse>('/v1/purchases', payload)
         return data
       }
     },
@@ -4449,23 +4552,31 @@ export async function importPurchasesFromCSV(file: File): Promise<PurchaseImport
   return data
 }
 
-export async function listLocations(type?: LocationType): Promise<Location[]> {
+export type ListLocationsParams = {
+  type?: LocationType
+  status?: LocationStatus
+}
+
+export async function listLocations(params?: ListLocationsParams): Promise<Location[]> {
   return withOfflineFallback(
     'listLocations',
     async () => {
-      const params = type ? { type } : {}
-      const { data } = await api.get<Location[]>('/api/locations', { params })
+      const { data } = await api.get<Location[]>('/v1/inventory/locations', { params })
       return data
     },
     () => []
   )
 }
 
+export async function getLocations(params?: ListLocationsParams): Promise<Location[]> {
+  return listLocations(params)
+}
+
 export async function createLocation(payload: LocationPayload): Promise<Location> {
   return withOfflineFallback(
     'createLocation',
     async () => {
-      const { data } = await api.post<Location>('/api/locations', payload)
+      const { data } = await api.post<Location>('/v1/inventory/locations', payload)
       return data
     },
     () => ({
@@ -4473,13 +4584,11 @@ export async function createLocation(payload: LocationPayload): Promise<Location
       companyId: DEV_FALLBACK_COMPANY_ID,
       code: payload.code,
       name: payload.name,
-      description: payload.description,
       type: payload.type,
-      parentLocationId: payload.parentLocationId,
-      active: payload.active ?? true,
-      isBlocked: payload.isBlocked ?? false,
-      capacity: payload.capacity,
-      capacityUnit: payload.capacityUnit ?? 'UNITS',
+      businessName: payload.businessName ?? null,
+      rut: payload.rut ?? null,
+      description: payload.description ?? null,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4490,16 +4599,19 @@ export async function updateLocation(id: string, payload: LocationPayload): Prom
   return withOfflineFallback(
     'updateLocation',
     async () => {
-      const { data } = await api.put<Location>(`/api/locations/${id}`, payload)
+      const { data } = await api.put<Location>(`/v1/inventory/locations/${id}`, payload)
       return data
     },
     () => ({
       id,
       companyId: DEV_FALLBACK_COMPANY_ID,
-      ...payload,
-      active: payload.active ?? true,
-      isBlocked: payload.isBlocked ?? false,
-      capacityUnit: payload.capacityUnit ?? 'UNITS',
+      code: payload.code,
+      name: payload.name,
+      type: payload.type,
+      businessName: payload.businessName ?? null,
+      rut: payload.rut ?? null,
+      description: payload.description ?? null,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4510,7 +4622,7 @@ export async function deleteLocation(id: string): Promise<void> {
   return withOfflineFallback(
     'deleteLocation',
     async () => {
-      await api.delete(`/api/locations/${id}`)
+      await api.delete(`/v1/inventory/locations/${id}`)
     },
     () => {}
   )
@@ -4534,7 +4646,9 @@ export async function getLocationStockSummary(): Promise<LocationStockSummary[]>
   return withOfflineFallback(
     'getLocationStockSummary',
     async () => {
-      const { data } = await api.get<LocationStockSummary[]>('/api/locations/stock-summary')
+      const { data } = await api.get<LocationStockSummary[]>(
+        '/v1/inventory/locations/stock-summary'
+      )
       return data
     },
     () => []
@@ -4542,14 +4656,17 @@ export async function getLocationStockSummary(): Promise<LocationStockSummary[]>
 }
 
 // Services API
+export type ServiceStatus = 'ACTIVE' | 'INACTIVE'
+
 export type ServiceDTO = {
   id: string
   companyId: string
   code: string
   name: string
-  description?: string
-  lastPurchaseDate?: string
-  active: boolean
+  description?: string | null
+  category?: string | null
+  unitPrice: number
+  status: ServiceStatus
   createdAt: string
   updatedAt: string
 }
@@ -4558,15 +4675,20 @@ export type ServicePayload = {
   code: string
   name: string
   description?: string
-  active?: boolean
+  category?: string
+  unitPrice: number
+  status?: ServiceStatus
 }
 
-export async function listServices(active?: boolean): Promise<ServiceDTO[]> {
+export type ListServicesParams = {
+  status?: ServiceStatus
+}
+
+export async function listServices(params?: ListServicesParams): Promise<ServiceDTO[]> {
   return withOfflineFallback(
     'listServices',
     async () => {
-      const params = active !== undefined ? { active } : {}
-      const { data } = await api.get<ServiceDTO[]>('/api/services', { params })
+      const { data } = await api.get<ServiceDTO[]>('/v1/services', { params })
       return data
     },
     () => []
@@ -4577,14 +4699,18 @@ export async function createService(payload: ServicePayload): Promise<ServiceDTO
   return withOfflineFallback(
     'createService',
     async () => {
-      const { data } = await api.post<ServiceDTO>('/api/services', payload)
+      const { data } = await api.post<ServiceDTO>('/v1/services', payload)
       return data
     },
     () => ({
       id: crypto.randomUUID(),
       companyId: DEV_FALLBACK_COMPANY_ID,
-      ...payload,
-      active: payload.active ?? true,
+      code: payload.code,
+      name: payload.name,
+      description: payload.description ?? null,
+      category: payload.category ?? null,
+      unitPrice: payload.unitPrice,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4595,14 +4721,18 @@ export async function updateService(id: string, payload: ServicePayload): Promis
   return withOfflineFallback(
     'updateService',
     async () => {
-      const { data } = await api.put<ServiceDTO>(`/api/services/${id}`, payload)
+      const { data } = await api.put<ServiceDTO>(`/api/v1/services/${id}`, payload)
       return data
     },
     () => ({
       id,
       companyId: DEV_FALLBACK_COMPANY_ID,
-      ...payload,
-      active: payload.active ?? true,
+      code: payload.code,
+      name: payload.name,
+      description: payload.description ?? null,
+      category: payload.category ?? null,
+      unitPrice: payload.unitPrice,
+      status: payload.status ?? 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -4613,7 +4743,7 @@ export async function deleteService(id: string): Promise<void> {
   return withOfflineFallback(
     'deleteService',
     async () => {
-      await api.delete(`/api/services/${id}`)
+      await api.delete(`/api/v1/services/${id}`)
     },
     () => {}
   )
@@ -4860,10 +4990,205 @@ export async function getAccountsPayable(params?: {
   return data
 }
 
+export async function getAccountsReceivableBuckets(): Promise<PaymentBucketSummary[]> {
+  const { data } = await api.get<PaymentBucketSummary[]>('/v1/finances/accounts-receivable/buckets')
+  return data
+}
+
+export async function getAccountsPayableBuckets(): Promise<PaymentBucketSummary[]> {
+  const { data } = await api.get<PaymentBucketSummary[]>('/v1/finances/accounts-payable/buckets')
+  return data
+}
+
+export interface TrendDataPoint {
+  timestamp: string
+  total: number
+  count: number
+}
+
+export interface GetTrendsParams {
+  from: string // yyyy-MM-dd
+  to: string // yyyy-MM-dd
+  granularity?: 'auto' | 'day' | 'month' | 'quarter' | 'year'
+}
+
+export async function getTrends(params: GetTrendsParams): Promise<TrendDataPoint[]> {
+  const { data } = await api.get<TrendDataPoint[]>('/v1/analytics/trends', { params })
+  return data
+}
+
 export async function getCashflowProjection(days: number = 30): Promise<CashflowProjection[]> {
   const { data } = await api.get<CashflowProjection[]>('/v1/finances/cashflow', {
     params: { days },
   })
+  return data
+}
+
+// ============= INVENTORY INTEGRATION TYPES =============
+
+export type AllocationMode = 'AUTOMATIC_FIFO' | 'MANUAL'
+export type SaleDocumentType = 'FACTURA' | 'BOLETA' | 'NOTA_CREDITO' | 'NOTA_DEBITO' | 'GUIA_DESPACHO' | 'COTIZACION'
+export type PurchaseDocumentType = 'FACTURA' | 'BOLETA' | 'NOTA_CREDITO' | 'NOTA_DEBITO' | 'GUIA_DESPACHO'
+
+export interface SaleInventoryItemRequest {
+  productId: string
+  quantity: number
+  unitPrice: number
+  locationId: string
+}
+
+export interface SaleInventoryRequest {
+  documentType: SaleDocumentType
+  documentNumber: string
+  customerId: string
+  issueDate: string
+  items: SaleInventoryItemRequest[]
+  allocationMode: AllocationMode
+}
+
+export interface ManualLotAllocation {
+  lotId: string
+  quantity: number
+}
+
+export interface SaleManualInventoryItemRequest {
+  productId: string
+  totalQuantity: number
+  unitPrice: number
+  lotAllocations: ManualLotAllocation[]
+}
+
+export interface SaleManualInventoryRequest {
+  documentType: SaleDocumentType
+  documentNumber: string
+  customerId: string
+  issueDate: string
+  items: SaleManualInventoryItemRequest[]
+}
+
+export interface LotAllocationDetail {
+  lotId: string
+  batchName: string
+  quantity: number
+  expirationDate?: string
+  locationName: string
+}
+
+export interface ItemAllocationDetail {
+  productId: string
+  productName: string
+  totalQuantity: number
+  lotAllocations: LotAllocationDetail[]
+}
+
+export interface SaleInventoryResult {
+  saleId?: string
+  transactionIds: string[]
+  message: string
+  allocations: ItemAllocationDetail[]
+}
+
+export interface PurchaseInventoryItemRequest {
+  productId: string
+  quantity: number
+  unitCost: number
+  batchName?: string
+  expirationDate?: string
+  locationId: string
+}
+
+export interface PurchaseInventoryRequest {
+  documentType: PurchaseDocumentType
+  documentNumber: string
+  supplierId: string
+  issueDate: string
+  items: PurchaseInventoryItemRequest[]
+}
+
+export interface PurchaseInventoryResult {
+  purchaseId?: string
+  transactionIds: string[]
+  message: string
+}
+
+export interface ValidationError {
+  field: string
+  message: string
+  severity: 'CRITICAL' | 'WARNING'
+}
+
+export interface ValidationResult {
+  valid: boolean
+  errors: ValidationError[]
+  message: string
+}
+
+export interface LotAvailabilityDTO {
+  lotId: string
+  batchName: string
+  availableQuantity: number
+  expirationDate?: string
+  locationId: string
+  locationName: string
+  createdAt: string
+}
+
+// ============= PURCHASE INVENTORY INTEGRATION API =============
+
+export async function createPurchaseWithInventory(
+  request: PurchaseInventoryRequest
+): Promise<PurchaseInventoryResult> {
+  const { data } = await api.post<PurchaseInventoryResult>('/v1/purchases/with-inventory', request)
+  return data
+}
+
+export async function validatePurchase(request: PurchaseInventoryRequest): Promise<ValidationResult> {
+  const { data } = await api.post<ValidationResult>('/v1/purchases/validate', request)
+  return data
+}
+
+// ============= SALES INVENTORY INTEGRATION API =============
+
+export async function createSaleWithAutomaticAllocation(
+  request: SaleInventoryRequest
+): Promise<SaleInventoryResult> {
+  const { data } = await api.post<SaleInventoryResult>('/v1/sales/with-automatic-allocation', request)
+  return data
+}
+
+export async function createSaleWithManualAllocation(
+  request: SaleManualInventoryRequest
+): Promise<SaleInventoryResult> {
+  const { data } = await api.post<SaleInventoryResult>('/v1/sales/with-manual-allocation', request)
+  return data
+}
+
+export async function getAvailableLots(
+  productId: string,
+  companyId: string
+): Promise<LotAvailabilityDTO[]> {
+  const { data } = await api.get<LotAvailabilityDTO[]>(`/v1/sales/available-lots/${productId}`, {
+    params: { companyId },
+  })
+  return data
+}
+
+export async function getAvailableLotsInLocation(
+  productId: string,
+  locationId: string,
+  companyId: string
+): Promise<LotAvailabilityDTO[]> {
+  const { data } = await api.get<LotAvailabilityDTO[]>(
+    `/v1/sales/available-lots/${productId}/location/${locationId}`,
+    {
+      params: { companyId },
+    }
+  )
+  return data
+}
+
+export async function validateSale(request: SaleInventoryRequest): Promise<ValidationResult> {
+  const { data } = await api.post<ValidationResult>('/v1/sales/validate', request)
   return data
 }
 
