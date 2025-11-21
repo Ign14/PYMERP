@@ -40,9 +40,11 @@ export async function getLocations(
   const response = await api.get<Page<LocationApiResponse>>('/v1/inventory/locations', {
     params,
   })
+  const page = response.data ?? { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 }
+  const content = Array.isArray(page.content) ? page.content : []
   return {
-    ...response.data,
-    content: response.data.content.map(mapLocationResponse),
+    ...page,
+    content: content.map(mapLocationResponse),
   }
 }
 
