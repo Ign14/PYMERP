@@ -60,6 +60,8 @@ app:
   cache:
     redis:
       enabled: false
+  tenancy:
+    default-company-id: 00000000-0000-0000-0000-000000000001
   security:
     jwt:
       oidc-enabled: false
