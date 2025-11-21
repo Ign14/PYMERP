@@ -5,6 +5,8 @@ spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   datasource:
     url: "jdbc:h2:mem:pymes;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
     driver-class-name: org.h2.Driver
@@ -55,6 +57,9 @@ billing:
     documents-base-url: http://localhost:8081/api/v1
 
 app:
+  cache:
+    redis:
+      enabled: false
   security:
     jwt:
       oidc-enabled: false
