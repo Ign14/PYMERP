@@ -5,6 +5,7 @@ import {
   createLocation,
   InventoryLocation,
   InventoryLocationPayload,
+  LocationType,
   updateLocation,
 } from '../../../services/inventory'
 
@@ -22,14 +23,24 @@ type FormState = {
   name: string
   description: string
   enabled: boolean
+  type: LocationType
 }
 
 const CODE_PATTERN = /^[A-Z0-9-_]{2,32}$/
+const TYPE_OPTIONS: { value: LocationType; label: string }[] = [
+  { value: 'BODEGA', label: 'Bodega' },
+  { value: 'LOCAL', label: 'Local' },
+  { value: 'CONTAINER', label: 'Container' },
+  { value: 'CAMION', label: 'Camión' },
+  { value: 'CAMIONETA', label: 'Camioneta' },
+]
+
 const EMPTY_FORM: FormState = {
   code: '',
   name: '',
   description: '',
   enabled: true,
+  type: 'BODEGA',
 }
 
 export default function LocationForm({
@@ -55,6 +66,7 @@ export default function LocationForm({
         name: location.name ?? '',
         description: location.description ?? '',
         enabled: location.enabled,
+        type: location.type ?? 'BODEGA',
       })
     } else {
       setForm(EMPTY_FORM)
@@ -115,15 +127,15 @@ export default function LocationForm({
       nextErrors.name = 'Ya existe una ubicación con ese nombre'
     }
 
-    if (code) {
-      if (!CODE_PATTERN.test(code)) {
-        nextErrors.code = 'Código inválido (solo A-Z, 0-9, -, _ ; 2-32 caracteres)'
-      } else if (
-        normalizedCodes.includes(code) &&
-        (!location || (location.code ?? '').toUpperCase() !== code)
-      ) {
-        nextErrors.code = 'Ya existe una ubicación con ese código'
-      }
+    if (!code) {
+      nextErrors.code = 'El código es obligatorio'
+    } else if (!CODE_PATTERN.test(code)) {
+      nextErrors.code = 'Código inválido (solo A-Z, 0-9, -, _ ; 2-32 caracteres)'
+    } else if (
+      normalizedCodes.includes(code) &&
+      (!location || (location.code ?? '').toUpperCase() !== code)
+    ) {
+      nextErrors.code = 'Ya existe una ubicación con ese código'
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -132,10 +144,12 @@ export default function LocationForm({
     }
 
     const payload: InventoryLocationPayload = {
-      code: code || undefined,
+      code,
       name,
       description: form.description.trim() || undefined,
       enabled: form.enabled,
+      type: form.type,
+      status: form.enabled ? 'ACTIVE' : 'BLOCKED',
     }
     mutation.mutate(payload)
   }
@@ -160,7 +174,7 @@ export default function LocationForm({
           {errors.name ? <p className="error">{errors.name}</p> : null}
         </label>
         <label>
-          <span>Código</span>
+          <span>Código *</span>
           <input
             className={`input${errors.code ? ' input-error' : ''}`}
             value={form.code}
@@ -168,8 +182,25 @@ export default function LocationForm({
             placeholder="BOD-001"
             disabled={isPending}
             maxLength={32}
+            required
           />
           {errors.code ? <p className="error">{errors.code}</p> : null}
+        </label>
+        <label>
+          <span>Tipo *</span>
+          <select
+            className="input"
+            value={form.type}
+            onChange={event => handleChange('type', event.target.value as LocationType)}
+            disabled={isPending}
+            required
+          >
+            {TYPE_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span>Descripción</span>

@@ -58,9 +58,9 @@ describe('LocationForm', () => {
     const codeInput = screen.getByLabelText(/Código/i)
     await userEvent.type(codeInput, 'bod-1')
 
-    const form = screen.getByRole('form')
+    const submitButton = screen.getByRole('button', { name: /crear/i })
     await act(async () => {
-      fireEvent.submit(form)
+      await userEvent.click(submitButton)
     })
 
     await waitFor(() => expect(createLocationMock).toHaveBeenCalled())
@@ -69,6 +69,8 @@ describe('LocationForm', () => {
       code: 'BOD-1',
       description: undefined,
       enabled: true,
+      type: 'BODEGA',
+      status: 'ACTIVE',
     })
     await waitFor(() => expect(saved).toHaveBeenCalled())
     expect(closed).toHaveBeenCalled()
@@ -82,9 +84,9 @@ describe('LocationForm', () => {
     await userEvent.type(screen.getByLabelText(/Nombre \*/i), 'Bodega')
     await userEvent.type(screen.getByLabelText(/Código/i), 'BOD01')
 
-    const form = screen.getByRole('form')
+    const submitButton = screen.getByRole('button', { name: /crear/i })
     await act(async () => {
-      fireEvent.submit(form)
+      await userEvent.click(submitButton)
     })
 
     expect(await screen.findByText(/Ya existe/i)).toBeInTheDocument()
